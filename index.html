@@ -51,6 +51,7 @@
     <button class="tab-btn" data-tab="historico"><span class="tab-icon">🧾</span><span>Histórico</span></button>
     <button class="tab-btn" data-tab="graficos"><span class="tab-icon">📈</span><span>Gráficos</span></button>
     <button class="tab-btn" data-tab="relatorios"><span class="tab-icon">🗓️</span><span>Relatórios</span></button>
+    <button class="tab-btn" data-tab="auditoria"><span class="tab-icon">🕵️</span><span>Auditoria</span></button>
     <button class="tab-btn" data-tab="config"><span class="tab-icon">⚙️</span><span>Config.</span></button>
   </nav>
 
@@ -131,6 +132,7 @@
       </div>
 
       <div id="contratosList" class="cards-list"></div>
+      <div id="contratosPagination" class="pagination"></div>
     </section>
 
     <!-- ---------- ATRASOS ---------- -->
@@ -208,6 +210,26 @@
           <tbody id="relatorioTabelaBody"></tbody>
         </table>
       </div>
+
+      <div class="card table-card">
+        <h3>Comparativo anual</h3>
+        <p class="modal-subtitle">Totais de cada ano lado a lado, para comparar a evolução ano a ano.</p>
+        <table class="report-table">
+          <thead>
+            <tr><th>Ano</th><th>Total pago</th><th>Total em atraso</th><th>Contratos no ano</th></tr>
+          </thead>
+          <tbody id="comparativoAnualBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ---------- AUDITORIA ---------- -->
+    <section id="tab-auditoria" class="tab-panel">
+      <div class="panel-header">
+        <h2>Auditoria</h2>
+      </div>
+      <p class="modal-subtitle">Registro dos últimos eventos importantes do sistema: contratos criados/editados/excluídos, pagamentos registrados e usuários adicionados/removidos.</p>
+      <div id="auditoriaList" class="cards-list"></div>
     </section>
 
     <!-- ---------- CONFIG ---------- -->
@@ -270,6 +292,28 @@
           <p id="accountError" class="error-msg hidden"></p>
           <button type="submit" class="btn btn-primary">Salvar alterações</button>
           <p id="accountSaved" class="success-msg hidden">Dados de acesso atualizados!</p>
+        </form>
+      </div>
+
+      <div class="card">
+        <h3>Usuários administradores</h3>
+        <p class="modal-subtitle">Adicione outros usuários com acesso total ao sistema (ex: um sócio ou gerente). Todos têm as mesmas permissões.</p>
+        <div id="usersList" class="cards-list"></div>
+        <form id="addUserForm" class="config-form" style="margin-top:14px;">
+          <label class="field">
+            <span>Novo usuário *</span>
+            <input type="text" id="newUserUsername" required autocomplete="off">
+          </label>
+          <label class="field">
+            <span>Senha *</span>
+            <input type="password" id="newUserPassword" required autocomplete="new-password">
+          </label>
+          <label class="field">
+            <span>Confirmar senha *</span>
+            <input type="password" id="newUserConfirmPassword" required autocomplete="new-password">
+          </label>
+          <p id="addUserError" class="error-msg hidden"></p>
+          <button type="submit" class="btn btn-primary">Adicionar usuário</button>
         </form>
       </div>
 

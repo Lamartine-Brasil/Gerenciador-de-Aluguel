@@ -9,10 +9,11 @@ $username = trim((string)($input['username'] ?? ''));
 $password = (string)($input['password'] ?? '');
 
 $auth = readAuth();
+$user = findUserByUsername($auth, $username);
 
-if (hash_equals($auth['username'], $username) && password_verify($password, $auth['passwordHash'])) {
-    issueAuthCookie($auth['username']);
-    echo json_encode(['ok' => true, 'username' => $auth['username']]);
+if ($user !== null && password_verify($password, $user['passwordHash'])) {
+    issueAuthCookie($user['username']);
+    echo json_encode(['ok' => true, 'username' => $user['username']]);
 } else {
     http_response_code(401);
     echo json_encode(['ok' => false, 'error' => 'Usuário ou senha incorretos.']);

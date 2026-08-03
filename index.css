@@ -130,6 +130,7 @@ button, input, select, textarea { font-family: inherit; }
   white-space: nowrap;
 }
 .btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.45; cursor: default; }
 
 .btn-primary { background: var(--accent); color: #fff; }
 .btn-primary:hover { background: var(--accent-hover); }
@@ -305,6 +306,9 @@ button, input, select, textarea { font-family: inherit; }
 .contrato-grid div strong { font-size: 14px; }
 
 .contrato-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+
+.pagination { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 16px; }
+.pagination-info { font-size: 13px; color: var(--text-dim); }
 
 /* ===================== TOOLBAR ===================== */
 .toolbar {

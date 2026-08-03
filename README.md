@@ -84,11 +84,16 @@ Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servid
 - **Histórico** — todos os pagamentos já registrados, com exportação em CSV
 - **Gráficos** — contratos ativos vs. atrasados vs. pagos, e evolução do atraso nos
   últimos 6 meses
-- **Relatórios** — totais mês a mês e no ano, por contratos pagos/atrasados
+- **Relatórios** — totais mês a mês e no ano, por contratos pagos/atrasados, e um
+  comparativo com todos os anos lado a lado
+- **Auditoria** — histórico dos eventos principais (contrato criado/editado/excluído,
+  pagamento registrado, usuário adicionado/removido), com quem fez e quando
 - **Exportar/Importar** — contratos em CSV, relatório em PDF (direto do navegador, sem
   bibliotecas), e backup completo em JSON para copiar todos os dados de um lugar pra outro
-- **Tema claro/escuro** — alternável a qualquer momento, fica salvo no navegador
-- **Login protegido** — sessão de 30 dias, não desloga ao fechar o navegador
+- **Tema claro/escuro** — segue automaticamente o tema do seu sistema operacional até você
+  escolher manualmente; a partir daí fica salvo no navegador
+- **Login protegido** — sessão de 30 dias, não desloga ao fechar o navegador. Suporta
+  múltiplos usuários administradores, todos com o mesmo nível de acesso
 
 ## Perguntas frequentes
 
@@ -96,8 +101,9 @@ Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servid
 Não. Tudo é salvo em dois arquivos JSON dentro da pasta `data/`, criados automaticamente.
 
 **Posso ter mais de um usuário administrador?**
-Não por enquanto — o sistema foi pensado para um único administrador. É uma possível
-melhoria futura.
+Sim. Em **Configurações → Usuários administradores** você adiciona outros usuários (ex:
+um sócio ou gerente). Todos têm o mesmo nível de acesso — não existe usuário "só leitura".
+Não é possível remover a si mesmo nem remover o último usuário restante.
 
 **O sistema manda e-mail avisando de vencimento?**
 Não, essa decisão foi consciente (exigiria configurar SMTP na hospedagem, com risco de
@@ -105,8 +111,11 @@ cair em spam). O aviso de vencimento aparece só dentro do Dashboard quando voc�
 o sistema.
 
 **Perdi a senha, e agora?**
-Veja a seção [Acesso padrão](#acesso-padrão-leia-antes-de-usar) acima — apague
-`data/auth.json` no servidor para resetar para o padrão.
+Se existir outro usuário administrador com acesso, ele pode entrar em **Configurações →
+Usuários administradores**, remover o seu usuário e cadastrar um novo. Se você for o único
+usuário, veja a seção [Acesso padrão](#acesso-padrão-leia-antes-de-usar) acima — apague
+`data/auth.json` no servidor para resetar para o padrão (isso remove **todos** os usuários
+cadastrados, não só o seu).
 
 ## Para quem quer entender o código
 
@@ -124,11 +133,14 @@ api/login.php        POST { username, password } -> autentica e emite cookie
 api/logout.php       POST -> limpa o cookie
 api/session.php      GET -> { authenticated, username }
 api/data.php         GET lê / POST grava data/dados.json (exige autenticação)
-api/account.php      POST { currentPassword, newUsername, newPassword } -> troca
-                      usuário/senha em data/auth.json (exige autenticação + senha atual)
+api/account.php      POST { currentPassword, newUsername, newPassword } -> troca o
+                      próprio usuário/senha em data/auth.json (exige senha atual)
+api/users.php         GET lista os usuários administradores; POST { action: 'add' | 'remove', ... }
+                      adiciona ou remove outros usuários (exige autenticação)
 
-data/dados.json      Contratos, pagamentos e configuração (criado automaticamente)
-data/auth.json       Usuário + hash da senha (criado automaticamente, password_hash)
+data/dados.json      Contratos, pagamentos, configuração e auditoria (criado automaticamente)
+data/auth.json       Lista de usuários administradores + hash de senha de cada um
+                      (criado automaticamente, password_hash)
 data/.htaccess       Bloqueia acesso direto via URL a tudo dentro de data/
 ```
 
@@ -137,14 +149,20 @@ data/.htaccess       Bloqueia acesso direto via URL a tudo dentro de data/
 O login usa um cookie de sessão assinado com HMAC-SHA256 — **não** usa `session_start()`
 do PHP. Isso significa que não há estado de sessão guardado no servidor: o próprio cookie
 carrega usuário + validade + assinatura, e a assinatura é validada comparando com a chave
-`COOKIE_SECRET` e com o usuário atual salvo em `data/auth.json`. O cookie dura 30 dias e é
-`HttpOnly` + `SameSite=Lax`.
+`COOKIE_SECRET` e com a lista de usuários salva em `data/auth.json` (o usuário do cookie
+precisa continuar existindo nessa lista — se for removido, a sessão é invalidada
+imediatamente). O cookie dura 30 dias e é `HttpOnly` + `SameSite=Lax`.
+
+`data/auth.json` guarda uma lista de usuários (`{ users: [{ id, username, passwordHash }] }`),
+todos com o mesmo nível de acesso. Instalações antigas que tinham só `{ username,
+passwordHash }` são migradas automaticamente para o novo formato no primeiro acesso,
+sem exigir nenhuma ação manual.
 
 ### Arquitetura geral
 
 - **Front-end**: `index.html` + `index.css` + `index.js`. Aplicação de página única (SPA):
-  as "abas" (Dashboard, Contratos, Atrasos, Histórico, Gráficos, Relatórios, Configurações)
-  são seções que aparecem/somem no mesmo HTML, sem recarregar a página.
+  as "abas" (Dashboard, Contratos, Atrasos, Histórico, Gráficos, Relatórios, Auditoria,
+  Configurações) são seções que aparecem/somem no mesmo HTML, sem recarregar a página.
 - **Backend**: PHP puro em `api/`, sem framework. Cada endpoint é um arquivo `.php`
   independente. Toda a comunicação front-end ↔ backend é via `fetch()` com JSON.
 - **Dados**: dois arquivos JSON em `data/`, protegidos contra acesso direto via `.htaccess`.
@@ -181,7 +199,9 @@ senão `atrasado` se hoje > vencimento; senão `ativo`.
 | Campo         | Tipo   | Descrição                                  |
 |---------------|--------|----------------------------------------------|
 | `data`        | string `AAAA-MM-DD` | Data em que o pagamento foi feito     |
-| `valor`       | number | Valor pago                                    |
+| `desconto`    | number | Desconto aplicado a este pagamento (opcional) |
+| `valor`       | number | Valor pago (já descontado, se houver desconto)|
+| `forma`       | string | Forma de pagamento: `Dinheiro` ou `Pix`       |
 | `quemRecebeu` | string | Quem recebeu (banco, PIX, transferência...)   |
 | `observacao`  | string | Observação do pagamento                       |
 
@@ -191,10 +211,24 @@ senão `atrasado` se hoje > vencimento; senão `ativo`.
 |---------------------|--------|--------------------------------------------------------|
 | `taxaJurosMensal`   | 1 (%)  | Taxa de juros mensal aplicada sobre o total em atraso  |
 | `taxaMultaPercent`  | 2 (%)  | Multa fixa aplicada uma vez que o contrato atrasa      |
+| `jurosPadrao`       | 0 (R$) | Valor de juros pré-preenchido ao criar um novo contrato|
+| `multaPadrao`       | 0 (R$) | Valor de multa pré-preenchido ao criar um novo contrato|
 
 Cálculo do atraso atual (função `calcAtrasoAtual` em `index.js`): se o contrato já está
 atrasado, soma `valorAtrasoBase` + (`total` × `taxaJurosMensal`/100 × meses de atraso)
 + (`total` × `taxaMultaPercent`/100).
+
+#### Auditoria (array `auditoria` em `data/dados.json`)
+
+| Campo       | Tipo               | Descrição                                             |
+|-------------|--------------------|--------------------------------------------------------|
+| `id`        | string             | Identificador único do evento                          |
+| `timestamp` | number (ms)        | Quando o evento aconteceu                               |
+| `usuario`   | string             | Nome do usuário logado que realizou a ação              |
+| `acao`      | string             | Tipo do evento (`contrato_criado`, `contrato_editado`, `contrato_excluido`, `pagamento_registrado`, `usuario_adicionado`, `usuario_removido`) |
+| `descricao` | string             | Texto legível do evento, mostrado na aba Auditoria      |
+
+Mantém só os últimos 300 eventos — os mais antigos são descartados automaticamente.
 
 ### Requisitos técnicos
 
@@ -211,7 +245,8 @@ atrasado, soma `valorAtrasoBase` + (`total` × `taxaJurosMensal`/100 × meses de
 
 ### Ideias para o futuro
 
-- Dark/Light mode com detecção automática do tema do sistema operacional
-- Paginação na lista de contratos (hoje carrega tudo de uma vez)
-- Relatório anual comparando ano a ano
-- Múltiplos usuários administradores
+- Papéis de permissão distintos entre usuários administradores (hoje todos têm o mesmo
+  nível de acesso)
+- Auditoria em nível de campo (valor antigo vs. novo em cada edição)
+- Anexar arquivos ao contrato, recibo em PDF por pagamento, pagamento parcial, e outras
+  ideias detalhadas em `etapas.txt`

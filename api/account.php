@@ -16,9 +16,14 @@ $currentPassword = (string)($input['currentPassword'] ?? '');
 $newUsername = trim((string)($input['newUsername'] ?? ''));
 $newPassword = (string)($input['newPassword'] ?? '');
 
+$currentUsername = getAuthenticatedUsername();
 $auth = readAuth();
+$userIndex = null;
+foreach ($auth['users'] as $i => $u) {
+    if (hash_equals($u['username'], $currentUsername)) { $userIndex = $i; break; }
+}
 
-if (!password_verify($currentPassword, $auth['passwordHash'])) {
+if ($userIndex === null || !password_verify($currentPassword, $auth['users'][$userIndex]['passwordHash'])) {
     http_response_code(401);
     echo json_encode(['ok' => false, 'error' => 'Senha atual incorreta.']);
     exit;
@@ -36,9 +41,17 @@ if ($newPassword !== '' && strlen($newPassword) < 4) {
     exit;
 }
 
-$auth['username'] = $newUsername;
+foreach ($auth['users'] as $i => $u) {
+    if ($i !== $userIndex && strcasecmp($u['username'], $newUsername) === 0) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Já existe outro usuário com esse nome.']);
+        exit;
+    }
+}
+
+$auth['users'][$userIndex]['username'] = $newUsername;
 if ($newPassword !== '') {
-    $auth['passwordHash'] = password_hash($newPassword, PASSWORD_DEFAULT);
+    $auth['users'][$userIndex]['passwordHash'] = password_hash($newPassword, PASSWORD_DEFAULT);
 }
 
 if (!writeAuth($auth)) {
@@ -47,5 +60,5 @@ if (!writeAuth($auth)) {
     exit;
 }
 
-issueAuthCookie($auth['username']);
-echo json_encode(['ok' => true, 'username' => $auth['username']]);
+issueAuthCookie($newUsername);
+echo json_encode(['ok' => true, 'username' => $newUsername]);

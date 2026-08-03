@@ -14,6 +14,11 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
 - [x] Troca de usuário/senha pela tela de Configurações (exige senha atual)
 - [x] Usuário/senha padrão: `admin` / `123456` (só na primeira execução)
 - [x] Senha sempre salva com `password_hash` (nunca texto puro)
+- [x] Múltiplos usuários administradores, todos com as mesmas permissões (acesso total).
+      Em Configurações: listar, adicionar e remover outros usuários. Não é possível
+      remover a si mesmo nem remover o último usuário restante. `data/auth.json` antigo
+      (usuário único) é migrado automaticamente para o novo formato com lista de
+      usuários no primeiro acesso, sem exigir nenhuma ação manual
 
 ### Dashboard
 - [x] Card: total de contratos ativos
@@ -33,6 +38,9 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
       "valores padrão" configurados em Configurações — evita digitar sempre. Se o
       usuário alterar o valor no formulário, o valor digitado prevalece e é o que é salvo
 - [x] Registrar pagamento em um clique, com modal dedicado (ver "Pagamentos" abaixo)
+- [x] Lista paginada (20 contratos por página), com botões Anterior/Próxima e indicador
+      de página — evita lentidão com uma base grande de contratos. A página volta para 1
+      automaticamente ao mudar busca ou filtros
 
 ### Pagamentos
 - [x] Modal "Registrar pagamento" com: data, valor pago, desconto, forma de pagamento,
@@ -67,6 +75,15 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
 - [x] Aba "Relatórios" com seletor de ano
 - [x] Tabela mensal: total pago, total em atraso, contratos no período
 - [x] Totais anuais somados
+- [x] Comparativo anual: tabela com todos os anos que têm dados lado a lado (total pago,
+      total em atraso, contratos no ano), para comparar a evolução de um ano para o outro
+      sem precisar trocar o seletor repetidamente
+
+### Auditoria
+- [x] Aba dedicada com o histórico dos eventos principais do sistema: contrato criado,
+      editado ou excluído; pagamento registrado; usuário administrador adicionado ou
+      removido — cada entrada mostra o quê, quem fez e quando
+- [x] Lista ordenada do mais recente para o mais antigo, mantendo os últimos 300 eventos
 
 ### Exportação / Importação
 - [x] Exportar CSV dos contratos (respeita filtros ativos)
@@ -87,6 +104,10 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
 
 ### Tema
 - [x] Alternância dark/light, preferência salva no navegador
+- [x] Detecção automática do tema do sistema operacional na primeira visita (antes de
+      qualquer escolha manual); acompanha mudanças do tema do SO em tempo real enquanto
+      não houver preferência salva. Assim que o usuário alterna manualmente, essa escolha
+      passa a valer sempre e o acompanhamento automático para
 
 ### Backend / infraestrutura
 - [x] Todos os dados gravados em arquivos no servidor (`data/dados.json`, `data/auth.json`)
@@ -113,34 +134,33 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
 
 ## IDEIAS PARA O FUTURO (não solicitadas ainda)
 
-1. Múltiplos usuários administradores, com permissões distintas (hoje é só um usuário
-   fixo em `auth.json`)
-2. Paginação (ou scroll virtual) na lista de contratos — hoje carrega tudo de uma vez,
-   o que pode ficar lento com uma base grande de contratos
-3. Dark/Light mode com detecção automática do tema do sistema operacional
-4. Relatório anual comparando ano a ano (ex: 2025 vs. 2026), não só mês a mês
-5. Histórico de alterações (auditoria) — quem editou o quê e quando em cada contrato
-6. Anexar arquivos ao contrato (contrato assinado em PDF, comprovantes de pagamento)
-7. Campo de telefone/e-mail do inquilino, com atalho para WhatsApp direto na lista
+1. Anexar arquivos ao contrato (contrato assinado em PDF, comprovantes de pagamento)
+2. Campo de telefone/e-mail do inquilino, com atalho para WhatsApp direto na lista
    de contratos
-8. Geração automática de recibo em PDF por pagamento individual (hoje o PDF é só o
+3. Geração automática de recibo em PDF por pagamento individual (hoje o PDF é só o
    relatório geral de contratos)
-9. Renovação de contrato com um clique (duplica o contrato para o próximo período,
+4. Renovação de contrato com um clique (duplica o contrato para o próximo período,
    mantendo inquilino/imóvel/valores)
-10. Suporte a pagamento parcial (registrar um valor menor que o total, mantendo o
-    contrato em aberto com saldo restante)
-11. Mais formas de pagamento além de Dinheiro/Pix (ex: Boleto, Transferência, Cartão)
-12. Notificação dentro do navegador (Web Push) para avisos de vencimento, sem precisar
-    de e-mail/SMTP
-13. Exportação de relatórios também em Excel (.xlsx), além de CSV e PDF
-14. Gráfico de inadimplência por inquilino/imóvel (quem mais atrasa)
-15. Campo de reajuste anual do aluguel (ex: índice IGP-M/IPCA), com lembrete automático
+5. Suporte a pagamento parcial (registrar um valor menor que o total, mantendo o
+   contrato em aberto com saldo restante)
+6. Mais formas de pagamento além de Dinheiro/Pix (ex: Boleto, Transferência, Cartão)
+7. Notificação dentro do navegador (Web Push) para avisos de vencimento, sem precisar
+   de e-mail/SMTP
+8. Exportação de relatórios também em Excel (.xlsx), além de CSV e PDF
+9. Gráfico de inadimplência por inquilino/imóvel (quem mais atrasa)
+10. Campo de reajuste anual do aluguel (ex: índice IGP-M/IPCA), com lembrete automático
     na data de aniversário do contrato
-16. Modo multi-imóvel/multi-proprietário — separar contratos por carteira, útil para
+11. Modo multi-imóvel/multi-proprietário — separar contratos por carteira, útil para
     quem administra imóveis de terceiros
-17. Backup automático agendado (ex: gerar e salvar um `.json` de backup toda semana
+12. Backup automático agendado (ex: gerar e salvar um `.json` de backup toda semana
     no próprio servidor, sem precisar acionar manualmente)
-18. Atalhos de teclado para ações comuns (novo contrato, buscar, fechar modal)
-19. Modo de visualização em calendário, mostrando vencimentos e pagamentos por mês
-20. Progressive Web App (PWA) — permitir "instalar" o sistema no celular com ícone
+13. Atalhos de teclado para ações comuns (novo contrato, buscar, fechar modal)
+14. Modo de visualização em calendário, mostrando vencimentos e pagamentos por mês
+15. Progressive Web App (PWA) — permitir "instalar" o sistema no celular com ícone
     próprio e uso básico offline
+16. Papéis de permissão distintos entre usuários administradores (ex: um usuário só de
+    visualização/relatórios, sem poder excluir dados) — hoje todos os usuários têm
+    acesso total e igual
+17. Auditoria em nível de campo (diff campo a campo, com valor antigo e novo) — hoje o
+    log de auditoria registra só o evento principal (o quê, quem, quando), sem detalhar
+    exatamente o que mudou em cada edição

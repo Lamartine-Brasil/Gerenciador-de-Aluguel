@@ -25,22 +25,29 @@ function clearAuthCookie() {
     ]);
 }
 
-function isAuthenticated() {
-    if (empty($_COOKIE[COOKIE_NAME])) return false;
+// Retorna o username validado do cookie de sessão atual, ou null se não
+// houver sessão válida (cookie ausente, assinatura inválida, expirado, ou
+// o usuário não existe mais em data/auth.json).
+function getAuthenticatedUsername() {
+    if (empty($_COOKIE[COOKIE_NAME])) return null;
     $parts = explode('.', $_COOKIE[COOKIE_NAME], 2);
-    if (count($parts) !== 2) return false;
+    if (count($parts) !== 2) return null;
     list($encodedPayload, $signature) = $parts;
     $payload = base64_decode($encodedPayload, true);
-    if ($payload === false) return false;
+    if ($payload === false) return null;
     $expected = hash_hmac('sha256', $payload, COOKIE_SECRET);
-    if (!hash_equals($expected, $signature)) return false;
+    if (!hash_equals($expected, $signature)) return null;
     $payloadParts = explode('|', $payload);
-    if (count($payloadParts) !== 2) return false;
+    if (count($payloadParts) !== 2) return null;
     list($user, $expires) = $payloadParts;
-    if ((int)$expires < time()) return false;
+    if ((int)$expires < time()) return null;
     $auth = readAuth();
-    if (!hash_equals($auth['username'], $user)) return false;
-    return true;
+    if (findUserByUsername($auth, $user) === null) return null;
+    return $user;
+}
+
+function isAuthenticated() {
+    return getAuthenticatedUsername() !== null;
 }
 
 function requireAuth() {

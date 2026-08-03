@@ -26,6 +26,7 @@ function ensureDataFile() {
         $default = [
             'contratos' => [],
             'config' => ['taxaJurosMensal' => 1, 'taxaMultaPercent' => 2],
+            'auditoria' => [],
         ];
         file_put_contents(DATA_FILE, json_encode($default, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
     }
@@ -37,19 +38,55 @@ function ensureAuthFile() {
     }
     if (!file_exists(AUTH_FILE)) {
         $default = [
-            'username' => DEFAULT_USERNAME,
-            'passwordHash' => password_hash(DEFAULT_PASSWORD, PASSWORD_DEFAULT),
+            'users' => [
+                [
+                    'id' => generateUserId(),
+                    'username' => DEFAULT_USERNAME,
+                    'passwordHash' => password_hash(DEFAULT_PASSWORD, PASSWORD_DEFAULT),
+                ],
+            ],
         ];
         file_put_contents(AUTH_FILE, json_encode($default, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
     }
 }
 
+function generateUserId() {
+    return 'u_' . bin2hex(random_bytes(6));
+}
+
+// Lê data/auth.json. Migra automaticamente o formato antigo (um único
+// {username, passwordHash}) para o novo formato com lista de usuários,
+// preservando o login existente sem exigir nenhuma ação manual.
 function readAuth() {
     ensureAuthFile();
     $data = json_decode(file_get_contents(AUTH_FILE), true);
-    if (!is_array($data) || empty($data['username']) || empty($data['passwordHash'])) {
-        return ['username' => DEFAULT_USERNAME, 'passwordHash' => password_hash(DEFAULT_PASSWORD, PASSWORD_DEFAULT)];
+
+    if (is_array($data) && !empty($data['username']) && !empty($data['passwordHash']) && empty($data['users'])) {
+        $migrated = [
+            'users' => [
+                [
+                    'id' => generateUserId(),
+                    'username' => $data['username'],
+                    'passwordHash' => $data['passwordHash'],
+                ],
+            ],
+        ];
+        writeAuth($migrated);
+        return $migrated;
     }
+
+    if (!is_array($data) || empty($data['users']) || !is_array($data['users'])) {
+        return [
+            'users' => [
+                [
+                    'id' => generateUserId(),
+                    'username' => DEFAULT_USERNAME,
+                    'passwordHash' => password_hash(DEFAULT_PASSWORD, PASSWORD_DEFAULT),
+                ],
+            ],
+        ];
+    }
+
     return $data;
 }
 
@@ -64,4 +101,18 @@ function writeAuth($auth) {
     flock($fp, LOCK_UN);
     fclose($fp);
     return true;
+}
+
+function findUserByUsername($auth, $username) {
+    foreach ($auth['users'] as $user) {
+        if (hash_equals($user['username'], $username)) return $user;
+    }
+    return null;
+}
+
+function findUserById($auth, $id) {
+    foreach ($auth['users'] as $user) {
+        if ($user['id'] === $id) return $user;
+    }
+    return null;
 }

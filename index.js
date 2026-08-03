@@ -7,7 +7,7 @@ const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho',
 const DIAS_ALERTA_VENCIMENTO = 5;
 
 /* ===================== STATE ===================== */
-let state = { contratos: [], config: { taxaJurosMensal: 1, taxaMultaPercent: 2, jurosPadrao: 0, multaPadrao: 0 } };
+let state = { contratos: [], config: { taxaJurosMensal: 1, taxaMultaPercent: 2, jurosPadrao: 0, multaPadrao: 0 }, auditoria: [] };
 let currentUsername = '';
 
 function setCurrentUsername(username) {
@@ -23,9 +23,21 @@ function applyTheme(theme) {
   document.getElementById('btnThemeToggle').textContent = theme === 'light' ? '☀️' : '🌙';
 }
 
+function systemPrefersLight() {
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+}
+
 function initTheme() {
-  const saved = localStorage.getItem(THEME_KEY) || 'dark';
-  applyTheme(saved);
+  const saved = localStorage.getItem(THEME_KEY);
+  applyTheme(saved || (systemPrefersLight() ? 'light' : 'dark'));
+
+  // Enquanto o usuário nunca escolheu um tema manualmente, acompanha
+  // mudanças no tema do sistema operacional em tempo real.
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => {
+      if (!localStorage.getItem(THEME_KEY)) applyTheme(e.matches ? 'light' : 'dark');
+    });
+  }
 }
 
 document.getElementById('btnThemeToggle').addEventListener('click', () => {
@@ -52,6 +64,7 @@ async function fetchState() {
   const data = await res.json();
   data.contratos = data.contratos || [];
   data.config = Object.assign({ taxaJurosMensal: 1, taxaMultaPercent: 2, jurosPadrao: 0, multaPadrao: 0 }, data.config || {});
+  data.auditoria = data.auditoria || [];
   return data;
 }
 
@@ -69,6 +82,22 @@ function uuid() {
   return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9);
 }
 
+const AUDITORIA_MAX = 300;
+
+function registrarAuditoria(acao, descricao) {
+  state.auditoria = state.auditoria || [];
+  state.auditoria.push({
+    id: uuid(),
+    timestamp: Date.now(),
+    usuario: currentUsername || '--',
+    acao,
+    descricao,
+  });
+  if (state.auditoria.length > AUDITORIA_MAX) {
+    state.auditoria = state.auditoria.slice(-AUDITORIA_MAX);
+  }
+}
+
 function parseDate(dateStr) {
   return new Date(dateStr + 'T00:00:00');
 }
@@ -81,11 +110,18 @@ function todayStr() {
 function formatDate(dateStr) {
   if (!dateStr) return '--';
   const d = parseDate(dateStr);
-  return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+  return String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear();
 }
 
 function formatCurrency(value) {
   return (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function formatDateTime(timestamp) {
+  const d = new Date(timestamp);
+  const data = String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear();
+  const hora = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  return `${data} ${hora}`;
 }
 
 function calcTotal(c) {
@@ -153,6 +189,7 @@ async function showApp() {
     showToast('Não foi possível carregar os dados do servidor.', 'error');
   }
   renderAll();
+  loadUsers();
 }
 
 function showLogin() {
@@ -207,6 +244,7 @@ document.getElementById('tabsNav').addEventListener('click', (e) => {
   document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
   if (btn.dataset.tab === 'graficos') renderCharts();
   if (btn.dataset.tab === 'relatorios') renderRelatorios();
+  if (btn.dataset.tab === 'auditoria') renderAuditoria();
 });
 
 /* ===================== MODALS ===================== */
@@ -292,6 +330,7 @@ formContrato.addEventListener('submit', (e) => {
   if (id) {
     const c = state.contratos.find(x => x.id === id);
     Object.assign(c, data);
+    registrarAuditoria('contrato_editado', `Contrato editado: ${data.imovel} - ${data.inquilino}`);
     showToast('Contrato atualizado com sucesso.', 'success');
   } else {
     state.contratos.push({
@@ -302,6 +341,7 @@ formContrato.addEventListener('submit', (e) => {
       pagamentos: [],
       criadoEm: Date.now(),
     });
+    registrarAuditoria('contrato_criado', `Contrato criado: ${data.imovel} - ${data.inquilino}`);
     showToast('Contrato criado com sucesso.', 'success');
   }
   saveState();
@@ -311,7 +351,9 @@ formContrato.addEventListener('submit', (e) => {
 
 function excluirContrato(id) {
   if (!confirm('Tem certeza que deseja excluir este contrato? Esta ação não pode ser desfeita.')) return;
-  state.contratos = state.contratos.filter(c => c.id !== id);
+  const c = state.contratos.find(x => x.id === id);
+  state.contratos = state.contratos.filter(x => x.id !== id);
+  if (c) registrarAuditoria('contrato_excluido', `Contrato excluído: ${c.imovel} - ${c.inquilino}`);
   saveState();
   renderAll();
   showToast('Contrato excluído.', 'success');
@@ -360,6 +402,7 @@ formPagamento.addEventListener('submit', (e) => {
   c.pago = true;
   c.dataPagamento = pagamento.data;
   c.valorAtrasoBase = 0;
+  registrarAuditoria('pagamento_registrado', `Pagamento registrado: ${c.imovel} - ${c.inquilino} - ${formatCurrency(pagamento.valor)}`);
   saveState();
   closeModal('modalPagamento');
   renderAll();
@@ -432,7 +475,10 @@ function getFilteredContratos() {
 }
 
 ['searchContratos', 'filterAno', 'filterMes', 'filterStatus'].forEach(id => {
-  document.getElementById(id).addEventListener('input', renderContratos);
+  document.getElementById(id).addEventListener('input', () => {
+    contratosPaginaAtual = 1;
+    renderContratos();
+  });
 });
 
 /* ===================== RENDER: CONTRATO CARD ===================== */
@@ -483,16 +529,50 @@ function bindCardActions(container) {
 }
 
 /* ===================== RENDER: CONTRATOS TAB ===================== */
+const CONTRATOS_POR_PAGINA = 20;
+let contratosPaginaAtual = 1;
+
 function renderContratos() {
   populateAnoFilter();
   const list = document.getElementById('contratosList');
+  const pagination = document.getElementById('contratosPagination');
   const filtered = getFilteredContratos();
+
   if (!filtered.length) {
     list.innerHTML = '<div class="empty-state">Nenhum contrato encontrado.</div>';
+    pagination.innerHTML = '';
     return;
   }
-  list.innerHTML = filtered.map(contratoCardHtml).join('');
+
+  const totalPaginas = Math.max(1, Math.ceil(filtered.length / CONTRATOS_POR_PAGINA));
+  contratosPaginaAtual = Math.min(Math.max(contratosPaginaAtual, 1), totalPaginas);
+  const inicio = (contratosPaginaAtual - 1) * CONTRATOS_POR_PAGINA;
+  const pagina = filtered.slice(inicio, inicio + CONTRATOS_POR_PAGINA);
+
+  list.innerHTML = pagina.map(contratoCardHtml).join('');
   bindCardActions(list);
+  renderContratosPagination(totalPaginas, filtered.length);
+}
+
+function renderContratosPagination(totalPaginas, totalContratos) {
+  const pagination = document.getElementById('contratosPagination');
+  if (totalPaginas <= 1) {
+    pagination.innerHTML = '';
+    return;
+  }
+  pagination.innerHTML = `
+    <button type="button" class="btn btn-ghost btn-sm" id="btnPaginaAnterior" ${contratosPaginaAtual <= 1 ? 'disabled' : ''}>‹ Anterior</button>
+    <span class="pagination-info">Página ${contratosPaginaAtual} de ${totalPaginas} (${totalContratos} contratos)</span>
+    <button type="button" class="btn btn-ghost btn-sm" id="btnPaginaProxima" ${contratosPaginaAtual >= totalPaginas ? 'disabled' : ''}>Próxima ›</button>
+  `;
+  document.getElementById('btnPaginaAnterior').addEventListener('click', () => {
+    contratosPaginaAtual--;
+    renderContratos();
+  });
+  document.getElementById('btnPaginaProxima').addEventListener('click', () => {
+    contratosPaginaAtual++;
+    renderContratos();
+  });
 }
 
 /* ===================== RENDER: DASHBOARD ===================== */
@@ -672,8 +752,91 @@ accountForm.addEventListener('submit', async (e) => {
       msg.classList.remove('hidden');
       setTimeout(() => msg.classList.add('hidden'), 2200);
       showToast('Dados de acesso atualizados com sucesso.', 'success');
+      loadUsers();
     } else {
       errorEl.textContent = data.error || 'Não foi possível atualizar os dados de acesso.';
+      errorEl.classList.remove('hidden');
+    }
+  } catch (err) {
+    errorEl.textContent = 'Não foi possível conectar ao servidor.';
+    errorEl.classList.remove('hidden');
+  }
+});
+
+/* ===================== USUÁRIOS ADMINISTRADORES ===================== */
+const addUserForm = document.getElementById('addUserForm');
+
+async function loadUsers() {
+  try {
+    const res = await apiFetch('users.php');
+    const data = await res.json();
+    if (res.ok && data.ok) renderUsers(data.users);
+  } catch (err) {
+    // lista de usuários não é crítica para o resto da tela — falha silenciosa
+  }
+}
+
+function renderUsers(users) {
+  const list = document.getElementById('usersList');
+  list.innerHTML = users.map(u => `
+    <div class="card">
+      <div class="contrato-top">
+        <div class="contrato-title">${escapeHtml(u.username)}${u.username === currentUsername ? ' (você)' : ''}</div>
+        ${u.username !== currentUsername && users.length > 1 ? `<button type="button" class="btn btn-danger btn-sm" data-remove-user="${u.id}" data-remove-username="${escapeHtml(u.username)}">🗑️ Remover</button>` : ''}
+      </div>
+    </div>
+  `).join('');
+  list.querySelectorAll('[data-remove-user]').forEach(btn => {
+    btn.addEventListener('click', () => removeUser(btn.dataset.removeUser, btn.dataset.removeUsername));
+  });
+}
+
+async function removeUser(id, username) {
+  if (!confirm('Remover este usuário? Ele não vai mais conseguir fazer login no sistema.')) return;
+  try {
+    const res = await apiFetch('users.php', { method: 'POST', body: JSON.stringify({ action: 'remove', id }) });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      registrarAuditoria('usuario_removido', `Usuário removido: ${username}`);
+      saveState();
+      showToast('Usuário removido.', 'success');
+      loadUsers();
+    } else {
+      showToast(data.error || 'Não foi possível remover o usuário.', 'error');
+    }
+  } catch (err) {
+    showToast('Não foi possível conectar ao servidor.', 'error');
+  }
+}
+
+addUserForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const username = document.getElementById('newUserUsername').value.trim();
+  const password = document.getElementById('newUserPassword').value;
+  const confirmPassword = document.getElementById('newUserConfirmPassword').value;
+  const errorEl = document.getElementById('addUserError');
+  errorEl.classList.add('hidden');
+
+  if (password !== confirmPassword) {
+    errorEl.textContent = 'A confirmação da senha não confere.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  try {
+    const res = await apiFetch('users.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'add', username, password }),
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      addUserForm.reset();
+      registrarAuditoria('usuario_adicionado', `Usuário adicionado: ${username}`);
+      saveState();
+      showToast('Usuário adicionado com sucesso.', 'success');
+      loadUsers();
+    } else {
+      errorEl.textContent = data.error || 'Não foi possível adicionar o usuário.';
       errorEl.classList.remove('hidden');
     }
   } catch (err) {
@@ -887,6 +1050,62 @@ function renderRelatorios() {
       <td>${l.count}</td>
     </tr>
   `).join('');
+
+  renderComparativoAnual(ano);
+}
+
+function renderComparativoAnual(anoSelecionado) {
+  const anos = new Set(state.contratos.map(c => parseDate(c.vencimento).getFullYear()));
+  state.contratos.forEach(c => c.pagamentos.forEach(p => anos.add(parseDate(p.data).getFullYear())));
+  anos.add(new Date().getFullYear());
+  const sorted = Array.from(anos).sort((a, b) => b - a);
+
+  const linhas = sorted.map(ano => {
+    const totalPago = state.contratos.reduce((sum, c) => {
+      const pagoNoAno = c.pagamentos
+        .filter(p => parseDate(p.data).getFullYear() === ano)
+        .reduce((s, p) => s + p.valor, 0);
+      return sum + pagoNoAno;
+    }, 0);
+
+    const contratosAno = state.contratos.filter(c => parseDate(c.vencimento).getFullYear() === ano);
+    const totalAtraso = contratosAno
+      .filter(c => getStatus(c) === 'atrasado')
+      .reduce((sum, c) => sum + calcAtrasoAtual(c), 0);
+
+    return { ano, totalPago, totalAtraso, count: contratosAno.length };
+  });
+
+  document.getElementById('comparativoAnualBody').innerHTML = linhas.map(l => `
+    <tr style="${l.ano === anoSelecionado ? 'font-weight:600;' : ''}">
+      <td>${l.ano}</td>
+      <td>${formatCurrency(l.totalPago)}</td>
+      <td style="${l.totalAtraso > 0 ? 'color:var(--danger)' : ''}">${formatCurrency(l.totalAtraso)}</td>
+      <td>${l.count}</td>
+    </tr>
+  `).join('');
+}
+
+/* ===================== RENDER: AUDITORIA ===================== */
+function renderAuditoria() {
+  const list = document.getElementById('auditoriaList');
+  const entries = (state.auditoria || []).slice().sort((a, b) => b.timestamp - a.timestamp);
+
+  if (!entries.length) {
+    list.innerHTML = '<div class="empty-state">Nenhum evento registrado ainda.</div>';
+    return;
+  }
+
+  list.innerHTML = entries.map(e => `
+    <div class="card">
+      <div class="contrato-top">
+        <div>
+          <div class="contrato-title">${escapeHtml(e.descricao)}</div>
+          <div class="contrato-sub">👤 ${escapeHtml(e.usuario)} · ${formatDateTime(e.timestamp)}</div>
+        </div>
+      </div>
+    </div>
+  `).join('');
 }
 
 document.getElementById('relatorioAno').addEventListener('change', renderRelatorios);
@@ -983,7 +1202,7 @@ function parseCsv(text) {
 }
 
 function parseDateBR(str) {
-  const partes = (str || '').split('/');
+  const partes = (str || '').split('-');
   if (partes.length !== 3) return null;
   const [d, m, y] = partes;
   if (!d || !m || !y) return null;
@@ -1136,6 +1355,8 @@ function renderAll() {
   if (graficosTab.classList.contains('active')) renderCharts();
   const relatoriosTab = document.getElementById('tab-relatorios');
   if (relatoriosTab.classList.contains('active')) renderRelatorios();
+  const auditoriaTab = document.getElementById('tab-auditoria');
+  if (auditoriaTab.classList.contains('active')) renderAuditoria();
 }
 
 /* ===================== INIT ===================== */
