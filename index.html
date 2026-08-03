@@ -170,13 +170,25 @@
       <div class="panel-header">
         <h2>Gráficos</h2>
       </div>
-      <div class="card chart-card">
-        <h3>Contratos: Atrasados vs Pagos vs Ativos</h3>
-        <canvas id="chartStatus" height="220"></canvas>
-      </div>
-      <div class="card chart-card">
-        <h3>Evolução do total em atraso (últimos meses)</h3>
-        <canvas id="chartAtrasoEvolucao" height="220"></canvas>
+      <div class="charts-grid">
+        <div class="card chart-card">
+          <h3>Contratos por status</h3>
+          <canvas id="chartStatus" height="220"></canvas>
+          <div class="chart-legend" id="legendStatus"></div>
+        </div>
+        <div class="card chart-card">
+          <h3>Pagamentos por forma</h3>
+          <canvas id="chartFormaPagamento" height="220"></canvas>
+          <div class="chart-legend" id="legendFormaPagamento"></div>
+        </div>
+        <div class="card chart-card">
+          <h3>Evolução do total em atraso (últimos 6 meses)</h3>
+          <canvas id="chartAtrasoEvolucao" height="220"></canvas>
+        </div>
+        <div class="card chart-card">
+          <h3>Receita mensal (últimos 6 meses)</h3>
+          <canvas id="chartReceitaMensal" height="220"></canvas>
+        </div>
       </div>
     </section>
 
@@ -201,6 +213,22 @@
             <span class="stat-label">Total em atraso no ano</span>
           </div>
         </div>
+        <div class="card stat-card stat-warn">
+          <div class="stat-icon">🏷️</div>
+          <div class="stat-info">
+            <span class="stat-value" id="relatorioTotalDescontoAno">R$ 0,00</span>
+            <span class="stat-label">Total de descontos concedidos no ano</span>
+          </div>
+        </div>
+      </div>
+      <div class="card table-card">
+        <h3>Pagamentos por forma no ano</h3>
+        <table class="report-table">
+          <thead>
+            <tr><th>Forma</th><th>Quantidade</th><th>Total recebido</th></tr>
+          </thead>
+          <tbody id="relatorioFormaPagamentoBody"></tbody>
+        </table>
       </div>
       <div class="card table-card">
         <table class="report-table">

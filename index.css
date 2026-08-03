@@ -403,8 +403,23 @@ button, input, select, textarea { font-family: inherit; }
 }
 
 /* ===================== CHARTS ===================== */
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+@media (min-width: 860px) {
+  .charts-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
 .chart-card h3 { font-size: 14px; color: var(--text-dim); margin-bottom: 12px; }
 .chart-card canvas { width: 100% !important; max-width: 100%; }
+
+.chart-legend { display: flex; flex-wrap: wrap; gap: 10px 18px; justify-content: center; margin-top: 14px; }
+.chart-legend-item { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-dim); }
+.chart-legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.chart-legend-item strong { color: var(--text); }
 
 /* ===================== ALERTA DE VENCIMENTOS ===================== */
 .alert-banner {

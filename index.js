@@ -21,6 +21,13 @@ const THEME_KEY = 'aluguelApp_theme';
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   document.getElementById('btnThemeToggle').textContent = theme === 'light' ? '☀️' : '🌙';
+  // Os gráficos usam cores lidas do CSS no momento do desenho — se o tema mudar
+  // enquanto a aba está aberta, precisam ser redesenhados para não ficar com
+  // cores do tema anterior (ex: texto claro sobre fundo claro).
+  const graficosTab = document.getElementById('tab-graficos');
+  if (graficosTab && graficosTab.classList.contains('active') && typeof renderCharts === 'function') {
+    renderCharts();
+  }
 }
 
 function systemPrefersLight() {
@@ -904,89 +911,218 @@ document.getElementById('btnDeleteDatabase').addEventListener('click', async () 
 });
 
 /* ===================== CHARTS (canvas nativo) ===================== */
-function renderCharts() {
-  renderStatusChart();
-  renderAtrasoEvolucaoChart();
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-function renderStatusChart() {
-  const canvas = document.getElementById('chartStatus');
-  const ctx = canvas.getContext('2d');
+function ultimosMeses(n) {
+  const now = new Date();
+  const months = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ year: d.getFullYear(), month: d.getMonth(), label: MESES_PT[d.getMonth()].slice(0, 3) + '/' + String(d.getFullYear()).slice(2) });
+  }
+  return months;
+}
+
+function setupCanvas(canvas) {
   const w = canvas.clientWidth || 600;
   const h = canvas.height;
   canvas.width = w;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h };
+}
 
+function drawChartEmptyState(ctx, w, h, texto) {
+  ctx.fillStyle = cssVar('--text-faint');
+  ctx.font = '13px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(texto, w / 2, h / 2);
+}
+
+function renderCharts() {
+  renderStatusChart();
+  renderFormaPagamentoChart();
+  renderAtrasoEvolucaoChart();
+  renderReceitaMensalChart();
+}
+
+/* ---- Donut chart genérico (legenda renderizada em HTML ao lado) ---- */
+function renderDonutChart(canvasId, legendId, data, centerValue, centerLabel) {
+  const canvas = document.getElementById(canvasId);
+  const legendEl = document.getElementById(legendId);
+  const { ctx, w, h } = setupCanvas(canvas);
+
+  const total = data.reduce((sum, d) => sum + d.value, 0);
+  if (total <= 0) {
+    drawChartEmptyState(ctx, w, h, 'Sem dados ainda');
+    legendEl.innerHTML = '';
+    return;
+  }
+
+  const cx = w / 2;
+  const cy = h / 2;
+  const outerR = Math.min(w, h) / 2 - 10;
+  const innerR = outerR * 0.62;
+
+  let anguloAtual = -Math.PI / 2;
+  data.filter(d => d.value > 0).forEach(d => {
+    const fatia = (d.value / total) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, outerR, anguloAtual, anguloAtual + fatia);
+    ctx.closePath();
+    ctx.fillStyle = d.color;
+    ctx.fill();
+    anguloAtual += fatia;
+  });
+
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.beginPath();
+  ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+
+  ctx.fillStyle = cssVar('--text');
+  ctx.font = 'bold 20px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(centerValue, cx, cy - 2);
+  ctx.fillStyle = cssVar('--text-dim');
+  ctx.font = '11px sans-serif';
+  ctx.fillText(centerLabel, cx, cy + 16);
+
+  legendEl.innerHTML = data.map(d => `
+    <div class="chart-legend-item">
+      <span class="chart-legend-dot" style="background:${d.color}"></span>
+      <span>${escapeHtml(d.label)}: <strong>${d.displayValue}</strong></span>
+    </div>
+  `).join('');
+}
+
+function renderStatusChart() {
   const counts = { ativo: 0, atrasado: 0, pago: 0 };
   state.contratos.forEach(c => counts[getStatus(c)]++);
+  const total = counts.ativo + counts.atrasado + counts.pago;
 
-  ctx.clearRect(0, 0, w, h);
   const data = [
-    { label: 'Ativos', value: counts.ativo, color: '#4f7fff' },
-    { label: 'Atrasados', value: counts.atrasado, color: '#ff5c6c' },
-    { label: 'Pagos', value: counts.pago, color: '#2fbf71' },
+    { label: 'Ativos', value: counts.ativo, color: cssVar('--accent'), displayValue: String(counts.ativo) },
+    { label: 'Atrasados', value: counts.atrasado, color: cssVar('--danger'), displayValue: String(counts.atrasado) },
+    { label: 'Pagos', value: counts.pago, color: cssVar('--success'), displayValue: String(counts.pago) },
   ];
-  const max = Math.max(1, ...data.map(d => d.value));
-  const barWidth = w / (data.length * 2);
-  const chartHeight = h - 50;
+  renderDonutChart('chartStatus', 'legendStatus', data, String(total), total === 1 ? 'contrato' : 'contratos');
+}
 
-  data.forEach((d, i) => {
-    const barHeight = (d.value / max) * (chartHeight - 20);
-    const x = barWidth * (i * 2 + 0.5);
-    const y = chartHeight - barHeight + 10;
-    ctx.fillStyle = d.color;
-    ctx.fillRect(x, y, barWidth, barHeight);
-    ctx.fillStyle = '#e8eaed';
-    ctx.font = '13px sans-serif';
+function renderFormaPagamentoChart() {
+  const totais = {};
+  state.contratos.forEach(c => c.pagamentos.forEach(p => {
+    const forma = p.forma || 'Não informado';
+    totais[forma] = (totais[forma] || 0) + p.valor;
+  }));
+
+  const palette = [cssVar('--success'), cssVar('--accent'), cssVar('--warn'), cssVar('--danger')];
+  const data = Object.keys(totais).map((forma, i) => ({
+    label: forma,
+    value: totais[forma],
+    color: palette[i % palette.length],
+    displayValue: formatCurrency(totais[forma]),
+  }));
+  const totalGeral = data.reduce((sum, d) => sum + d.value, 0);
+  renderDonutChart('chartFormaPagamento', 'legendFormaPagamento', data, formatCurrency(totalGeral).replace('R$', '').trim(), 'recebido');
+}
+
+/* ---- Trend chart genérico (linha + área, com gridlines) ---- */
+function renderTrendChart(canvasId, months, values, colorVarName) {
+  const canvas = document.getElementById(canvasId);
+  const { ctx, w, h } = setupCanvas(canvas);
+  const color = cssVar(colorVarName);
+  const gridColor = cssVar('--border');
+  const textColor = cssVar('--text-dim');
+
+  const paddingLeft = 8;
+  const paddingRight = 8;
+  const paddingTop = 24;
+  const paddingBottom = 34;
+  const chartW = w - paddingLeft - paddingRight;
+  const chartH = h - paddingTop - paddingBottom;
+  const max = Math.max(1, ...values);
+
+  ctx.strokeStyle = gridColor;
+  ctx.lineWidth = 1;
+  const gridLines = 4;
+  for (let i = 0; i <= gridLines; i++) {
+    const y = paddingTop + (chartH / gridLines) * i;
+    ctx.beginPath();
+    ctx.moveTo(paddingLeft, y);
+    ctx.lineTo(w - paddingRight, y);
+    ctx.stroke();
+  }
+
+  const stepX = values.length > 1 ? chartW / (values.length - 1) : 0;
+  const points = values.map((v, i) => ({
+    x: paddingLeft + stepX * i,
+    y: paddingTop + chartH - (v / max) * chartH,
+    v,
+  }));
+
+  if (points.length) {
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, paddingTop + chartH);
+    points.forEach(p => ctx.lineTo(p.x, p.y));
+    ctx.lineTo(points[points.length - 1].x, paddingTop + chartH);
+    ctx.closePath();
+    ctx.fillStyle = color + '26';
+    ctx.fill();
+  }
+
+  ctx.beginPath();
+  points.forEach((p, i) => { i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); });
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+
+  points.forEach((p, i) => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    ctx.font = '11px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(String(d.value), x + barWidth / 2, y - 8);
-    ctx.fillStyle = '#9aa1ac';
-    ctx.fillText(d.label, x + barWidth / 2, chartHeight + 26);
+    if (p.v > 0) {
+      ctx.fillStyle = textColor;
+      ctx.fillText(formatCurrency(p.v).replace('R$', '').trim(), p.x, Math.max(p.y - 10, 12));
+    }
+    ctx.fillStyle = textColor;
+    ctx.fillText(months[i].label, p.x, h - 10);
   });
 }
 
 function renderAtrasoEvolucaoChart() {
-  const canvas = document.getElementById('chartAtrasoEvolucao');
-  const ctx = canvas.getContext('2d');
-  const w = canvas.clientWidth || 600;
-  const h = canvas.height;
-  canvas.width = w;
+  const months = ultimosMeses(6);
+  const values = months.map(m => state.contratos.reduce((sum, c) => {
+    const venc = parseDate(c.vencimento);
+    if (venc.getFullYear() === m.year && venc.getMonth() === m.month && getStatus(c) === 'atrasado') {
+      return sum + calcAtrasoAtual(c);
+    }
+    return sum;
+  }, 0));
+  renderTrendChart('chartAtrasoEvolucao', months, values, '--danger');
+}
 
-  const now = new Date();
-  const months = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push({ year: d.getFullYear(), month: d.getMonth(), label: MESES_PT[d.getMonth()].slice(0, 3) + '/' + String(d.getFullYear()).slice(2) });
-  }
-
-  const totals = months.map(m => {
-    return state.contratos.reduce((sum, c) => {
-      const venc = parseDate(c.vencimento);
-      if (venc.getFullYear() === m.year && venc.getMonth() === m.month && getStatus(c) === 'atrasado') {
-        return sum + calcAtrasoAtual(c);
-      }
-      return sum;
-    }, 0);
-  });
-
-  ctx.clearRect(0, 0, w, h);
-  const max = Math.max(1, ...totals);
-  const chartHeight = h - 50;
-  const barWidth = w / (months.length * 1.6);
-  const gap = (w - barWidth * months.length) / (months.length + 1);
-
-  totals.forEach((val, i) => {
-    const barHeight = (val / max) * (chartHeight - 20);
-    const x = gap + i * (barWidth + gap);
-    const y = chartHeight - barHeight + 10;
-    ctx.fillStyle = '#ffb547';
-    ctx.fillRect(x, y, barWidth, barHeight);
-    ctx.fillStyle = '#e8eaed';
-    ctx.font = '11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(formatCurrency(val).replace('R$', '').trim(), x + barWidth / 2, y - 8);
-    ctx.fillStyle = '#9aa1ac';
-    ctx.fillText(months[i].label, x + barWidth / 2, chartHeight + 26);
-  });
+function renderReceitaMensalChart() {
+  const months = ultimosMeses(6);
+  const values = months.map(m => state.contratos.reduce((sum, c) => {
+    const pagoNoMes = c.pagamentos
+      .filter(p => {
+        const d = parseDate(p.data);
+        return d.getFullYear() === m.year && d.getMonth() === m.month;
+      })
+      .reduce((s, p) => s + p.valor, 0);
+    return sum + pagoNoMes;
+  }, 0));
+  renderTrendChart('chartReceitaMensal', months, values, '--success');
 }
 
 window.addEventListener('resize', () => {
@@ -1050,6 +1186,36 @@ function renderRelatorios() {
       <td>${l.count}</td>
     </tr>
   `).join('');
+
+  const pagamentosDoAno = [];
+  state.contratos.forEach(c => c.pagamentos.forEach(p => {
+    if (parseDate(p.data).getFullYear() === ano) pagamentosDoAno.push(p);
+  }));
+
+  const totalDescontoAno = pagamentosDoAno.reduce((sum, p) => sum + (p.desconto || 0), 0);
+  document.getElementById('relatorioTotalDescontoAno').textContent = formatCurrency(totalDescontoAno);
+
+  const porForma = {};
+  pagamentosDoAno.forEach(p => {
+    const forma = p.forma || 'Não informado';
+    if (!porForma[forma]) porForma[forma] = { count: 0, total: 0 };
+    porForma[forma].count++;
+    porForma[forma].total += p.valor;
+  });
+
+  const formaBody = document.getElementById('relatorioFormaPagamentoBody');
+  const formas = Object.keys(porForma);
+  if (!formas.length) {
+    formaBody.innerHTML = '<tr><td colspan="3">Nenhum pagamento registrado neste ano.</td></tr>';
+  } else {
+    formaBody.innerHTML = formas.map(forma => `
+      <tr>
+        <td>${escapeHtml(forma)}</td>
+        <td>${porForma[forma].count}</td>
+        <td>${formatCurrency(porForma[forma].total)}</td>
+      </tr>
+    `).join('');
+  }
 
   renderComparativoAnual(ano);
 }

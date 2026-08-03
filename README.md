@@ -82,10 +82,10 @@ Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servid
 - **Atrasos** — lista separada só dos contratos vencidos, com juros e multa calculados
   automaticamente conforme a taxa configurada
 - **Histórico** — todos os pagamentos já registrados, com exportação em CSV
-- **Gráficos** — contratos ativos vs. atrasados vs. pagos, e evolução do atraso nos
-  últimos 6 meses
-- **Relatórios** — totais mês a mês e no ano, por contratos pagos/atrasados, e um
-  comparativo com todos os anos lado a lado
+- **Gráficos** — contratos por status, pagamentos por forma (Dinheiro/Pix), evolução do
+  atraso e da receita nos últimos 6 meses. Cores adaptadas ao tema claro/escuro
+- **Relatórios** — totais mês a mês e no ano, comparativo com todos os anos lado a lado,
+  total de descontos concedidos e quebra de pagamentos por forma no ano
 - **Auditoria** — histórico dos eventos principais (contrato criado/editado/excluído,
   pagamento registrado, usuário adicionado/removido), com quem fez e quando
 - **Exportar/Importar** — contratos em CSV, relatório em PDF (direto do navegador, sem

@@ -68,8 +68,14 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
       de pagamento)
 
 ### Gráficos
-- [x] Barras: contratos ativos vs. atrasados vs. pagos
-- [x] Evolução do total em atraso (últimos 6 meses)
+- [x] Donut "Contratos por status" (ativos/atrasados/pagos), com legenda e total no centro
+- [x] Donut "Pagamentos por forma" (Dinheiro/Pix/Não informado), por valor total recebido
+- [x] Linha "Evolução do total em atraso" (últimos 6 meses), com gridlines e área preenchida
+- [x] Linha "Receita mensal" (últimos 6 meses, total efetivamente pago) — novo gráfico
+- [x] Layout em grade de 2 colunas (`charts-grid`), responsivo
+- [x] Cores lidas das variáveis CSS do tema (`cssVar()`) — os gráficos se redesenham
+      automaticamente ao trocar entre tema claro/escuro, para nunca ficar com cores do
+      tema errado (bug corrigido: antes as cores eram fixas e ilegíveis no tema claro)
 
 ### Relatórios
 - [x] Aba "Relatórios" com seletor de ano
@@ -78,6 +84,9 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
 - [x] Comparativo anual: tabela com todos os anos que têm dados lado a lado (total pago,
       total em atraso, contratos no ano), para comparar a evolução de um ano para o outro
       sem precisar trocar o seletor repetidamente
+- [x] Card "Total de descontos concedidos no ano"
+- [x] Tabela "Pagamentos por forma no ano": quantidade e total recebido por forma de
+      pagamento (Dinheiro/Pix/Não informado), para o ano selecionado
 
 ### Auditoria
 - [x] Aba dedicada com o histórico dos eventos principais do sistema: contrato criado,
