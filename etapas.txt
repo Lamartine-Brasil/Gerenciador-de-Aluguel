@@ -118,6 +118,15 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
       não houver preferência salva. Assim que o usuário alterna manualmente, essa escolha
       passa a valer sempre e o acompanhamento automático para
 
+### Visual
+- [x] Redesign completo do CSS (`index.css`) em estilo inspirado na Apple: paleta de
+      cores do sistema (SF blue, verde, vermelho, laranja) em vez das cores genéricas
+      anteriores, cantos mais arredondados, sombras em camadas no lugar de bordas duras,
+      barra superior e barra de abas com efeito de vidro fosco (`backdrop-filter: blur`),
+      abas em estilo "segmented control", cards com leve elevação ao passar o mouse, e
+      transições com curva de easing mais suave (`cubic-bezier`). Não muda nenhuma classe
+      ou estrutura de HTML/JS — só os valores visuais
+
 ### Backend / infraestrutura
 - [x] Todos os dados gravados em arquivos no servidor (`data/dados.json`, `data/auth.json`)
 - [x] Gravação protegida com `flock` (evita corrupção em acessos simultâneos)
