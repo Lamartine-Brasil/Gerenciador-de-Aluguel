@@ -1,9 +1,54 @@
 {
-    "contratos": [],
+    "contratos": [
+        {
+            "id": "c_msdqcddb_ac018tm",
+            "vencimento": "2026-07-02",
+            "imovel": "casa 1",
+            "inquilino": "maria",
+            "aluguel": 1300,
+            "desconto": 0,
+            "juros": 0,
+            "multa": 0,
+            "condominio": 120,
+            "valorAtrasoBase": 0,
+            "quemRecebeu": "",
+            "observacao": "",
+            "total": 1420,
+            "pago": true,
+            "dataPagamento": "2026-08-03",
+            "pagamentos": [
+                {
+                    "data": "2026-08-03",
+                    "desconto": 0,
+                    "valor": 1300,
+                    "forma": "Dinheiro",
+                    "quemRecebeu": "pix",
+                    "observacao": ""
+                }
+            ],
+            "criadoEm": 1785791823023
+        }
+    ],
     "config": {
         "taxaJurosMensal": 1,
         "taxaMultaPercent": 2,
         "jurosPadrao": 0,
         "multaPadrao": 0
-    }
+    },
+    "auditoria": [
+        {
+            "id": "c_msdqcddb_avfwn82",
+            "timestamp": 1785791823023,
+            "usuario": "admin",
+            "acao": "contrato_criado",
+            "descricao": "Contrato criado: casa 1 - maria"
+        },
+        {
+            "id": "c_msdqgnnc_e3vd8ej",
+            "timestamp": 1785792022968,
+            "usuario": "admin",
+            "acao": "pagamento_registrado",
+            "descricao": "Pagamento registrado: casa 1 - maria - R$ 1.300,00"
+        }
+    ]
 }

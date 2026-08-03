@@ -283,8 +283,8 @@ document.getElementById('btnNovoContrato').addEventListener('click', () => {
   document.getElementById('contratoId').value = '';
   document.getElementById('modalContratoTitle').textContent = 'Novo contrato';
   document.getElementById('fVencimento').value = todayStr();
-  document.getElementById('fJuros').value = state.config.jurosPadrao || 0;
-  document.getElementById('fMulta').value = state.config.multaPadrao || 0;
+  document.getElementById('fJuros').value = state.config.jurosPadrao || '';
+  document.getElementById('fMulta').value = state.config.multaPadrao || '';
   updateTotalPreview();
   openModal('modalContrato');
 });
@@ -297,11 +297,11 @@ function openEditContrato(id) {
   document.getElementById('fImovel').value = c.imovel;
   document.getElementById('fInquilino').value = c.inquilino;
   document.getElementById('fAluguel').value = c.aluguel;
-  document.getElementById('fDesconto').value = c.desconto;
-  document.getElementById('fJuros').value = c.juros;
-  document.getElementById('fMulta').value = c.multa;
-  document.getElementById('fCondominio').value = c.condominio;
-  document.getElementById('fValorAtraso').value = c.valorAtrasoBase;
+  document.getElementById('fDesconto').value = c.desconto || '';
+  document.getElementById('fJuros').value = c.juros || '';
+  document.getElementById('fMulta').value = c.multa || '';
+  document.getElementById('fCondominio').value = c.condominio || '';
+  document.getElementById('fValorAtraso').value = c.valorAtrasoBase || '';
   document.getElementById('fQuemRecebeu').value = c.quemRecebeu || '';
   document.getElementById('fObservacao').value = c.observacao || '';
   document.getElementById('modalContratoTitle').textContent = 'Editar contrato';
@@ -368,7 +368,7 @@ function openPagamento(id) {
   document.getElementById('pagContratoId').value = c.id;
   document.getElementById('pagContratoInfo').textContent = `${c.imovel} — ${c.inquilino} — Total: ${formatCurrency(c.total)}`;
   document.getElementById('pagData').value = todayStr();
-  document.getElementById('pagDesconto').value = 0;
+  document.getElementById('pagDesconto').value = '';
   document.getElementById('pagValor').value = (c.total + calcAtrasoAtual(c)).toFixed(2);
   document.getElementById('pagForma').value = '';
   document.getElementById('pagQuemRecebeu').value = c.quemRecebeu || '';
