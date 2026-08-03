@@ -7,7 +7,7 @@ const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho',
 const DIAS_ALERTA_VENCIMENTO = 5;
 
 /* ===================== STATE ===================== */
-let state = { contratos: [], config: { taxaJurosMensal: 1, taxaMultaPercent: 2 } };
+let state = { contratos: [], config: { taxaJurosMensal: 1, taxaMultaPercent: 2, jurosPadrao: 0, multaPadrao: 0 } };
 let currentUsername = '';
 
 function setCurrentUsername(username) {
@@ -51,7 +51,7 @@ async function fetchState() {
   if (!res.ok) throw new Error('Falha ao carregar dados do servidor.');
   const data = await res.json();
   data.contratos = data.contratos || [];
-  data.config = data.config || { taxaJurosMensal: 1, taxaMultaPercent: 2 };
+  data.config = Object.assign({ taxaJurosMensal: 1, taxaMultaPercent: 2, jurosPadrao: 0, multaPadrao: 0 }, data.config || {});
   return data;
 }
 
@@ -245,6 +245,8 @@ document.getElementById('btnNovoContrato').addEventListener('click', () => {
   document.getElementById('contratoId').value = '';
   document.getElementById('modalContratoTitle').textContent = 'Novo contrato';
   document.getElementById('fVencimento').value = todayStr();
+  document.getElementById('fJuros').value = state.config.jurosPadrao || 0;
+  document.getElementById('fMulta').value = state.config.multaPadrao || 0;
   updateTotalPreview();
   openModal('modalContrato');
 });
@@ -324,11 +326,22 @@ function openPagamento(id) {
   document.getElementById('pagContratoId').value = c.id;
   document.getElementById('pagContratoInfo').textContent = `${c.imovel} — ${c.inquilino} — Total: ${formatCurrency(c.total)}`;
   document.getElementById('pagData').value = todayStr();
+  document.getElementById('pagDesconto').value = 0;
   document.getElementById('pagValor').value = (c.total + calcAtrasoAtual(c)).toFixed(2);
+  document.getElementById('pagForma').value = '';
   document.getElementById('pagQuemRecebeu').value = c.quemRecebeu || '';
   document.getElementById('pagObservacao').value = '';
   openModal('modalPagamento');
 }
+
+document.getElementById('pagDesconto').addEventListener('input', () => {
+  const id = document.getElementById('pagContratoId').value;
+  const c = state.contratos.find(x => x.id === id);
+  if (!c) return;
+  const desconto = Number(document.getElementById('pagDesconto').value) || 0;
+  const base = c.total + calcAtrasoAtual(c);
+  document.getElementById('pagValor').value = Math.max(base - desconto, 0).toFixed(2);
+});
 
 formPagamento.addEventListener('submit', (e) => {
   e.preventDefault();
@@ -337,7 +350,9 @@ formPagamento.addEventListener('submit', (e) => {
   if (!c) return;
   const pagamento = {
     data: document.getElementById('pagData').value,
+    desconto: Number(document.getElementById('pagDesconto').value) || 0,
     valor: Number(document.getElementById('pagValor').value) || 0,
+    forma: document.getElementById('pagForma').value,
     quemRecebeu: document.getElementById('pagQuemRecebeu').value.trim(),
     observacao: document.getElementById('pagObservacao').value.trim(),
   };
@@ -368,6 +383,8 @@ function openHistoricoContrato(id) {
         <div class="contrato-grid">
           <div><span>Data</span><strong>${formatDate(p.data)}</strong></div>
           <div><span>Valor pago</span><strong>${formatCurrency(p.valor)}</strong></div>
+          ${p.desconto ? `<div><span>Desconto</span><strong>${formatCurrency(p.desconto)}</strong></div>` : ''}
+          <div><span>Forma de pagamento</span><strong>${escapeHtml(p.forma) || '--'}</strong></div>
           <div><span>Quem recebeu</span><strong>${escapeHtml(p.quemRecebeu) || '--'}</strong></div>
           <div><span>Observação</span><strong>${escapeHtml(p.observacao) || '--'}</strong></div>
         </div>
@@ -526,6 +543,10 @@ function renderAtrasos() {
   const list = document.getElementById('atrasosList');
   const atrasados = state.contratos.filter(c => getStatus(c) === 'atrasado')
     .sort((a, b) => parseDate(a.vencimento) - parseDate(b.vencimento));
+
+  const totalAtrasados = atrasados.reduce((sum, c) => sum + c.total + calcAtrasoAtual(c), 0);
+  document.getElementById('statTotalAtrasados').textContent = formatCurrency(totalAtrasados);
+
   if (!atrasados.length) {
     list.innerHTML = '<div class="empty-state">Nenhum contrato em atraso. 🎉</div>';
     return;
@@ -572,6 +593,8 @@ function renderHistorico() {
       <div class="contrato-grid">
         <div><span>Data do pagamento</span><strong>${formatDate(e.data)}</strong></div>
         <div><span>Valor pago</span><strong>${formatCurrency(e.valor)}</strong></div>
+        ${e.desconto ? `<div><span>Desconto</span><strong>${formatCurrency(e.desconto)}</strong></div>` : ''}
+        <div><span>Forma de pagamento</span><strong>${escapeHtml(e.forma) || '--'}</strong></div>
         <div><span>Quem recebeu</span><strong>${escapeHtml(e.quemRecebeu) || '--'}</strong></div>
         <div><span>Observação</span><strong>${escapeHtml(e.observacao) || '--'}</strong></div>
       </div>
@@ -587,6 +610,8 @@ const configForm = document.getElementById('configForm');
 function renderConfig() {
   document.getElementById('configTaxaJuros').value = state.config.taxaJurosMensal;
   document.getElementById('configTaxaMulta').value = state.config.taxaMultaPercent;
+  document.getElementById('configJurosPadrao').value = state.config.jurosPadrao || 0;
+  document.getElementById('configMultaPadrao').value = state.config.multaPadrao || 0;
   document.getElementById('accUsername').value = currentUsername;
 }
 
@@ -600,6 +625,18 @@ configForm.addEventListener('submit', (e) => {
   setTimeout(() => msg.classList.add('hidden'), 2200);
   renderAll();
   showToast('Configuração salva com sucesso.', 'success');
+});
+
+const configPadraoForm = document.getElementById('configPadraoForm');
+configPadraoForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  state.config.jurosPadrao = Number(document.getElementById('configJurosPadrao').value) || 0;
+  state.config.multaPadrao = Number(document.getElementById('configMultaPadrao').value) || 0;
+  saveState();
+  const msg = document.getElementById('configPadraoSaved');
+  msg.classList.remove('hidden');
+  setTimeout(() => msg.classList.add('hidden'), 2200);
+  showToast('Valores padrão salvos com sucesso.', 'success');
 });
 
 /* ===================== CONTA (usuário/senha) ===================== */
@@ -687,6 +724,20 @@ document.getElementById('inputImportBackup').addEventListener('change', (e) => {
   };
   reader.readAsText(file, 'UTF-8');
   e.target.value = '';
+});
+
+/* ===================== ZONA DE PERIGO: EXCLUIR TODOS OS DADOS ===================== */
+document.getElementById('btnDeleteDatabase').addEventListener('click', async () => {
+  if (!confirm('Isso vai APAGAR PERMANENTEMENTE todos os contratos, pagamentos e configurações salvos no servidor. Esta ação não pode ser desfeita. Deseja continuar?')) return;
+  const digitado = prompt('Para confirmar, digite EXCLUIR (em maiúsculas):');
+  if (digitado !== 'EXCLUIR') {
+    showToast('Exclusão cancelada.', 'error');
+    return;
+  }
+  state = { contratos: [], config: { taxaJurosMensal: 1, taxaMultaPercent: 2, jurosPadrao: 0, multaPadrao: 0 } };
+  await saveState();
+  renderAll();
+  showToast('Todos os dados foram excluídos.', 'success');
 });
 
 /* ===================== CHARTS (canvas nativo) ===================== */
@@ -885,10 +936,12 @@ document.getElementById('btnExportHistoricoContrato').addEventListener('click', 
   if (!c) return;
   if (!c.pagamentos.length) { showToast('Nenhum pagamento para exportar.', 'error'); return; }
 
-  const headers = ['Data do Pagamento', 'Valor Pago', 'Quem Recebeu', 'Observação'];
+  const headers = ['Data do Pagamento', 'Valor Pago', 'Desconto', 'Forma de Pagamento', 'Quem Recebeu', 'Observação'];
   const rows = c.pagamentos.map(p => [
     formatDate(p.data),
     p.valor.toFixed(2),
+    (p.desconto || 0).toFixed(2),
+    p.forma || '',
     p.quemRecebeu || '',
     p.observacao || '',
   ]);

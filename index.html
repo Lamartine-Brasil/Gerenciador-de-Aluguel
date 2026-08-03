@@ -138,6 +138,15 @@
       <div class="panel-header">
         <h2>Contratos em Atraso</h2>
       </div>
+      <div class="cards-grid">
+        <div class="card stat-card stat-danger">
+          <div class="stat-icon">⚠️</div>
+          <div class="stat-info">
+            <span class="stat-value" id="statTotalAtrasados">R$ 0,00</span>
+            <span class="stat-label">Total em atraso (aluguel + juros/multa)</span>
+          </div>
+        </div>
+      </div>
       <div id="atrasosList" class="cards-list"></div>
     </section>
 
@@ -223,6 +232,23 @@
       </div>
 
       <div class="card">
+        <h3>Valores padrão para novos contratos</h3>
+        <p class="modal-subtitle">Preenchidos automaticamente ao criar um novo contrato, para evitar digitar sempre. Podem ser alterados individualmente em cada contrato.</p>
+        <form id="configPadraoForm" class="config-form">
+          <label class="field">
+            <span>Juros padrão (R$)</span>
+            <input type="number" id="configJurosPadrao" step="0.01" min="0" required>
+          </label>
+          <label class="field">
+            <span>Multa padrão (R$)</span>
+            <input type="number" id="configMultaPadrao" step="0.01" min="0" required>
+          </label>
+          <button type="submit" class="btn btn-primary">Salvar valores padrão</button>
+          <p id="configPadraoSaved" class="success-msg hidden">Valores padrão salvos!</p>
+        </form>
+      </div>
+
+      <div class="card">
         <h3>Conta do administrador</h3>
         <form id="accountForm" class="config-form">
           <label class="field">
@@ -254,6 +280,14 @@
           <button type="button" class="btn btn-ghost" id="btnExportBackup">⬇ Exportar backup (JSON)</button>
           <button type="button" class="btn btn-ghost" id="btnImportBackup">⬆ Restaurar backup (JSON)</button>
           <input type="file" id="inputImportBackup" accept=".json,application/json" class="hidden">
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>⚠️ Zona de perigo</h3>
+        <p class="modal-subtitle">Apaga permanentemente todos os contratos, pagamentos e configurações salvos no servidor. Esta ação não pode ser desfeita — exporte um backup antes, se quiser manter os dados.</p>
+        <div class="contrato-actions" style="margin-top:10px;">
+          <button type="button" class="btn btn-danger" id="btnDeleteDatabase">🗑️ Excluir todos os dados</button>
         </div>
       </div>
     </section>
@@ -343,8 +377,20 @@
         <input type="date" id="pagData" required>
       </label>
       <label class="field">
+        <span>Desconto (R$)</span>
+        <input type="number" id="pagDesconto" step="0.01" min="0" value="0">
+      </label>
+      <label class="field">
         <span>Valor pago (R$) *</span>
         <input type="number" id="pagValor" step="0.01" min="0" required>
+      </label>
+      <label class="field">
+        <span>Forma de pagamento *</span>
+        <select id="pagForma" required>
+          <option value="" disabled selected>Selecione...</option>
+          <option value="Dinheiro">Dinheiro</option>
+          <option value="Pix">Pix</option>
+        </select>
       </label>
       <label class="field">
         <span>Quem recebeu *</span>

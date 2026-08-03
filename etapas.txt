@@ -1,14 +1,14 @@
-# STATUS DO PROJETO - Sistema de Gerenciamento de Alugueis
+# STATUS DO PROJETO - Sistema de Gerenciamento de Aluguéis
 
 Este arquivo reflete o estado ATUAL do projeto (não é mais um histórico de fases).
-Ao implementar algo novo, atualize a seção correspondente aqui e em descricao.txt.
+Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
 
 ## ✅ IMPLEMENTADO E FUNCIONANDO
 
 ### Login e conta
 - [x] Tela de login (usuário + senha)
 - [x] Autenticação validada no servidor (`api/login.php`)
-- [x] Sessão via cookie assinado (HMAC), 30 dias, HttpOnly + SameSite=Lax
+- [x] Sessão via cookie assinado (HMAC-SHA256), 30 dias, HttpOnly + SameSite=Lax
 - [x] Permanece logado ao trocar de aba/página ou reabrir o navegador
 - [x] Botão "Sair" limpa a sessão
 - [x] Troca de usuário/senha pela tela de Configurações (exige senha atual)
@@ -17,7 +17,7 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em descricao.
 
 ### Dashboard
 - [x] Card: total de contratos ativos
-- [x] Card: total em atraso (R$)
+- [x] Card: total em atraso (R$) — soma só o componente de juros/multa dos contratos atrasados
 - [x] Card: próximo vencimento
 - [x] Alerta de contratos vencendo nos próximos 5 dias
 - [x] Lista dos contratos mais recentes
@@ -29,19 +29,38 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em descricao.
 - [x] Total calculado automaticamente (aluguel - desconto + juros + multa + condomínio)
 - [x] Busca por inquilino ou imóvel
 - [x] Filtro por ano, mês e status
-- [x] Registrar pagamento em um clique (data, valor, quem recebeu, observação)
+- [x] Ao criar um contrato novo, os campos Juros e Multa vêm pré-preenchidos com os
+      "valores padrão" configurados em Configurações — evita digitar sempre. Se o
+      usuário alterar o valor no formulário, o valor digitado prevalece e é o que é salvo
+- [x] Registrar pagamento em um clique, com modal dedicado (ver "Pagamentos" abaixo)
+
+### Pagamentos
+- [x] Modal "Registrar pagamento" com: data, valor pago, desconto, forma de pagamento,
+      quem recebeu, observação
+- [x] Valor sugerido automaticamente = total do contrato + atraso atual (juros/multa)
+- [x] Campo "Desconto (R$)": ao digitar, recalcula o valor pago automaticamente
+      (total + atraso - desconto); o campo valor pago continua editável manualmente depois
+- [x] Campo "Forma de pagamento": seleção obrigatória entre Dinheiro e Pix
+- [x] Campo "Quem recebeu": texto livre, pré-preenchido com o recebedor padrão do contrato
+- [x] Ao confirmar, marca o contrato como pago, registra a data do pagamento e zera o
+      atraso base do contrato
 
 ### Atrasos
-- [x] Aba dedicada com os contratos atrasados
-- [x] Cálculo automático de juros + multa (taxas configuráveis)
+- [x] Aba dedicada listando só os contratos com status "atrasado"
+- [x] Card com o total em atraso (aluguel + juros/multa) somando todos os contratos
+      atrasados — valor cheio devido, diferente do card do Dashboard que soma só o
+      componente de juros/multa
+- [x] Cálculo automático de juros/multa conforme a taxa configurada
 
 ### Histórico de pagamentos
-- [x] Aba geral com todos os pagamentos, filtrável por contrato
-- [x] Modal de histórico por contrato
-- [x] Exportação CSV do histórico de um contrato específico
+- [x] Aba geral com todos os pagamentos de todos os contratos, filtrável por contrato
+- [x] Modal de histórico por contrato (acessível pelo botão "Histórico" de cada contrato)
+- [x] Exibição de desconto e forma de pagamento em cada registro do histórico
+- [x] Exportação CSV do histórico de um contrato específico (inclui desconto e forma
+      de pagamento)
 
 ### Gráficos
-- [x] Barras: ativos vs. atrasados vs. pagos
+- [x] Barras: contratos ativos vs. atrasados vs. pagos
 - [x] Evolução do total em atraso (últimos 6 meses)
 
 ### Relatórios
@@ -57,10 +76,14 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em descricao.
 - [x] Importar/restaurar backup completo (JSON), com confirmação antes de substituir
 
 ### Configurações
-- [x] Taxa de juros mensal (%)
-- [x] Taxa de multa fixa por atraso (%)
+- [x] Taxa de juros mensal (%) e taxa de multa fixa por atraso (%) — usadas no cálculo
+      automático de atraso dos contratos vencidos
+- [x] Valores padrão de juros e multa (R$) para pré-preencher novos contratos
 - [x] Conta do administrador (usuário/senha)
-- [x] Backup do banco de dados
+- [x] Backup do banco de dados (exportar/importar)
+- [x] Zona de perigo: excluir todos os dados (contratos, pagamentos e configuração)
+      permanentemente do servidor. Exige confirmação em duas etapas (diálogo de aviso +
+      digitar "EXCLUIR"), pois não pode ser desfeito. Não afeta o usuário/senha de login
 
 ### Tema
 - [x] Alternância dark/light, preferência salva no navegador
@@ -71,6 +94,11 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em descricao.
 - [x] Pasta `data/` bloqueada para acesso direto via `.htaccess`
 - [x] Testado localmente com PHP 8.5 (`php -S`) — login, troca de senha, leitura/gravação
       de dados e validações de erro (400/401) todos conferidos via curl
+
+### Documentação
+- [x] `README.md` reescrito com foco em iniciantes: credenciais padrão em destaque,
+      passo a passo de instalação/hospedagem, FAQ, e detalhes técnicos organizados
+      no final para quem quiser se aprofundar
 
 ## ⚠️ PENDENTE / ATENÇÃO ANTES DE PRODUÇÃO
 - [ ] Trocar `COOKIE_SECRET` em `api/config.php` por um valor aleatório próprio
@@ -84,7 +112,35 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em descricao.
   só dentro do site (Dashboard).
 
 ## IDEIAS PARA O FUTURO (não solicitadas ainda)
-- [ ] Dark/Light mode com detecção automática do tema do sistema operacional
-- [ ] Paginação na lista de contratos (hoje carrega tudo de uma vez)
-- [ ] Relatório anual comparando ano a ano
-- [ ] Múltiplos usuários administradores (hoje é só um usuário fixo em auth.json)
+
+1. Múltiplos usuários administradores, com permissões distintas (hoje é só um usuário
+   fixo em `auth.json`)
+2. Paginação (ou scroll virtual) na lista de contratos — hoje carrega tudo de uma vez,
+   o que pode ficar lento com uma base grande de contratos
+3. Dark/Light mode com detecção automática do tema do sistema operacional
+4. Relatório anual comparando ano a ano (ex: 2025 vs. 2026), não só mês a mês
+5. Histórico de alterações (auditoria) — quem editou o quê e quando em cada contrato
+6. Anexar arquivos ao contrato (contrato assinado em PDF, comprovantes de pagamento)
+7. Campo de telefone/e-mail do inquilino, com atalho para WhatsApp direto na lista
+   de contratos
+8. Geração automática de recibo em PDF por pagamento individual (hoje o PDF é só o
+   relatório geral de contratos)
+9. Renovação de contrato com um clique (duplica o contrato para o próximo período,
+   mantendo inquilino/imóvel/valores)
+10. Suporte a pagamento parcial (registrar um valor menor que o total, mantendo o
+    contrato em aberto com saldo restante)
+11. Mais formas de pagamento além de Dinheiro/Pix (ex: Boleto, Transferência, Cartão)
+12. Notificação dentro do navegador (Web Push) para avisos de vencimento, sem precisar
+    de e-mail/SMTP
+13. Exportação de relatórios também em Excel (.xlsx), além de CSV e PDF
+14. Gráfico de inadimplência por inquilino/imóvel (quem mais atrasa)
+15. Campo de reajuste anual do aluguel (ex: índice IGP-M/IPCA), com lembrete automático
+    na data de aniversário do contrato
+16. Modo multi-imóvel/multi-proprietário — separar contratos por carteira, útil para
+    quem administra imóveis de terceiros
+17. Backup automático agendado (ex: gerar e salvar um `.json` de backup toda semana
+    no próprio servidor, sem precisar acionar manualmente)
+18. Atalhos de teclado para ações comuns (novo contrato, buscar, fechar modal)
+19. Modo de visualização em calendário, mostrando vencimentos e pagamentos por mês
+20. Progressive Web App (PWA) — permitir "instalar" o sistema no celular com ícone
+    próprio e uso básico offline
