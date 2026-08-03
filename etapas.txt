@@ -41,6 +41,17 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
 - [x] Lista paginada (20 contratos por página), com botões Anterior/Próxima e indicador
       de página — evita lentidão com uma base grande de contratos. A página volta para 1
       automaticamente ao mudar busca ou filtros
+- [x] Anexar o contrato assinado (PDF, JPG ou PNG, até 15MB) a cada contrato — botão
+      "📎 Anexo" no card quando existe, upload/visualização/remoção pela tela de edição.
+      Arquivos ficam em `contratos/` (pasta protegida por `.htaccess`, como `data/`),
+      renomeados automaticamente no servidor para `nomedoinquilino-imovel-idcurto.ext`
+      (removendo acentos e caracteres especiais). Só é possível anexar em um contrato
+      já existente (não na tela de "Novo contrato")
+- [x] Reajustar valor: botão "📈 Reajustar" abre um modal dedicado para lançar um novo
+      valor de aluguel — substitui o aluguel atual (e recalcula o total) e fica
+      registrado na Auditoria com o valor antigo e o novo. Qualquer usuário
+      administrador pode fazer esse reajuste (decisão consciente: sem restrição de
+      usuário específico)
 
 ### Pagamentos
 - [x] Modal "Registrar pagamento" com: data, valor pago, desconto, forma de pagamento,
@@ -93,6 +104,19 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
       editado ou excluído; pagamento registrado; usuário administrador adicionado ou
       removido — cada entrada mostra o quê, quem fez e quando
 - [x] Lista ordenada do mais recente para o mais antigo, mantendo os últimos 300 eventos
+
+### Calendário
+- [x] Aba dedicada com grade mensal (estilo calendário), navegação entre meses
+      (anterior/próximo/hoje)
+- [x] Cada dia mostra pontos coloridos indicando vencimentos (azul=ativo,
+      vermelho=atrasado, verde=pago) e pagamentos recebidos naquele dia
+- [x] Clicar em um dia mostra a lista detalhada de vencimentos e pagamentos daquela
+      data abaixo do calendário
+
+### Usabilidade
+- [x] Atalhos de teclado: `N` abre "Novo contrato", `/` foca a busca de contratos,
+      `Esc` fecha qualquer modal aberto. Não interferem enquanto o foco está em um
+      campo de formulário
 
 ### Exportação / Importação
 - [x] Exportar CSV dos contratos (respeita filtros ativos)
@@ -152,7 +176,8 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
 
 ## IDEIAS PARA O FUTURO (não solicitadas ainda)
 
-1. Anexar arquivos ao contrato (contrato assinado em PDF, comprovantes de pagamento)
+1. Anexar comprovantes de pagamento (um arquivo por pagamento registrado, além do
+   contrato assinado já anexável ao contrato)
 2. Campo de telefone/e-mail do inquilino, com atalho para WhatsApp direto na lista
    de contratos
 3. Geração automática de recibo em PDF por pagamento individual (hoje o PDF é só o
@@ -166,19 +191,17 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
    de e-mail/SMTP
 8. Exportação de relatórios também em Excel (.xlsx), além de CSV e PDF
 9. Gráfico de inadimplência por inquilino/imóvel (quem mais atrasa)
-10. Campo de reajuste anual do aluguel (ex: índice IGP-M/IPCA), com lembrete automático
-    na data de aniversário do contrato
+10. Lembrete automático de reajuste na data de aniversário do contrato, com sugestão de
+    valor por índice (ex: IGP-M/IPCA) — hoje o reajuste já existe, mas é sempre manual
 11. Modo multi-imóvel/multi-proprietário — separar contratos por carteira, útil para
     quem administra imóveis de terceiros
 12. Backup automático agendado (ex: gerar e salvar um `.json` de backup toda semana
     no próprio servidor, sem precisar acionar manualmente)
-13. Atalhos de teclado para ações comuns (novo contrato, buscar, fechar modal)
-14. Modo de visualização em calendário, mostrando vencimentos e pagamentos por mês
-15. Progressive Web App (PWA) — permitir "instalar" o sistema no celular com ícone
+13. Progressive Web App (PWA) — permitir "instalar" o sistema no celular com ícone
     próprio e uso básico offline
-16. Papéis de permissão distintos entre usuários administradores (ex: um usuário só de
+14. Papéis de permissão distintos entre usuários administradores (ex: um usuário só de
     visualização/relatórios, sem poder excluir dados) — hoje todos os usuários têm
     acesso total e igual
-17. Auditoria em nível de campo (diff campo a campo, com valor antigo e novo) — hoje o
+15. Auditoria em nível de campo (diff campo a campo, com valor antigo e novo) — hoje o
     log de auditoria registra só o evento principal (o quê, quem, quando), sem detalhar
     exatamente o que mudou em cada edição

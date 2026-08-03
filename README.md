@@ -65,7 +65,8 @@ Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servid
 1. **Troque a chave secreta**: abra `api/config.php` e mude o valor de `COOKIE_SECRET`
    para algo aleatório e único (isso protege o cookie de login contra falsificação)
 2. **Envie os arquivos**: copie a pasta inteira do projeto (`index.html`, `index.css`,
-   `index.js`, `api/`, `data/`) para a hospedagem, mantendo a mesma organização de pastas
+   `index.js`, `api/`, `data/`, `contratos/`) para a hospedagem, mantendo a mesma
+   organização de pastas
 3. **Acesse pelo navegador** e faça login com `admin` / `123456`
 4. **Troque a senha na hora**, como explicado na seção acima
 5. **Confirme que os dados estão protegidos**: tente acessar
@@ -77,10 +78,12 @@ Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servid
 
 - **Dashboard** — visão geral: quantos contratos estão ativos, quanto está em atraso no
   total, próximo vencimento, e um alerta para contratos que vencem nos próximos 5 dias
-- **Contratos** — cadastrar, editar e excluir contratos de aluguel, com busca e filtros
-  por ano/mês/status. Registrar pagamento em um clique
+- **Contratos** — cadastrar, editar e excluir contratos de aluguel, com busca, filtros
+  por ano/mês/status e paginação. Registrar pagamento em um clique, anexar o contrato
+  assinado (PDF/JPG/PNG) e reajustar o valor do aluguel a qualquer momento
 - **Atrasos** — lista separada só dos contratos vencidos, com juros e multa calculados
   automaticamente conforme a taxa configurada
+- **Calendário** — grade mensal mostrando vencimentos e pagamentos dia a dia
 - **Histórico** — todos os pagamentos já registrados, com exportação em CSV
 - **Gráficos** — contratos por status, pagamentos por forma (Dinheiro/Pix), evolução do
   atraso e da receita nos últimos 6 meses. Cores adaptadas ao tema claro/escuro
@@ -94,6 +97,8 @@ Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servid
   escolher manualmente; a partir daí fica salvo no navegador
 - **Login protegido** — sessão de 30 dias, não desloga ao fechar o navegador. Suporta
   múltiplos usuários administradores, todos com o mesmo nível de acesso
+- **Atalhos de teclado** — `N` abre um novo contrato, `/` foca a busca, `Esc` fecha
+  modais
 
 ## Perguntas frequentes
 
@@ -137,11 +142,18 @@ api/account.php      POST { currentPassword, newUsername, newPassword } -> troca
                       próprio usuário/senha em data/auth.json (exige senha atual)
 api/users.php         GET lista os usuários administradores; POST { action: 'add' | 'remove', ... }
                       adiciona ou remove outros usuários (exige autenticação)
+api/anexo.php         GET ?file=... baixa/visualiza o anexo; POST (multipart) envia um
+                      novo anexo; POST { action: 'remove', file } remove um anexo
+                      (exige autenticação)
 
 data/dados.json      Contratos, pagamentos, configuração e auditoria (criado automaticamente)
 data/auth.json       Lista de usuários administradores + hash de senha de cada um
                       (criado automaticamente, password_hash)
 data/.htaccess       Bloqueia acesso direto via URL a tudo dentro de data/
+
+contratos/           Arquivos de contrato assinado anexados (PDF/JPG/PNG), renomeados
+                      para nomedoinquilino-imovel-idcurto.ext (criado automaticamente)
+contratos/.htaccess  Bloqueia acesso direto via URL a tudo dentro de contratos/
 ```
 
 ### Como o login funciona
@@ -161,8 +173,9 @@ sem exigir nenhuma ação manual.
 ### Arquitetura geral
 
 - **Front-end**: `index.html` + `index.css` + `index.js`. Aplicação de página única (SPA):
-  as "abas" (Dashboard, Contratos, Atrasos, Histórico, Gráficos, Relatórios, Auditoria,
-  Configurações) são seções que aparecem/somem no mesmo HTML, sem recarregar a página.
+  as "abas" (Dashboard, Contratos, Atrasos, Histórico, Gráficos, Relatórios, Calendário,
+  Auditoria, Configurações) são seções que aparecem/somem no mesmo HTML, sem recarregar
+  a página.
 - **Backend**: PHP puro em `api/`, sem framework. Cada endpoint é um arquivo `.php`
   independente. Toda a comunicação front-end ↔ backend é via `fetch()` com JSON.
 - **Dados**: dois arquivos JSON em `data/`, protegidos contra acesso direto via `.htaccess`.
@@ -189,6 +202,7 @@ sem exigir nenhuma ação manual.
 | `pago`             | boolean           | Se já foi pago (contrato "quitado")                    |
 | `dataPagamento`    | string ou null    | Data do último pagamento registrado                     |
 | `pagamentos`       | array             | Histórico de pagamentos deste contrato (ver abaixo)     |
+| `anexoContrato`    | string ou null    | Nome do arquivo do contrato assinado anexado (em `contratos/`), ou `null` se não houver |
 | `criadoEm`         | number (timestamp)| Usado para ordenar "contratos recentes" no Dashboard    |
 
 **Status do contrato** (calculado, não é um campo salvo): `pago` se `pago=true`;
@@ -232,10 +246,16 @@ Mantém só os últimos 300 eventos — os mais antigos são descartados automat
 
 ### Requisitos técnicos
 
-- PHP 7.4+ (testado com PHP 8.5) com suporte a `setcookie()` com array de opções e
-  `password_hash`/`password_verify`
-- Apache com `.htaccess` habilitado (`AllowOverride All`) para proteger a pasta `data/`
+- PHP 7.4+ (testado com PHP 8.5) com suporte a `setcookie()` com array de opções,
+  `password_hash`/`password_verify` e a extensão `fileinfo` (para validar o tipo real
+  dos arquivos anexados aos contratos) — vem habilitada por padrão na grande maioria
+  das hospedagens e instalações de PHP
+- Apache com `.htaccess` habilitado (`AllowOverride All`) para proteger as pastas
+  `data/` e `contratos/`
 - Nenhuma dependência de Node/npm/Composer
+- Para anexar contratos maiores, confira os limites `upload_max_filesize` e
+  `post_max_size` do PHP da sua hospedagem — hospedagens compartilhadas às vezes vêm
+  com limites baixos (ex: 2MB) por padrão
 
 ### O que não foi implementado (por decisão consciente)
 
@@ -248,5 +268,5 @@ Mantém só os últimos 300 eventos — os mais antigos são descartados automat
 - Papéis de permissão distintos entre usuários administradores (hoje todos têm o mesmo
   nível de acesso)
 - Auditoria em nível de campo (valor antigo vs. novo em cada edição)
-- Anexar arquivos ao contrato, recibo em PDF por pagamento, pagamento parcial, e outras
-  ideias detalhadas em `etapas.txt`
+- Anexar comprovantes de pagamento, recibo em PDF por pagamento, pagamento parcial, e
+  outras ideias detalhadas em `etapas.txt`

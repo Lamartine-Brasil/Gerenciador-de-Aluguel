@@ -1,0 +1,10 @@
+# Bloqueia qualquer acesso direto via navegador a esta pasta.
+# Os arquivos anexados só devem ser lidos através do script api/anexo.php,
+# que exige autenticação antes de servir o conteúdo.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order deny,allow
+    Deny from all
+</IfModule>

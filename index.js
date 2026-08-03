@@ -252,6 +252,7 @@ document.getElementById('tabsNav').addEventListener('click', (e) => {
   if (btn.dataset.tab === 'graficos') renderCharts();
   if (btn.dataset.tab === 'relatorios') renderRelatorios();
   if (btn.dataset.tab === 'auditoria') renderAuditoria();
+  if (btn.dataset.tab === 'calendario') renderCalendario();
 });
 
 /* ===================== MODALS ===================== */
@@ -264,6 +265,35 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
       overlay.classList.add('hidden');
     }
   });
+});
+
+/* ===================== ATALHOS DE TECLADO ===================== */
+function modalAberto() {
+  return Array.from(document.querySelectorAll('.modal-overlay')).find(m => !m.classList.contains('hidden'));
+}
+
+document.addEventListener('keydown', (e) => {
+  if (appEl.classList.contains('hidden')) return; // não logado ainda
+
+  if (e.key === 'Escape') {
+    const aberto = modalAberto();
+    if (aberto) aberto.classList.add('hidden');
+    return;
+  }
+
+  const alvo = document.activeElement;
+  const editando = alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.tagName === 'SELECT' || alvo.isContentEditable);
+  if (editando || modalAberto() || e.metaKey || e.ctrlKey || e.altKey) return;
+
+  if (e.key === 'n') {
+    e.preventDefault();
+    document.querySelector('.tab-btn[data-tab="contratos"]').click();
+    document.getElementById('btnNovoContrato').click();
+  } else if (e.key === '/') {
+    e.preventDefault();
+    document.querySelector('.tab-btn[data-tab="contratos"]').click();
+    document.getElementById('searchContratos').focus();
+  }
 });
 
 /* ===================== CONTRATO FORM ===================== */
@@ -292,6 +322,7 @@ document.getElementById('btnNovoContrato').addEventListener('click', () => {
   document.getElementById('fVencimento').value = todayStr();
   document.getElementById('fJuros').value = state.config.jurosPadrao || '';
   document.getElementById('fMulta').value = state.config.multaPadrao || '';
+  document.getElementById('fAnexoSection').classList.add('hidden');
   updateTotalPreview();
   openModal('modalContrato');
 });
@@ -312,9 +343,80 @@ function openEditContrato(id) {
   document.getElementById('fQuemRecebeu').value = c.quemRecebeu || '';
   document.getElementById('fObservacao').value = c.observacao || '';
   document.getElementById('modalContratoTitle').textContent = 'Editar contrato';
+  document.getElementById('fAnexoSection').classList.remove('hidden');
+  renderAnexoAtual(c);
   updateTotalPreview();
   openModal('modalContrato');
 }
+
+/* ===================== ANEXO DO CONTRATO ===================== */
+function renderAnexoAtual(c) {
+  const bloco = document.getElementById('fAnexoAtual');
+  const input = document.getElementById('fAnexoInput');
+  const status = document.getElementById('fAnexoStatus');
+  input.value = '';
+  status.textContent = 'PDF, JPG ou PNG, até 15MB. Enviado automaticamente ao escolher o arquivo.';
+  if (c.anexoContrato) {
+    document.getElementById('fAnexoNome').textContent = c.anexoContrato;
+    document.getElementById('fAnexoLink').href = 'api/anexo.php?file=' + encodeURIComponent(c.anexoContrato);
+    bloco.classList.remove('hidden');
+  } else {
+    bloco.classList.add('hidden');
+  }
+}
+
+document.getElementById('fAnexoInput').addEventListener('change', async () => {
+  const id = document.getElementById('contratoId').value;
+  const c = state.contratos.find(x => x.id === id);
+  const input = document.getElementById('fAnexoInput');
+  const status = document.getElementById('fAnexoStatus');
+  const file = input.files[0];
+  if (!c || !file) return;
+
+  status.textContent = 'Enviando...';
+  try {
+    const formData = new FormData();
+    formData.append('arquivo', file);
+    formData.append('contratoId', c.id);
+    formData.append('inquilino', c.inquilino);
+    formData.append('imovel', c.imovel);
+    const res = await fetch(API_BASE + 'anexo.php', { method: 'POST', credentials: 'same-origin', body: formData });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      c.anexoContrato = data.filename;
+      registrarAuditoria('contrato_editado', `Contrato anexado: ${c.imovel} - ${c.inquilino}`);
+      await saveState();
+      renderAnexoAtual(c);
+      renderAll();
+      showToast('Contrato anexado com sucesso.', 'success');
+    } else {
+      status.textContent = data.error || 'Não foi possível enviar o arquivo.';
+      showToast(data.error || 'Não foi possível enviar o arquivo.', 'error');
+    }
+  } catch (err) {
+    status.textContent = 'Não foi possível conectar ao servidor.';
+    showToast('Não foi possível conectar ao servidor.', 'error');
+  }
+});
+
+document.getElementById('btnRemoverAnexo').addEventListener('click', async () => {
+  const id = document.getElementById('contratoId').value;
+  const c = state.contratos.find(x => x.id === id);
+  if (!c || !c.anexoContrato) return;
+  if (!confirm('Remover o arquivo anexado a este contrato?')) return;
+
+  try {
+    await apiFetch('anexo.php', { method: 'POST', body: JSON.stringify({ action: 'remove', file: c.anexoContrato }) });
+    registrarAuditoria('contrato_editado', `Anexo removido: ${c.imovel} - ${c.inquilino}`);
+    c.anexoContrato = null;
+    await saveState();
+    renderAnexoAtual(c);
+    renderAll();
+    showToast('Anexo removido.', 'success');
+  } catch (err) {
+    showToast('Não foi possível remover o anexo.', 'error');
+  }
+});
 
 formContrato.addEventListener('submit', (e) => {
   e.preventDefault();
@@ -346,6 +448,7 @@ formContrato.addEventListener('submit', (e) => {
       pago: false,
       dataPagamento: null,
       pagamentos: [],
+      anexoContrato: null,
       criadoEm: Date.now(),
     });
     registrarAuditoria('contrato_criado', `Contrato criado: ${data.imovel} - ${data.inquilino}`);
@@ -365,6 +468,37 @@ function excluirContrato(id) {
   renderAll();
   showToast('Contrato excluído.', 'success');
 }
+
+/* ===================== REAJUSTE DE VALOR ===================== */
+const formReajuste = document.getElementById('formReajuste');
+
+function openReajuste(id) {
+  const c = state.contratos.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('reajusteContratoId').value = c.id;
+  document.getElementById('reajusteContratoInfo').textContent = `${c.imovel} — ${c.inquilino}`;
+  document.getElementById('reajusteValorAtual').textContent = formatCurrency(c.aluguel);
+  document.getElementById('reajusteNovoValor').value = '';
+  openModal('modalReajuste');
+}
+
+formReajuste.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const id = document.getElementById('reajusteContratoId').value;
+  const c = state.contratos.find(x => x.id === id);
+  if (!c) return;
+  const valorAntigo = c.aluguel;
+  const novoValor = Number(document.getElementById('reajusteNovoValor').value) || 0;
+  if (novoValor <= 0) return;
+
+  c.aluguel = novoValor;
+  c.total = calcTotal(c);
+  registrarAuditoria('contrato_reajustado', `Aluguel reajustado: ${c.imovel} - ${c.inquilino} de ${formatCurrency(valorAntigo)} para ${formatCurrency(novoValor)}`);
+  saveState();
+  closeModal('modalReajuste');
+  renderAll();
+  showToast('Reajuste aplicado com sucesso.', 'success');
+});
 
 /* ===================== PAGAMENTO ===================== */
 const formPagamento = document.getElementById('formPagamento');
@@ -514,6 +648,8 @@ function contratoCardHtml(c) {
       ${c.observacao ? `<div class="contrato-sub">📝 ${escapeHtml(c.observacao)}</div>` : ''}
       <div class="contrato-actions">
         ${status !== 'pago' ? `<button class="btn btn-success btn-sm" data-action="pagar" data-id="${c.id}">💰 Pagar</button>` : ''}
+        <button class="btn btn-ghost btn-sm" data-action="reajustar" data-id="${c.id}">📈 Reajustar</button>
+        ${c.anexoContrato ? `<a class="btn btn-ghost btn-sm" href="api/anexo.php?file=${encodeURIComponent(c.anexoContrato)}" target="_blank">📎 Anexo</a>` : ''}
         <button class="btn btn-ghost btn-sm" data-action="historico" data-id="${c.id}">🧾 Histórico</button>
         <button class="btn btn-ghost btn-sm" data-action="editar" data-id="${c.id}">✏️ Editar</button>
         <button class="btn btn-danger btn-sm" data-action="excluir" data-id="${c.id}">🗑️ Excluir</button>
@@ -531,6 +667,7 @@ function bindCardActions(container) {
       else if (action === 'historico') openHistoricoContrato(id);
       else if (action === 'editar') openEditContrato(id);
       else if (action === 'excluir') excluirContrato(id);
+      else if (action === 'reajustar') openReajuste(id);
     });
   });
 }
@@ -1276,6 +1413,138 @@ function renderAuditoria() {
 
 document.getElementById('relatorioAno').addEventListener('change', renderRelatorios);
 
+/* ===================== CALENDÁRIO ===================== */
+let calendarioAtual = new Date();
+calendarioAtual.setDate(1);
+let calendarioDiaSelecionado = null;
+
+function dateStrLocal(ano, mes, dia) {
+  return `${ano}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+}
+
+function renderCalendario() {
+  const ano = calendarioAtual.getFullYear();
+  const mes = calendarioAtual.getMonth();
+  document.getElementById('calendarioMesAno').textContent = `${MESES_PT[mes]} ${ano}`;
+
+  const primeiroDiaSemana = new Date(ano, mes, 1).getDay();
+  const diasNoMes = new Date(ano, mes + 1, 0).getDate();
+  const diasNoMesAnterior = new Date(ano, mes, 0).getDate();
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const hojeStr = todayStr();
+
+  const celulas = [];
+  for (let i = 0; i < primeiroDiaSemana; i++) {
+    celulas.push({ dia: diasNoMesAnterior - primeiroDiaSemana + 1 + i, outside: true });
+  }
+  for (let d = 1; d <= diasNoMes; d++) {
+    celulas.push({ dia: d, outside: false });
+  }
+  while (celulas.length % 7 !== 0) {
+    celulas.push({ dia: celulas.length, outside: true });
+  }
+
+  const grid = document.getElementById('calendarioGrid');
+  grid.innerHTML = celulas.map(c => {
+    if (c.outside) {
+      return `<div class="calendar-day is-outside"><span class="calendar-day-number">${c.dia}</span></div>`;
+    }
+    const dataStr = dateStrLocal(ano, mes, c.dia);
+    const vencimentos = state.contratos.filter(ct => ct.vencimento === dataStr);
+    const pagamentosNoDia = [];
+    state.contratos.forEach(ct => ct.pagamentos.forEach(p => { if (p.data === dataStr) pagamentosNoDia.push(p); }));
+
+    const classes = ['calendar-day'];
+    if (dataStr === hojeStr) classes.push('is-today');
+    if (dataStr === calendarioDiaSelecionado) classes.push('is-selected');
+
+    const dots = [];
+    vencimentos.forEach(ct => {
+      const st = getStatus(ct);
+      const cor = st === 'atrasado' ? 'var(--danger)' : st === 'pago' ? 'var(--success)' : 'var(--accent)';
+      dots.push(`<span class="calendar-dot" style="background:${cor}"></span>`);
+    });
+    pagamentosNoDia.forEach(() => dots.push('<span class="calendar-dot" style="background:var(--success)"></span>'));
+
+    return `
+      <div class="${classes.join(' ')}" data-data="${dataStr}">
+        <span class="calendar-day-number">${c.dia}</span>
+        <div class="calendar-day-dots">${dots.join('')}</div>
+      </div>
+    `;
+  }).join('');
+
+  grid.querySelectorAll('.calendar-day[data-data]').forEach(el => {
+    el.addEventListener('click', () => {
+      calendarioDiaSelecionado = el.dataset.data;
+      renderCalendario();
+      renderCalendarioDetalhe(el.dataset.data);
+    });
+  });
+}
+
+function renderCalendarioDetalhe(dataStr) {
+  const card = document.getElementById('calendarioDetalheCard');
+  const lista = document.getElementById('calendarioDetalheLista');
+  const vencimentos = state.contratos.filter(c => c.vencimento === dataStr);
+  const pagamentos = [];
+  state.contratos.forEach(c => c.pagamentos.forEach(p => { if (p.data === dataStr) pagamentos.push({ ...p, contrato: c }); }));
+
+  document.getElementById('calendarioDetalheTitulo').textContent = formatDate(dataStr);
+  card.classList.remove('hidden');
+
+  if (!vencimentos.length && !pagamentos.length) {
+    lista.innerHTML = '<div class="empty-state">Nenhum vencimento ou pagamento neste dia.</div>';
+    return;
+  }
+
+  const itensVencimento = vencimentos.map(c => {
+    const status = getStatus(c);
+    return `
+      <div class="card">
+        <div class="contrato-top">
+          <div>
+            <div class="contrato-title">${escapeHtml(c.imovel)}</div>
+            <div class="contrato-sub">👤 ${escapeHtml(c.inquilino)} · Vencimento · ${formatCurrency(c.total)}</div>
+          </div>
+          <span class="status-badge status-${status}">${statusLabel(status)}</span>
+        </div>
+      </div>
+    `;
+  });
+
+  const itensPagamento = pagamentos.map(p => `
+    <div class="card">
+      <div class="contrato-top">
+        <div>
+          <div class="contrato-title">${escapeHtml(p.contrato.imovel)}</div>
+          <div class="contrato-sub">👤 ${escapeHtml(p.contrato.inquilino)} · Pagamento recebido · ${formatCurrency(p.valor)}</div>
+        </div>
+        <span class="status-badge status-pago">Pago</span>
+      </div>
+    </div>
+  `);
+
+  lista.innerHTML = itensVencimento.join('') + itensPagamento.join('');
+}
+
+function mudarMesCalendario(delta) {
+  calendarioAtual.setMonth(calendarioAtual.getMonth() + delta);
+  calendarioDiaSelecionado = null;
+  document.getElementById('calendarioDetalheCard').classList.add('hidden');
+  renderCalendario();
+}
+
+document.getElementById('btnCalendarioAnterior').addEventListener('click', () => mudarMesCalendario(-1));
+document.getElementById('btnCalendarioProximo').addEventListener('click', () => mudarMesCalendario(1));
+document.getElementById('btnCalendarioHoje').addEventListener('click', () => {
+  calendarioAtual = new Date();
+  calendarioAtual.setDate(1);
+  calendarioDiaSelecionado = null;
+  document.getElementById('calendarioDetalheCard').classList.add('hidden');
+  renderCalendario();
+});
+
 /* ===================== EXPORT CSV ===================== */
 function downloadCsv(filename, headers, rows) {
   const csvContent = [headers, ...rows]
@@ -1412,6 +1681,7 @@ document.getElementById('inputImportCSV').addEventListener('change', (e) => {
         pago: false,
         dataPagamento: null,
         pagamentos: [],
+        anexoContrato: null,
         criadoEm: Date.now(),
       };
       novo.total = calcTotal(novo);
@@ -1523,6 +1793,8 @@ function renderAll() {
   if (relatoriosTab.classList.contains('active')) renderRelatorios();
   const auditoriaTab = document.getElementById('tab-auditoria');
   if (auditoriaTab.classList.contains('active')) renderAuditoria();
+  const calendarioTab = document.getElementById('tab-calendario');
+  if (calendarioTab.classList.contains('active')) renderCalendario();
 }
 
 /* ===================== INIT ===================== */

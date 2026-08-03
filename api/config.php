@@ -18,6 +18,47 @@ define('DATA_DIR', __DIR__ . '/../data');
 define('DATA_FILE', DATA_DIR . '/dados.json');
 define('AUTH_FILE', DATA_DIR . '/auth.json');
 
+define('CONTRATOS_DIR', __DIR__ . '/../contratos');
+define('ANEXO_TIPOS_PERMITIDOS', ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png']);
+define('ANEXO_TAMANHO_MAXIMO', 15 * 1024 * 1024); // 15MB
+
+function ensureContratosDir() {
+    if (!is_dir(CONTRATOS_DIR)) {
+        mkdir(CONTRATOS_DIR, 0755, true);
+    }
+    $htaccess = CONTRATOS_DIR . '/.htaccess';
+    if (!file_exists($htaccess)) {
+        file_put_contents($htaccess, "<IfModule mod_authz_core.c>\n    Require all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n    Order deny,allow\n    Deny from all\n</IfModule>\n");
+    }
+}
+
+// Transforma texto livre em algo seguro para nome de arquivo: minúsculo,
+// sem acentos, só letras/números separados por hífen. Usa um mapa explícito
+// de acentos em português em vez de iconv//TRANSLIT, cujo resultado varia
+// entre sistemas (ex: pode virar "jo-ao" em vez de "joao").
+function slugify($text) {
+    $text = trim((string)$text);
+    $mapaAcentos = [
+        'á'=>'a','à'=>'a','ã'=>'a','â'=>'a','ä'=>'a',
+        'é'=>'e','è'=>'e','ê'=>'e','ë'=>'e',
+        'í'=>'i','ì'=>'i','î'=>'i','ï'=>'i',
+        'ó'=>'o','ò'=>'o','õ'=>'o','ô'=>'o','ö'=>'o',
+        'ú'=>'u','ù'=>'u','û'=>'u','ü'=>'u',
+        'ç'=>'c','ñ'=>'n','ý'=>'y',
+        'Á'=>'a','À'=>'a','Ã'=>'a','Â'=>'a','Ä'=>'a',
+        'É'=>'e','È'=>'e','Ê'=>'e','Ë'=>'e',
+        'Í'=>'i','Ì'=>'i','Î'=>'i','Ï'=>'i',
+        'Ó'=>'o','Ò'=>'o','Õ'=>'o','Ô'=>'o','Ö'=>'o',
+        'Ú'=>'u','Ù'=>'u','Û'=>'u','Ü'=>'u',
+        'Ç'=>'c','Ñ'=>'n','Ý'=>'y',
+    ];
+    $text = strtr($text, $mapaAcentos);
+    $text = strtolower($text);
+    $text = preg_replace('/[^a-z0-9]+/', '-', $text);
+    $text = trim($text, '-');
+    return $text !== '' ? $text : 'arquivo';
+}
+
 function ensureDataFile() {
     if (!is_dir(DATA_DIR)) {
         mkdir(DATA_DIR, 0755, true);
