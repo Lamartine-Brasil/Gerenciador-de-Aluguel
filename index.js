@@ -114,6 +114,43 @@ function todayStr() {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
+// Calcula o primeiro vencimento a partir da data de início do contrato e do dia
+// de pagamento escolhido (ex: início 03-06-2023 + dia 1 -> primeiro vencimento
+// 01-06-2023). Se o dia de pagamento não existir naquele mês (ex: dia 31 em
+// fevereiro), usa o último dia do mês.
+function primeiroVencimento(dataInicioStr, diaPagamento) {
+  const [y, m] = dataInicioStr.split('-').map(Number);
+  const diasNoMes = new Date(y, m, 0).getDate();
+  const dia = Math.min(diaPagamento, diasNoMes);
+  return `${y}-${String(m).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+}
+
+// Soma N meses a uma data "AAAA-MM-DD", mantendo o mesmo dia do mês sempre que
+// possível (ex: 31 de janeiro + 1 mês vira 28/29 de fevereiro, não 2/3 de março).
+function addMonthsClamped(dateStr, n) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const totalMonths = (m - 1) + n;
+  const targetYear = y + Math.floor(totalMonths / 12);
+  const targetMonth = ((totalMonths % 12) + 12) % 12;
+  const diasNoMesAlvo = new Date(targetYear, targetMonth + 1, 0).getDate();
+  const targetDay = Math.min(d, diasNoMesAlvo);
+  return `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+}
+
+// Para contratos antigos: se o vencimento informado já passou, gera a lista de
+// vencimentos mensais (mesmo dia do mês) desde essa data até o mês mais recente
+// que já venceu (sem passar de hoje).
+function gerarVencimentosAtePresente(vencimentoInicial) {
+  const hoje = todayStr();
+  const lista = [vencimentoInicial];
+  for (let i = 1; i <= 360; i++) {
+    const proximo = addMonthsClamped(vencimentoInicial, i);
+    if (proximo > hoje) break;
+    lista.push(proximo);
+  }
+  return lista;
+}
+
 function formatDate(dateStr) {
   if (!dateStr) return '--';
   const d = parseDate(dateStr);
@@ -323,10 +360,16 @@ document.getElementById('btnNovoContrato').addEventListener('click', () => {
   formContrato.reset();
   document.getElementById('contratoId').value = '';
   document.getElementById('modalContratoTitle').textContent = 'Novo contrato';
-  document.getElementById('fVencimento').value = todayStr();
+  document.getElementById('fDataInicio').value = todayStr();
+  document.getElementById('fDiaPagamento').value = '';
   document.getElementById('fJuros').value = state.config.jurosPadrao || '';
   document.getElementById('fMulta').value = state.config.multaPadrao || '';
+  document.getElementById('fCampoDataInicio').classList.remove('hidden');
+  document.getElementById('fCampoDiaPagamento').classList.remove('hidden');
+  document.getElementById('fCampoVencimento').classList.add('hidden');
   document.getElementById('fAnexoSection').classList.add('hidden');
+  document.getElementById('fRetroativoHint').classList.remove('hidden');
+  document.getElementById('fInicioInfo').classList.add('hidden');
   updateTotalPreview();
   openModal('modalContrato');
 });
@@ -347,7 +390,18 @@ function openEditContrato(id) {
   document.getElementById('fQuemRecebeu').value = c.quemRecebeu || '';
   document.getElementById('fObservacao').value = c.observacao || '';
   document.getElementById('modalContratoTitle').textContent = 'Editar contrato';
+  document.getElementById('fCampoDataInicio').classList.add('hidden');
+  document.getElementById('fCampoDiaPagamento').classList.add('hidden');
+  document.getElementById('fCampoVencimento').classList.remove('hidden');
   document.getElementById('fAnexoSection').classList.remove('hidden');
+  document.getElementById('fRetroativoHint').classList.add('hidden');
+  const inicioInfo = document.getElementById('fInicioInfo');
+  if (c.dataInicio) {
+    inicioInfo.textContent = `Início do contrato: ${formatDate(c.dataInicio)}, todo dia ${c.diaPagamento || '--'}`;
+    inicioInfo.classList.remove('hidden');
+  } else {
+    inicioInfo.classList.add('hidden');
+  }
   renderAnexoAtual(c);
   updateTotalPreview();
   openModal('modalContrato');
@@ -426,7 +480,6 @@ formContrato.addEventListener('submit', (e) => {
   e.preventDefault();
   const id = document.getElementById('contratoId').value;
   const data = {
-    vencimento: document.getElementById('fVencimento').value,
     imovel: document.getElementById('fImovel').value.trim(),
     inquilino: document.getElementById('fInquilino').value.trim(),
     aluguel: Number(document.getElementById('fAluguel').value) || 0,
@@ -441,22 +494,57 @@ formContrato.addEventListener('submit', (e) => {
   data.total = calcTotal(data);
 
   if (id) {
+    data.vencimento = document.getElementById('fVencimento').value;
     const c = state.contratos.find(x => x.id === id);
     Object.assign(c, data);
     registrarAuditoria('contrato_editado', `Contrato editado: ${data.imovel} - ${data.inquilino}`);
     showToast('Contrato atualizado com sucesso.', 'success');
   } else {
-    state.contratos.push({
-      id: uuid(),
-      ...data,
-      pago: false,
-      dataPagamento: null,
-      pagamentos: [],
-      anexoContrato: null,
-      criadoEm: Date.now(),
+    const dataInicio = document.getElementById('fDataInicio').value;
+    const diaPagamento = Number(document.getElementById('fDiaPagamento').value) || 0;
+    if (!dataInicio || diaPagamento < 1 || diaPagamento > 31) {
+      showToast('Informe a data de início e um dia de pagamento válido (1 a 31).', 'error');
+      return;
+    }
+
+    const primeiroVenc = primeiroVencimento(dataInicio, diaPagamento);
+    const vencimentos = gerarVencimentosAtePresente(primeiroVenc);
+
+    if (vencimentos.length > 1) {
+      const ok = confirm(
+        `A data de início já passou. Isso vai gerar ${vencimentos.length} contratos, ` +
+        `um para cada mês, de ${formatDate(vencimentos[0])} até ${formatDate(vencimentos[vencimentos.length - 1])}. ` +
+        `Deseja continuar?`
+      );
+      if (!ok) return;
+    }
+
+    vencimentos.forEach((venc, idx) => {
+      const ultimo = idx === vencimentos.length - 1;
+      state.contratos.push({
+        id: uuid(),
+        ...data,
+        vencimento: venc,
+        dataInicio,
+        diaPagamento,
+        // o "valor em atraso já existente" é uma dívida extra pontual — só entra
+        // no contrato mais recente gerado, não é repetido em cada mês
+        valorAtrasoBase: ultimo ? data.valorAtrasoBase : 0,
+        pago: false,
+        dataPagamento: null,
+        pagamentos: [],
+        anexoContrato: null,
+        criadoEm: Date.now() + idx,
+      });
     });
-    registrarAuditoria('contrato_criado', `Contrato criado: ${data.imovel} - ${data.inquilino}`);
-    showToast('Contrato criado com sucesso.', 'success');
+
+    if (vencimentos.length > 1) {
+      registrarAuditoria('contrato_criado', `${vencimentos.length} contratos criados (retroativo): ${data.imovel} - ${data.inquilino}, de ${formatDate(vencimentos[0])} até ${formatDate(vencimentos[vencimentos.length - 1])}`);
+      showToast(`${vencimentos.length} contratos gerados com sucesso.`, 'success');
+    } else {
+      registrarAuditoria('contrato_criado', `Contrato criado: ${data.imovel} - ${data.inquilino}`);
+      showToast('Contrato criado com sucesso.', 'success');
+    }
   }
   saveState();
   closeModal('modalContrato');
@@ -648,6 +736,7 @@ function contratoCardHtml(c) {
         <div><span>Total</span><strong>${formatCurrency(c.total)}</strong></div>
         ${status === 'atrasado' ? `<div><span>Em atraso</span><strong style="color:var(--danger)">${formatCurrency(atrasoAtual)}</strong></div>` : ''}
         ${c.quemRecebeu ? `<div><span>Quem recebe</span><strong>${escapeHtml(c.quemRecebeu)}</strong></div>` : ''}
+        ${c.dataInicio ? `<div><span>Início do contrato</span><strong>${formatDate(c.dataInicio)}</strong></div>` : ''}
       </div>
       ${c.observacao ? `<div class="contrato-sub">${icon('file-text')} ${escapeHtml(c.observacao)}</div>` : ''}
       <div class="contrato-actions">

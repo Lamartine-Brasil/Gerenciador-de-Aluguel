@@ -37,6 +37,20 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
 - [x] Ao criar um contrato novo, os campos Juros e Multa vêm pré-preenchidos com os
       "valores padrão" configurados em Configurações — evita digitar sempre. Se o
       usuário alterar o valor no formulário, o valor digitado prevalece e é o que é salvo
+- [x] Criação de contrato pede "Data de início do contrato" e "Dia de pagamento" (1-31)
+      em vez de uma data de vencimento única — o primeiro vencimento é calculado a
+      partir desses dois campos (com ajuste automático se o dia não existir naquele mês,
+      ex: dia 31 em fevereiro vira o último dia do mês). Ao editar um contrato existente,
+      o formulário volta a mostrar o campo "Dia de vencimento" direto, editando aquele
+      mês específico
+- [x] Lançamento retroativo de contratos antigos: se a data de início informada já
+      passou, o sistema gera automaticamente um contrato separado para cada mês seguinte
+      (mesmo dia de pagamento, com ajuste automático em meses menores) até o mês atual —
+      evita ter que cadastrar manualmente cada mês em atraso de um contrato antigo. Pede
+      confirmação antes, mostrando quantos contratos serão criados. O "valor em atraso já
+      existente" só é aplicado no mês mais recente gerado, não em todos. Os campos
+      `dataInicio`/`diaPagamento` ficam salvos no contrato só como referência (aparecem
+      no card e na tela de edição), sem afetar contratos já criados anteriormente
 - [x] Registrar pagamento em um clique, com modal dedicado (ver "Pagamentos" abaixo)
 - [x] Lista paginada (20 contratos por página), com botões Anterior/Próxima e indicador
       de página — evita lentidão com uma base grande de contratos. A página volta para 1

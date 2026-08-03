@@ -81,8 +81,10 @@ Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servid
 - **Dashboard** — visão geral: quantos contratos estão ativos, quanto está em atraso no
   total, próximo vencimento, e um alerta para contratos que vencem nos próximos 5 dias
 - **Contratos** — cadastrar, editar e excluir contratos de aluguel, com busca, filtros
-  por ano/mês/status e paginação. Registrar pagamento em um clique, anexar o contrato
-  assinado (PDF/JPG/PNG) e reajustar o valor do aluguel a qualquer momento
+  por ano/mês/status e paginação. Ao criar um contrato, informe a data de início e o dia
+  de pagamento (1-31); se a data de início já passou, o sistema gera automaticamente um
+  contrato para cada mês em atraso até hoje. Registrar pagamento em um clique, anexar o
+  contrato assinado (PDF/JPG/PNG) e reajustar o valor do aluguel a qualquer momento
 - **Atrasos** — lista separada só dos contratos vencidos, com juros e multa calculados
   automaticamente conforme a taxa configurada
 - **Calendário** — grade mensal mostrando vencimentos e pagamentos dia a dia
@@ -189,7 +191,9 @@ sem exigir nenhuma ação manual.
 | Campo             | Tipo              | Descrição                                             |
 |--------------------|------------------|--------------------------------------------------------|
 | `id`               | string            | Gerado no front-end (`uuid()`)                          |
-| `vencimento`       | string `AAAA-MM-DD` | Data de vencimento                                    |
+| `vencimento`       | string `AAAA-MM-DD` | Data de vencimento deste mês específico                |
+| `dataInicio`       | string `AAAA-MM-DD` ou undefined | Data de início do contrato, informada na criação (só para referência — editar o contrato não altera este campo) |
+| `diaPagamento`     | number ou undefined | Dia do mês do pagamento (1-31), informado na criação    |
 | `imovel`           | string            | Descrição do imóvel                                    |
 | `inquilino`        | string            | Nome do inquilino                                       |
 | `aluguel`          | number            | Valor do aluguel mensal                                 |

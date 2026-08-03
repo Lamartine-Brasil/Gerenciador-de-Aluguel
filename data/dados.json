@@ -27,6 +27,26 @@
                 }
             ],
             "criadoEm": 1785791823023
+        },
+        {
+            "id": "c_msdtdjed_wm58o8p",
+            "vencimento": "2026-06-04",
+            "imovel": "casa 2",
+            "inquilino": "Joao",
+            "aluguel": 1600,
+            "desconto": 0,
+            "juros": 0,
+            "multa": 0,
+            "condominio": 120,
+            "valorAtrasoBase": 0,
+            "quemRecebeu": "",
+            "observacao": "",
+            "total": 1720,
+            "pago": false,
+            "dataPagamento": null,
+            "pagamentos": [],
+            "anexoContrato": null,
+            "criadoEm": 1785796916341
         }
     ],
     "config": {
@@ -49,6 +69,13 @@
             "usuario": "admin",
             "acao": "pagamento_registrado",
             "descricao": "Pagamento registrado: casa 1 - maria - R$ 1.300,00"
+        },
+        {
+            "id": "c_msdtdjed_qnpw7y6",
+            "timestamp": 1785796916341,
+            "usuario": "admin",
+            "acao": "contrato_criado",
+            "descricao": "Contrato criado: casa 2 - Joao"
         }
     ]
 }

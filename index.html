@@ -439,7 +439,15 @@
     <form id="formContrato" class="modal-body">
       <input type="hidden" id="contratoId">
       <div class="form-grid">
-        <label class="field">
+        <label class="field" id="fCampoDataInicio">
+          <span>Data de início do contrato *</span>
+          <input type="date" id="fDataInicio" required>
+        </label>
+        <label class="field" id="fCampoDiaPagamento">
+          <span>Dia de pagamento (1-31) *</span>
+          <input type="number" id="fDiaPagamento" min="1" max="31" step="1" placeholder="Ex: 5" required>
+        </label>
+        <label class="field hidden" id="fCampoVencimento">
           <span>Dia de vencimento *</span>
           <input type="date" id="fVencimento" required>
         </label>
@@ -480,6 +488,8 @@
           <input type="text" id="fQuemRecebeu" placeholder="Ex: Banco X, PIX...">
         </label>
       </div>
+      <p class="modal-subtitle" id="fRetroativoHint">Contrato antigo? Se a data de início já passou, o sistema gera automaticamente um contrato para cada mês, do mês de início até o mês atual (útil para lançar de uma vez o histórico de um contrato antigo).</p>
+      <p class="modal-subtitle hidden" id="fInicioInfo"></p>
       <label class="field">
         <span>Observação</span>
         <textarea id="fObservacao" rows="2" placeholder="Observações adicionais (opcional)"></textarea>
