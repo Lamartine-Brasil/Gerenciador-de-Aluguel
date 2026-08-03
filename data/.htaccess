@@ -1,0 +1,9 @@
+# Bloqueia qualquer acesso direto via navegador a esta pasta.
+# Os dados só devem ser lidos/gravados através dos scripts em /api.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order deny,allow
+    Deny from all
+</IfModule>

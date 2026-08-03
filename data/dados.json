@@ -1,0 +1,79 @@
+{
+    "contratos": [
+        {
+            "id": "c_msdmvzy0_e6l60hl",
+            "vencimento": "2026-08-03",
+            "imovel": "teste",
+            "inquilino": "maria",
+            "aluguel": 1300,
+            "desconto": 0,
+            "juros": 0,
+            "multa": 0,
+            "condominio": 120,
+            "valorAtrasoBase": 0,
+            "quemRecebeu": "Lamartine",
+            "observacao": "",
+            "total": 1420,
+            "pago": true,
+            "dataPagamento": "2026-08-03",
+            "pagamentos": [
+                {
+                    "data": "2026-08-03",
+                    "valor": 1420,
+                    "quemRecebeu": "Lamartine",
+                    "observacao": ""
+                }
+            ],
+            "criadoEm": 1785786020280
+        },
+        {
+            "id": "c_msdmwm5m_74rd1k8",
+            "vencimento": "2026-08-03",
+            "imovel": "casa 2",
+            "inquilino": "Joao",
+            "aluguel": 1600,
+            "desconto": 0,
+            "juros": 0,
+            "multa": 0,
+            "condominio": 0,
+            "valorAtrasoBase": 0,
+            "quemRecebeu": "Lamartine",
+            "observacao": "",
+            "total": 1600,
+            "pago": true,
+            "dataPagamento": "2026-08-03",
+            "pagamentos": [
+                {
+                    "data": "2026-08-03",
+                    "valor": 1600,
+                    "quemRecebeu": "Lamartine",
+                    "observacao": ""
+                }
+            ],
+            "criadoEm": 1785786049066
+        },
+        {
+            "id": "c_msdn0ros_ff9gjmq",
+            "vencimento": "2026-08-03",
+            "imovel": "casa 3",
+            "inquilino": "Joao",
+            "aluguel": 1500,
+            "desconto": 0,
+            "juros": 0,
+            "multa": 0,
+            "condominio": 120,
+            "valorAtrasoBase": 0,
+            "quemRecebeu": "Lamartine",
+            "observacao": "",
+            "total": 1620,
+            "pago": false,
+            "dataPagamento": null,
+            "pagamentos": [],
+            "criadoEm": 1785786242860
+        }
+    ],
+    "config": {
+        "taxaJurosMensal": 1,
+        "taxaMultaPercent": 2
+    }
+}

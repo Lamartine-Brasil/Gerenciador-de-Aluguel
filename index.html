@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<meta name="theme-color" content="#0f1115">
+<title>Gestão de Aluguéis</title>
+<link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+<!-- ===================== LOGIN ===================== -->
+<section id="loginScreen" class="login-screen">
+  <div class="login-card">
+    <div class="login-logo">🏠</div>
+    <h1>Gestão de Aluguéis</h1>
+    <p class="login-sub">Acesse o painel administrativo</p>
+    <form id="loginForm" autocomplete="off">
+      <label class="field">
+        <span>Usuário</span>
+        <input type="text" id="loginUser" name="username" placeholder="Usuário" required autocomplete="username">
+      </label>
+      <label class="field">
+        <span>Senha</span>
+        <input type="password" id="loginPass" name="password" placeholder="Senha" required autocomplete="current-password">
+      </label>
+      <p id="loginError" class="error-msg hidden">Usuário ou senha incorretos.</p>
+      <button type="submit" class="btn btn-primary btn-block">Entrar</button>
+    </form>
+  </div>
+</section>
+
+<!-- ===================== APP ===================== -->
+<div id="app" class="app hidden">
+
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="brand">🏠 Gestão de Aluguéis</span>
+    </div>
+    <div class="topbar-right">
+      <button id="btnThemeToggle" class="btn btn-ghost" title="Alternar tema claro/escuro">🌙</button>
+      <span class="user-chip">👤 <span id="currentUserName">admin</span></span>
+      <button id="btnLogout" class="btn btn-ghost">Sair</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabsNav">
+    <button class="tab-btn active" data-tab="dashboard"><span class="tab-icon">📊</span><span>Dashboard</span></button>
+    <button class="tab-btn" data-tab="contratos"><span class="tab-icon">📄</span><span>Contratos</span></button>
+    <button class="tab-btn" data-tab="atrasos"><span class="tab-icon">⏰</span><span>Atrasos</span></button>
+    <button class="tab-btn" data-tab="historico"><span class="tab-icon">🧾</span><span>Histórico</span></button>
+    <button class="tab-btn" data-tab="graficos"><span class="tab-icon">📈</span><span>Gráficos</span></button>
+    <button class="tab-btn" data-tab="relatorios"><span class="tab-icon">🗓️</span><span>Relatórios</span></button>
+    <button class="tab-btn" data-tab="config"><span class="tab-icon">⚙️</span><span>Config.</span></button>
+  </nav>
+
+  <main class="content">
+
+    <!-- ---------- DASHBOARD ---------- -->
+    <section id="tab-dashboard" class="tab-panel active">
+      <div class="panel-header">
+        <h2>Painel Principal</h2>
+      </div>
+      <div class="cards-grid">
+        <div class="card stat-card">
+          <div class="stat-icon">📄</div>
+          <div class="stat-info">
+            <span class="stat-value" id="statAtivos">0</span>
+            <span class="stat-label">Contratos ativos</span>
+          </div>
+        </div>
+        <div class="card stat-card stat-danger">
+          <div class="stat-icon">⚠️</div>
+          <div class="stat-info">
+            <span class="stat-value" id="statAtraso">R$ 0,00</span>
+            <span class="stat-label">Total em atraso</span>
+          </div>
+        </div>
+        <div class="card stat-card stat-warn">
+          <div class="stat-icon">📅</div>
+          <div class="stat-info">
+            <span class="stat-value" id="statProximo">--</span>
+            <span class="stat-label">Próximo vencimento</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="dashboardAlertaVencimento" class="alert-banner hidden"></div>
+
+      <div class="panel-header">
+        <h3>Contratos recentes</h3>
+      </div>
+      <div id="dashboardRecentList" class="cards-list"></div>
+    </section>
+
+    <!-- ---------- CONTRATOS ---------- -->
+    <section id="tab-contratos" class="tab-panel">
+      <div class="panel-header">
+        <h2>Contratos</h2>
+        <button class="btn btn-primary" id="btnNovoContrato">+ Novo contrato</button>
+      </div>
+
+      <div class="toolbar">
+        <input type="search" id="searchContratos" class="input" placeholder="🔎 Buscar por inquilino ou imóvel...">
+        <select id="filterAno" class="input select"></select>
+        <select id="filterMes" class="input select">
+          <option value="">Todos os meses</option>
+          <option value="0">Janeiro</option>
+          <option value="1">Fevereiro</option>
+          <option value="2">Março</option>
+          <option value="3">Abril</option>
+          <option value="4">Maio</option>
+          <option value="5">Junho</option>
+          <option value="6">Julho</option>
+          <option value="7">Agosto</option>
+          <option value="8">Setembro</option>
+          <option value="9">Outubro</option>
+          <option value="10">Novembro</option>
+          <option value="11">Dezembro</option>
+        </select>
+        <select id="filterStatus" class="input select">
+          <option value="">Todos os status</option>
+          <option value="ativo">Ativo</option>
+          <option value="atrasado">Atrasado</option>
+          <option value="pago">Pago</option>
+        </select>
+        <button class="btn btn-ghost" id="btnExportCSV">⬇ CSV</button>
+        <button class="btn btn-ghost" id="btnExportPDF">⬇ PDF</button>
+        <button class="btn btn-ghost" id="btnImportCSV">⬆ Importar CSV</button>
+        <input type="file" id="inputImportCSV" accept=".csv,text/csv" class="hidden">
+      </div>
+
+      <div id="contratosList" class="cards-list"></div>
+    </section>
+
+    <!-- ---------- ATRASOS ---------- -->
+    <section id="tab-atrasos" class="tab-panel">
+      <div class="panel-header">
+        <h2>Contratos em Atraso</h2>
+      </div>
+      <div id="atrasosList" class="cards-list"></div>
+    </section>
+
+    <!-- ---------- HISTÓRICO ---------- -->
+    <section id="tab-historico" class="tab-panel">
+      <div class="panel-header">
+        <h2>Histórico de Pagamentos</h2>
+      </div>
+      <div class="toolbar">
+        <select id="historicoFiltroContrato" class="input select">
+          <option value="">Todos os contratos</option>
+        </select>
+      </div>
+      <div id="historicoList" class="cards-list"></div>
+    </section>
+
+    <!-- ---------- GRÁFICOS ---------- -->
+    <section id="tab-graficos" class="tab-panel">
+      <div class="panel-header">
+        <h2>Gráficos</h2>
+      </div>
+      <div class="card chart-card">
+        <h3>Contratos: Atrasados vs Pagos vs Ativos</h3>
+        <canvas id="chartStatus" height="220"></canvas>
+      </div>
+      <div class="card chart-card">
+        <h3>Evolução do total em atraso (últimos meses)</h3>
+        <canvas id="chartAtrasoEvolucao" height="220"></canvas>
+      </div>
+    </section>
+
+    <!-- ---------- RELATÓRIOS ---------- -->
+    <section id="tab-relatorios" class="tab-panel">
+      <div class="panel-header">
+        <h2>Relatórios</h2>
+        <select id="relatorioAno" class="input select"></select>
+      </div>
+      <div class="cards-grid">
+        <div class="card stat-card stat-success">
+          <div class="stat-icon">💰</div>
+          <div class="stat-info">
+            <span class="stat-value" id="relatorioTotalPagoAno">R$ 0,00</span>
+            <span class="stat-label">Total pago no ano</span>
+          </div>
+        </div>
+        <div class="card stat-card stat-danger">
+          <div class="stat-icon">⚠️</div>
+          <div class="stat-info">
+            <span class="stat-value" id="relatorioTotalAtrasoAno">R$ 0,00</span>
+            <span class="stat-label">Total em atraso no ano</span>
+          </div>
+        </div>
+      </div>
+      <div class="card table-card">
+        <table class="report-table">
+          <thead>
+            <tr><th>Mês</th><th>Total pago</th><th>Total em atraso</th><th>Contratos no período</th></tr>
+          </thead>
+          <tbody id="relatorioTabelaBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ---------- CONFIG ---------- -->
+    <section id="tab-config" class="tab-panel">
+      <div class="panel-header">
+        <h2>Configurações</h2>
+      </div>
+      <div class="card">
+        <h3>Taxa de juros por atraso</h3>
+        <form id="configForm" class="config-form">
+          <label class="field">
+            <span>Taxa de juros mensal (%)</span>
+            <input type="number" id="configTaxaJuros" step="0.01" min="0" required>
+          </label>
+          <label class="field">
+            <span>Taxa de multa fixa por atraso (%)</span>
+            <input type="number" id="configTaxaMulta" step="0.01" min="0" required>
+          </label>
+          <button type="submit" class="btn btn-primary">Salvar configuração</button>
+          <p id="configSaved" class="success-msg hidden">Configuração salva!</p>
+        </form>
+      </div>
+
+      <div class="card">
+        <h3>Conta do administrador</h3>
+        <form id="accountForm" class="config-form">
+          <label class="field">
+            <span>Nome de usuário</span>
+            <input type="text" id="accUsername" required autocomplete="username">
+          </label>
+          <label class="field">
+            <span>Senha atual *</span>
+            <input type="password" id="accCurrentPassword" required autocomplete="current-password">
+          </label>
+          <label class="field">
+            <span>Nova senha (deixe em branco para manter a atual)</span>
+            <input type="password" id="accNewPassword" autocomplete="new-password">
+          </label>
+          <label class="field">
+            <span>Confirmar nova senha</span>
+            <input type="password" id="accConfirmPassword" autocomplete="new-password">
+          </label>
+          <p id="accountError" class="error-msg hidden"></p>
+          <button type="submit" class="btn btn-primary">Salvar alterações</button>
+          <p id="accountSaved" class="success-msg hidden">Dados de acesso atualizados!</p>
+        </form>
+      </div>
+
+      <div class="card">
+        <h3>Backup do banco de dados</h3>
+        <p class="modal-subtitle">Baixe um arquivo com todos os contratos, pagamentos e configurações, ou restaure a partir de um backup salvo anteriormente. Restaurar substitui todos os dados atuais.</p>
+        <div class="contrato-actions" style="margin-top:10px;">
+          <button type="button" class="btn btn-ghost" id="btnExportBackup">⬇ Exportar backup (JSON)</button>
+          <button type="button" class="btn btn-ghost" id="btnImportBackup">⬆ Restaurar backup (JSON)</button>
+          <input type="file" id="inputImportBackup" accept=".json,application/json" class="hidden">
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ===================== MODAL: CONTRATO ===================== -->
+<div id="modalContrato" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalContratoTitle">Novo contrato</h3>
+      <button class="modal-close" data-close>&times;</button>
+    </div>
+    <form id="formContrato" class="modal-body">
+      <input type="hidden" id="contratoId">
+      <div class="form-grid">
+        <label class="field">
+          <span>Dia de vencimento *</span>
+          <input type="date" id="fVencimento" required>
+        </label>
+        <label class="field">
+          <span>Imóvel *</span>
+          <input type="text" id="fImovel" placeholder="Ex: Apartamento 302 - Rua das Flores #123" required>
+        </label>
+        <label class="field">
+          <span>Inquilino *</span>
+          <input type="text" id="fInquilino" placeholder="Ex: Maria Silva" required>
+        </label>
+        <label class="field">
+          <span>Aluguel (R$) *</span>
+          <input type="number" id="fAluguel" step="0.01" min="0" required>
+        </label>
+        <label class="field">
+          <span>Desconto (R$)</span>
+          <input type="number" id="fDesconto" step="0.01" min="0" value="0">
+        </label>
+        <label class="field">
+          <span>Juros (R$)</span>
+          <input type="number" id="fJuros" step="0.01" min="0" value="0">
+        </label>
+        <label class="field">
+          <span>Multa (R$)</span>
+          <input type="number" id="fMulta" step="0.01" min="0" value="0">
+        </label>
+        <label class="field">
+          <span>Condomínio (R$)</span>
+          <input type="number" id="fCondominio" step="0.01" min="0" value="0">
+        </label>
+        <label class="field">
+          <span>Valor em atraso já existente (R$)</span>
+          <input type="number" id="fValorAtraso" step="0.01" min="0" value="0">
+        </label>
+        <label class="field">
+          <span>Quem recebe (padrão)</span>
+          <input type="text" id="fQuemRecebeu" placeholder="Ex: Banco X, PIX...">
+        </label>
+      </div>
+      <label class="field">
+        <span>Observação</span>
+        <textarea id="fObservacao" rows="2" placeholder="Observações adicionais (opcional)"></textarea>
+      </label>
+      <div class="total-preview">
+        <span>Total calculado:</span>
+        <strong id="fTotalPreview">R$ 0,00</strong>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar contrato</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== MODAL: PAGAMENTO ===================== -->
+<div id="modalPagamento" class="modal-overlay hidden">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h3>Registrar pagamento</h3>
+      <button class="modal-close" data-close>&times;</button>
+    </div>
+    <form id="formPagamento" class="modal-body">
+      <input type="hidden" id="pagContratoId">
+      <p class="modal-subtitle" id="pagContratoInfo"></p>
+      <label class="field">
+        <span>Data do pagamento *</span>
+        <input type="date" id="pagData" required>
+      </label>
+      <label class="field">
+        <span>Valor pago (R$) *</span>
+        <input type="number" id="pagValor" step="0.01" min="0" required>
+      </label>
+      <label class="field">
+        <span>Quem recebeu *</span>
+        <input type="text" id="pagQuemRecebeu" placeholder="Banco, PIX, transferência..." required>
+      </label>
+      <label class="field">
+        <span>Observação</span>
+        <textarea id="pagObservacao" rows="2" placeholder="Observação (opcional)"></textarea>
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Confirmar pagamento</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== MODAL: HISTÓRICO DO CONTRATO ===================== -->
+<div id="modalHistoricoContrato" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Histórico do contrato</h3>
+      <button class="modal-close" data-close>&times;</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-subtitle" id="histContratoInfo"></p>
+      <button type="button" class="btn btn-ghost btn-sm" id="btnExportHistoricoContrato">⬇ Exportar CSV deste contrato</button>
+      <div id="histContratoList" class="cards-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- toast -->
+<div id="toast" class="toast hidden"></div>
+
+<canvas id="hiddenReportCanvas" width="900" height="1100" class="hidden"></canvas>
+
+<script src="index.js"></script>
+</body>
+</html>

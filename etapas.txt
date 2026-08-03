@@ -1,0 +1,90 @@
+# STATUS DO PROJETO - Sistema de Gerenciamento de Alugueis
+
+Este arquivo reflete o estado ATUAL do projeto (não é mais um histórico de fases).
+Ao implementar algo novo, atualize a seção correspondente aqui e em descricao.txt.
+
+## ✅ IMPLEMENTADO E FUNCIONANDO
+
+### Login e conta
+- [x] Tela de login (usuário + senha)
+- [x] Autenticação validada no servidor (`api/login.php`)
+- [x] Sessão via cookie assinado (HMAC), 30 dias, HttpOnly + SameSite=Lax
+- [x] Permanece logado ao trocar de aba/página ou reabrir o navegador
+- [x] Botão "Sair" limpa a sessão
+- [x] Troca de usuário/senha pela tela de Configurações (exige senha atual)
+- [x] Usuário/senha padrão: `admin` / `123456` (só na primeira execução)
+- [x] Senha sempre salva com `password_hash` (nunca texto puro)
+
+### Dashboard
+- [x] Card: total de contratos ativos
+- [x] Card: total em atraso (R$)
+- [x] Card: próximo vencimento
+- [x] Alerta de contratos vencendo nos próximos 5 dias
+- [x] Lista dos contratos mais recentes
+
+### Contratos (CRUD)
+- [x] Listar, criar, editar, excluir
+- [x] Todos os campos: vencimento, imóvel, inquilino, aluguel, desconto, juros, multa,
+      condomínio, valor em atraso, quem recebe, observação
+- [x] Total calculado automaticamente (aluguel - desconto + juros + multa + condomínio)
+- [x] Busca por inquilino ou imóvel
+- [x] Filtro por ano, mês e status
+- [x] Registrar pagamento em um clique (data, valor, quem recebeu, observação)
+
+### Atrasos
+- [x] Aba dedicada com os contratos atrasados
+- [x] Cálculo automático de juros + multa (taxas configuráveis)
+
+### Histórico de pagamentos
+- [x] Aba geral com todos os pagamentos, filtrável por contrato
+- [x] Modal de histórico por contrato
+- [x] Exportação CSV do histórico de um contrato específico
+
+### Gráficos
+- [x] Barras: ativos vs. atrasados vs. pagos
+- [x] Evolução do total em atraso (últimos 6 meses)
+
+### Relatórios
+- [x] Aba "Relatórios" com seletor de ano
+- [x] Tabela mensal: total pago, total em atraso, contratos no período
+- [x] Totais anuais somados
+
+### Exportação / Importação
+- [x] Exportar CSV dos contratos (respeita filtros ativos)
+- [x] Exportar PDF (via canvas + impressão do navegador)
+- [x] Importar contratos via CSV (mesmo formato do exportado)
+- [x] Exportar backup completo (JSON) com contratos + configuração
+- [x] Importar/restaurar backup completo (JSON), com confirmação antes de substituir
+
+### Configurações
+- [x] Taxa de juros mensal (%)
+- [x] Taxa de multa fixa por atraso (%)
+- [x] Conta do administrador (usuário/senha)
+- [x] Backup do banco de dados
+
+### Tema
+- [x] Alternância dark/light, preferência salva no navegador
+
+### Backend / infraestrutura
+- [x] Todos os dados gravados em arquivos no servidor (`data/dados.json`, `data/auth.json`)
+- [x] Gravação protegida com `flock` (evita corrupção em acessos simultâneos)
+- [x] Pasta `data/` bloqueada para acesso direto via `.htaccess`
+- [x] Testado localmente com PHP 8.5 (`php -S`) — login, troca de senha, leitura/gravação
+      de dados e validações de erro (400/401) todos conferidos via curl
+
+## ⚠️ PENDENTE / ATENÇÃO ANTES DE PRODUÇÃO
+- [ ] Trocar `COOKIE_SECRET` em `api/config.php` por um valor aleatório próprio
+- [ ] Testar em hospedagem real com Apache (confirmar que `.htaccess` bloqueia `data/`
+      pela URL — isso não é validado pelo servidor embutido do PHP usado em testes locais)
+- [ ] Trocar a senha padrão (`admin`/`123456`) assim que possível após o primeiro deploy
+
+## 🚫 NÃO IMPLEMENTADO (decisão consciente, não é pendência)
+- Notificações por e-mail de vencimentos — decidiu-se não implementar por exigir SMTP
+  configurado na hospedagem, sem garantia de entrega. O alerta de vencimentos existe
+  só dentro do site (Dashboard).
+
+## IDEIAS PARA O FUTURO (não solicitadas ainda)
+- [ ] Dark/Light mode com detecção automática do tema do sistema operacional
+- [ ] Paginação na lista de contratos (hoje carrega tudo de uma vez)
+- [ ] Relatório anual comparando ano a ano
+- [ ] Múltiplos usuários administradores (hoje é só um usuário fixo em auth.json)
