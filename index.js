@@ -20,7 +20,7 @@ const THEME_KEY = 'aluguelApp_theme';
 
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
-  document.getElementById('btnThemeToggle').textContent = theme === 'light' ? '☀️' : '🌙';
+  document.getElementById('btnThemeToggle').innerHTML = icon(theme === 'light' ? 'sun' : 'moon');
   // Os gráficos usam cores lidas do CSS no momento do desenho — se o tema mudar
   // enquanto a aba está aberta, precisam ser redesenhados para não ficar com
   // cores do tema anterior (ex: texto claro sobre fundo claro).
@@ -122,6 +122,10 @@ function formatDate(dateStr) {
 
 function formatCurrency(value) {
   return (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function icon(nome) {
+  return `<svg class="icon"><use href="#icon-${nome}"></use></svg>`;
 }
 
 function formatDateTime(timestamp) {
@@ -631,7 +635,7 @@ function contratoCardHtml(c) {
       <div class="contrato-top">
         <div>
           <div class="contrato-title">${escapeHtml(c.imovel)}</div>
-          <div class="contrato-sub">👤 ${escapeHtml(c.inquilino)} · Vencimento: ${formatDate(c.vencimento)}</div>
+          <div class="contrato-sub">${icon('user')} ${escapeHtml(c.inquilino)} · Vencimento: ${formatDate(c.vencimento)}</div>
         </div>
         <span class="status-badge status-${status}">${statusLabel(status)}</span>
       </div>
@@ -645,14 +649,14 @@ function contratoCardHtml(c) {
         ${status === 'atrasado' ? `<div><span>Em atraso</span><strong style="color:var(--danger)">${formatCurrency(atrasoAtual)}</strong></div>` : ''}
         ${c.quemRecebeu ? `<div><span>Quem recebe</span><strong>${escapeHtml(c.quemRecebeu)}</strong></div>` : ''}
       </div>
-      ${c.observacao ? `<div class="contrato-sub">📝 ${escapeHtml(c.observacao)}</div>` : ''}
+      ${c.observacao ? `<div class="contrato-sub">${icon('file-text')} ${escapeHtml(c.observacao)}</div>` : ''}
       <div class="contrato-actions">
-        ${status !== 'pago' ? `<button class="btn btn-success btn-sm" data-action="pagar" data-id="${c.id}">💰 Pagar</button>` : ''}
-        <button class="btn btn-ghost btn-sm" data-action="reajustar" data-id="${c.id}">📈 Reajustar</button>
-        ${c.anexoContrato ? `<a class="btn btn-ghost btn-sm" href="api/anexo.php?file=${encodeURIComponent(c.anexoContrato)}" target="_blank">📎 Anexo</a>` : ''}
-        <button class="btn btn-ghost btn-sm" data-action="historico" data-id="${c.id}">🧾 Histórico</button>
-        <button class="btn btn-ghost btn-sm" data-action="editar" data-id="${c.id}">✏️ Editar</button>
-        <button class="btn btn-danger btn-sm" data-action="excluir" data-id="${c.id}">🗑️ Excluir</button>
+        ${status !== 'pago' ? `<button class="btn btn-success btn-sm" data-action="pagar" data-id="${c.id}">${icon('dollar')} Pagar</button>` : ''}
+        <button class="btn btn-ghost btn-sm" data-action="reajustar" data-id="${c.id}">${icon('trending-up')} Reajustar</button>
+        ${c.anexoContrato ? `<a class="btn btn-ghost btn-sm" href="api/anexo.php?file=${encodeURIComponent(c.anexoContrato)}" target="_blank">${icon('paperclip')} Anexo</a>` : ''}
+        <button class="btn btn-ghost btn-sm" data-action="historico" data-id="${c.id}">${icon('receipt')} Histórico</button>
+        <button class="btn btn-ghost btn-sm" data-action="editar" data-id="${c.id}">${icon('pencil')} Editar</button>
+        <button class="btn btn-danger btn-sm" data-action="excluir" data-id="${c.id}">${icon('trash')} Excluir</button>
       </div>
     </div>
   `;
@@ -758,7 +762,7 @@ function renderAlertaVencimento(ativos) {
   }
 
   const itens = vencendo.map(c => `${escapeHtml(c.imovel)} (${escapeHtml(c.inquilino)}) — ${formatDate(c.vencimento)}`).join(' · ');
-  banner.innerHTML = `<strong>⚠️ ${vencendo.length} contrato(s) vencendo nos próximos ${DIAS_ALERTA_VENCIMENTO} dias</strong><span>${itens}</span>`;
+  banner.innerHTML = `<strong>${icon('alert-triangle')} ${vencendo.length} contrato(s) vencendo nos próximos ${DIAS_ALERTA_VENCIMENTO} dias</strong><span>${itens}</span>`;
   banner.classList.remove('hidden');
 }
 
@@ -810,7 +814,7 @@ function renderHistorico() {
       <div class="contrato-top">
         <div>
           <div class="contrato-title">${escapeHtml(e.contrato.imovel)}</div>
-          <div class="contrato-sub">👤 ${escapeHtml(e.contrato.inquilino)}</div>
+          <div class="contrato-sub">${icon('user')} ${escapeHtml(e.contrato.inquilino)}</div>
         </div>
         <span class="status-badge status-pago">Pago</span>
       </div>
@@ -926,7 +930,7 @@ function renderUsers(users) {
     <div class="card">
       <div class="contrato-top">
         <div class="contrato-title">${escapeHtml(u.username)}${u.username === currentUsername ? ' (você)' : ''}</div>
-        ${u.username !== currentUsername && users.length > 1 ? `<button type="button" class="btn btn-danger btn-sm" data-remove-user="${u.id}" data-remove-username="${escapeHtml(u.username)}">🗑️ Remover</button>` : ''}
+        ${u.username !== currentUsername && users.length > 1 ? `<button type="button" class="btn btn-danger btn-sm" data-remove-user="${u.id}" data-remove-username="${escapeHtml(u.username)}">${icon('trash')} Remover</button>` : ''}
       </div>
     </div>
   `).join('');
@@ -1404,7 +1408,7 @@ function renderAuditoria() {
       <div class="contrato-top">
         <div>
           <div class="contrato-title">${escapeHtml(e.descricao)}</div>
-          <div class="contrato-sub">👤 ${escapeHtml(e.usuario)} · ${formatDateTime(e.timestamp)}</div>
+          <div class="contrato-sub">${icon('user')} ${escapeHtml(e.usuario)} · ${formatDateTime(e.timestamp)}</div>
         </div>
       </div>
     </div>
@@ -1505,7 +1509,7 @@ function renderCalendarioDetalhe(dataStr) {
         <div class="contrato-top">
           <div>
             <div class="contrato-title">${escapeHtml(c.imovel)}</div>
-            <div class="contrato-sub">👤 ${escapeHtml(c.inquilino)} · Vencimento · ${formatCurrency(c.total)}</div>
+            <div class="contrato-sub">${icon('user')} ${escapeHtml(c.inquilino)} · Vencimento · ${formatCurrency(c.total)}</div>
           </div>
           <span class="status-badge status-${status}">${statusLabel(status)}</span>
         </div>
@@ -1518,7 +1522,7 @@ function renderCalendarioDetalhe(dataStr) {
       <div class="contrato-top">
         <div>
           <div class="contrato-title">${escapeHtml(p.contrato.imovel)}</div>
-          <div class="contrato-sub">👤 ${escapeHtml(p.contrato.inquilino)} · Pagamento recebido · ${formatCurrency(p.valor)}</div>
+          <div class="contrato-sub">${icon('user')} ${escapeHtml(p.contrato.inquilino)} · Pagamento recebido · ${formatCurrency(p.valor)}</div>
         </div>
         <span class="status-badge status-pago">Pago</span>
       </div>

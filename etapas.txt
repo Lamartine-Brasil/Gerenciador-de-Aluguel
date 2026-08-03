@@ -150,6 +150,15 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
       abas em estilo "segmented control", cards com leve elevação ao passar o mouse, e
       transições com curva de easing mais suave (`cubic-bezier`). Não muda nenhuma classe
       ou estrutura de HTML/JS — só os valores visuais
+- [x] Sistema de ícones em SVG (sprite `<symbol>` inline em `index.html`, sem depender de
+      biblioteca externa) substituindo todos os emojis usados como ícone: logo (login e
+      topo), abas de navegação, cards de estatística, botões de ação (pagar, editar,
+      excluir, reajustar, anexo, exportar/importar), alternância de tema (sol/lua) e
+      campo de busca (ícone de lupa sobreposto, não mais no texto do placeholder). Os
+      ícones usam `stroke="currentColor"`, então herdam automaticamente a cor do tema e
+      do contexto (ex: fica vermelho dentro de um botão de excluir) sem CSS extra por
+      ícone. Emojis decorativos que não são ícone de interface (ex: 🎉 na lista vazia de
+      atrasos) foram mantidos
 
 ### Backend / infraestrutura
 - [x] Todos os dados gravados em arquivos no servidor (`data/dados.json`, `data/auth.json`)

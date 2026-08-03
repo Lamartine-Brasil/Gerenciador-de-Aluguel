@@ -76,6 +76,21 @@ button, input, select, textarea { font-family: inherit; }
 
 a { color: var(--accent); }
 
+/* ===================== ÍCONES (sprite SVG) ===================== */
+.icon {
+  width: 1.05em;
+  height: 1.05em;
+  display: inline-block;
+  vertical-align: -0.16em;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.icon-lg { width: 1.6em; height: 1.6em; }
+
 /* ===================== LOGIN ===================== */
 .login-screen {
   min-height: 100vh;
@@ -101,7 +116,18 @@ a { color: var(--accent); }
   animation: fadeIn .5s var(--ease);
 }
 
-.login-logo { font-size: 42px; margin-bottom: 10px; }
+.login-logo {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px;
+  background: linear-gradient(155deg, rgba(10,132,255,0.18), rgba(10,132,255,0.05));
+  color: var(--accent);
+  font-size: 30px;
+}
 
 .login-card h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
 
@@ -143,6 +169,10 @@ a { color: var(--accent); }
 
 /* ===================== BUTTONS ===================== */
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   border: none;
   border-radius: var(--radius-sm);
   padding: 11px 18px;
@@ -189,11 +219,12 @@ a { color: var(--accent); }
   z-index: 20;
 }
 
-.brand { font-weight: 700; font-size: 16px; letter-spacing: -0.02em; }
+.brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; letter-spacing: -0.02em; }
+.brand .icon { width: 1.3em; height: 1.3em; color: var(--accent); }
 
 .topbar-right { display: flex; align-items: center; gap: 14px; }
 
-.user-chip { font-size: 13px; color: var(--text-dim); font-weight: 500; }
+.user-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--text-dim); font-weight: 500; }
 
 .tabs {
   display: flex;
@@ -365,7 +396,10 @@ a { color: var(--accent); }
   margin-bottom: 18px;
 }
 .toolbar .input { width: auto; flex: 1 1 160px; }
-#searchContratos { flex: 2 1 220px; }
+
+.search-wrap { position: relative; flex: 2 1 220px; display: flex; align-items: center; }
+.search-wrap-icon { position: absolute; left: 13px; color: var(--text-faint); pointer-events: none; }
+.search-wrap #searchContratos { width: 100%; padding-left: 38px; }
 
 /* ===================== MODAL ===================== */
 .modal-overlay {

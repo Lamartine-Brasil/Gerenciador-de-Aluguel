@@ -9,10 +9,40 @@
 </head>
 <body>
 
+<!-- ===================== ÍCONES (sprite SVG, sem dependência externa) ===================== -->
+<svg style="display:none" aria-hidden="true">
+  <defs>
+    <symbol id="icon-home" viewBox="0 0 24 24"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9"/><path d="M10 20v-5h4v5"/></symbol>
+    <symbol id="icon-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="icon-file-text" viewBox="0 0 24 24"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></symbol>
+    <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+    <symbol id="icon-receipt" viewBox="0 0 24 24"><path d="M6 3h12v17l-2-1.3-2 1.3-2-1.3-2 1.3-2-1.3-2 1.3V3Z"/><path d="M9 8h6M9 12h6"/></symbol>
+    <symbol id="icon-bar-chart" viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/><path d="M3 20h18"/></symbol>
+    <symbol id="icon-clipboard-list" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="1.5"/><rect x="9" y="2.3" width="6" height="3" rx="1"/><path d="M9 11h6M9 15h6"/></symbol>
+    <symbol id="icon-calendar" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="1.5"/><path d="M4 9.5h16M8 3v3M16 3v3"/><circle cx="8.5" cy="13.5" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="13.5" r="1" fill="currentColor" stroke="none"/><circle cx="15.5" cy="13.5" r="1" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="icon-shield-check" viewBox="0 0 24 24"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="icon-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M22 12h-3M5 12H2M19.07 4.93l-2.12 2.12M7.05 16.95l-2.12 2.12M19.07 19.07l-2.12-2.12M7.05 7.05 4.93 4.93"/></symbol>
+    <symbol id="icon-alert-triangle" viewBox="0 0 24 24"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4.5"/><circle cx="12" cy="17.3" r="0.75" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="icon-dollar" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 6.5v11M15 9.2c0-1.2-1.3-2.2-3-2.2s-3 1-3 2.2 1.3 1.8 3 2 3 .9 3 2.1-1.3 2.2-3 2.2-3-1-3-2.2"/></symbol>
+    <symbol id="icon-tag" viewBox="0 0 24 24"><path d="M12.6 3H5a1 1 0 0 0-1 1v7.6a1 1 0 0 0 .3.7l9 9a1 1 0 0 0 1.4 0l7-7a1 1 0 0 0 0-1.4l-9-9a1 1 0 0 0-.7-.3Z"/><circle cx="8.3" cy="8.3" r="1.3" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="icon-pencil" viewBox="0 0 24 24"><path d="M4 20l1-4.5L15.5 5 19 8.5 8.5 19 4 20Z"/><path d="M13 7l4 4"/></symbol>
+    <symbol id="icon-trash" viewBox="0 0 24 24"><path d="M5 7h14M9 7V4.5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1V7M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/></symbol>
+    <symbol id="icon-trending-up" viewBox="0 0 24 24"><path d="M4 17 10 11l4 4 6-8"/><path d="M17 6h4v4"/></symbol>
+    <symbol id="icon-paperclip" viewBox="0 0 24 24"><path d="M14 4 6.5 11.5a4 4 0 0 0 5.7 5.7L19.5 10a2.6 2.6 0 1 0-3.7-3.7L9 13"/></symbol>
+    <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 4v11m0 0-4-4m4 4 4-4"/><path d="M4 19h16"/></symbol>
+    <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M12 15V4m0 0-4 4m4-4 4 4"/><path d="M4 19h16"/></symbol>
+    <symbol id="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></symbol>
+    <symbol id="icon-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4 6.5 6.5 0 0 0 20 14.5Z"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.3-4.3"/></symbol>
+    <symbol id="icon-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="2.7"/></symbol>
+    <symbol id="icon-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c1-4 4-6 7.5-6s6.5 2 7.5 6"/></symbol>
+  </defs>
+</svg>
+
 <!-- ===================== LOGIN ===================== -->
 <section id="loginScreen" class="login-screen">
   <div class="login-card">
-    <div class="login-logo">🏠</div>
+    <div class="login-logo"><svg class="icon"><use href="#icon-home"></use></svg></div>
     <h1>Gestão de Aluguéis</h1>
     <p class="login-sub">Acesse o painel administrativo</p>
     <form id="loginForm" autocomplete="off">
@@ -35,25 +65,25 @@
 
   <header class="topbar">
     <div class="topbar-left">
-      <span class="brand">🏠 Gestão de Aluguéis</span>
+      <span class="brand"><svg class="icon"><use href="#icon-home"></use></svg> Gestão de Aluguéis</span>
     </div>
     <div class="topbar-right">
-      <button id="btnThemeToggle" class="btn btn-ghost" title="Alternar tema claro/escuro">🌙</button>
-      <span class="user-chip">👤 <span id="currentUserName">admin</span></span>
+      <button id="btnThemeToggle" class="btn btn-ghost" title="Alternar tema claro/escuro"><svg class="icon"><use href="#icon-moon"></use></svg></button>
+      <span class="user-chip"><svg class="icon"><use href="#icon-user"></use></svg> <span id="currentUserName">admin</span></span>
       <button id="btnLogout" class="btn btn-ghost">Sair</button>
     </div>
   </header>
 
   <nav class="tabs" id="tabsNav">
-    <button class="tab-btn active" data-tab="dashboard"><span class="tab-icon">📊</span><span>Dashboard</span></button>
-    <button class="tab-btn" data-tab="contratos"><span class="tab-icon">📄</span><span>Contratos</span></button>
-    <button class="tab-btn" data-tab="atrasos"><span class="tab-icon">⏰</span><span>Atrasos</span></button>
-    <button class="tab-btn" data-tab="historico"><span class="tab-icon">🧾</span><span>Histórico</span></button>
-    <button class="tab-btn" data-tab="graficos"><span class="tab-icon">📈</span><span>Gráficos</span></button>
-    <button class="tab-btn" data-tab="relatorios"><span class="tab-icon">🗓️</span><span>Relatórios</span></button>
-    <button class="tab-btn" data-tab="calendario"><span class="tab-icon">📅</span><span>Calendário</span></button>
-    <button class="tab-btn" data-tab="auditoria"><span class="tab-icon">🕵️</span><span>Auditoria</span></button>
-    <button class="tab-btn" data-tab="config"><span class="tab-icon">⚙️</span><span>Config.</span></button>
+    <button class="tab-btn active" data-tab="dashboard"><span class="tab-icon"><svg class="icon"><use href="#icon-grid"></use></svg></span><span>Dashboard</span></button>
+    <button class="tab-btn" data-tab="contratos"><span class="tab-icon"><svg class="icon"><use href="#icon-file-text"></use></svg></span><span>Contratos</span></button>
+    <button class="tab-btn" data-tab="atrasos"><span class="tab-icon"><svg class="icon"><use href="#icon-clock"></use></svg></span><span>Atrasos</span></button>
+    <button class="tab-btn" data-tab="historico"><span class="tab-icon"><svg class="icon"><use href="#icon-receipt"></use></svg></span><span>Histórico</span></button>
+    <button class="tab-btn" data-tab="graficos"><span class="tab-icon"><svg class="icon"><use href="#icon-bar-chart"></use></svg></span><span>Gráficos</span></button>
+    <button class="tab-btn" data-tab="relatorios"><span class="tab-icon"><svg class="icon"><use href="#icon-clipboard-list"></use></svg></span><span>Relatórios</span></button>
+    <button class="tab-btn" data-tab="calendario"><span class="tab-icon"><svg class="icon"><use href="#icon-calendar"></use></svg></span><span>Calendário</span></button>
+    <button class="tab-btn" data-tab="auditoria"><span class="tab-icon"><svg class="icon"><use href="#icon-shield-check"></use></svg></span><span>Auditoria</span></button>
+    <button class="tab-btn" data-tab="config"><span class="tab-icon"><svg class="icon"><use href="#icon-gear"></use></svg></span><span>Config.</span></button>
   </nav>
 
   <main class="content">
@@ -65,21 +95,21 @@
       </div>
       <div class="cards-grid">
         <div class="card stat-card">
-          <div class="stat-icon">📄</div>
+          <div class="stat-icon"><svg class="icon"><use href="#icon-file-text"></use></svg></div>
           <div class="stat-info">
             <span class="stat-value" id="statAtivos">0</span>
             <span class="stat-label">Contratos ativos</span>
           </div>
         </div>
         <div class="card stat-card stat-danger">
-          <div class="stat-icon">⚠️</div>
+          <div class="stat-icon"><svg class="icon"><use href="#icon-alert-triangle"></use></svg></div>
           <div class="stat-info">
             <span class="stat-value" id="statAtraso">R$ 0,00</span>
             <span class="stat-label">Total em atraso</span>
           </div>
         </div>
         <div class="card stat-card stat-warn">
-          <div class="stat-icon">📅</div>
+          <div class="stat-icon"><svg class="icon"><use href="#icon-calendar"></use></svg></div>
           <div class="stat-info">
             <span class="stat-value" id="statProximo">--</span>
             <span class="stat-label">Próximo vencimento</span>
@@ -103,7 +133,10 @@
       </div>
 
       <div class="toolbar">
-        <input type="search" id="searchContratos" class="input" placeholder="🔎 Buscar por inquilino ou imóvel..." title="Atalho: /">
+        <div class="search-wrap">
+          <svg class="icon search-wrap-icon"><use href="#icon-search"></use></svg>
+          <input type="search" id="searchContratos" class="input" placeholder="Buscar por inquilino ou imóvel..." title="Atalho: /">
+        </div>
         <select id="filterAno" class="input select"></select>
         <select id="filterMes" class="input select">
           <option value="">Todos os meses</option>
@@ -126,9 +159,9 @@
           <option value="atrasado">Atrasado</option>
           <option value="pago">Pago</option>
         </select>
-        <button class="btn btn-ghost" id="btnExportCSV">⬇ CSV</button>
-        <button class="btn btn-ghost" id="btnExportPDF">⬇ PDF</button>
-        <button class="btn btn-ghost" id="btnImportCSV">⬆ Importar CSV</button>
+        <button class="btn btn-ghost" id="btnExportCSV"><svg class="icon"><use href="#icon-download"></use></svg> CSV</button>
+        <button class="btn btn-ghost" id="btnExportPDF"><svg class="icon"><use href="#icon-download"></use></svg> PDF</button>
+        <button class="btn btn-ghost" id="btnImportCSV"><svg class="icon"><use href="#icon-upload"></use></svg> Importar CSV</button>
         <input type="file" id="inputImportCSV" accept=".csv,text/csv" class="hidden">
       </div>
 
@@ -143,7 +176,7 @@
       </div>
       <div class="cards-grid">
         <div class="card stat-card stat-danger">
-          <div class="stat-icon">⚠️</div>
+          <div class="stat-icon"><svg class="icon"><use href="#icon-alert-triangle"></use></svg></div>
           <div class="stat-info">
             <span class="stat-value" id="statTotalAtrasados">R$ 0,00</span>
             <span class="stat-label">Total em atraso (aluguel + juros/multa)</span>
@@ -201,21 +234,21 @@
       </div>
       <div class="cards-grid">
         <div class="card stat-card stat-success">
-          <div class="stat-icon">💰</div>
+          <div class="stat-icon"><svg class="icon"><use href="#icon-dollar"></use></svg></div>
           <div class="stat-info">
             <span class="stat-value" id="relatorioTotalPagoAno">R$ 0,00</span>
             <span class="stat-label">Total pago no ano</span>
           </div>
         </div>
         <div class="card stat-card stat-danger">
-          <div class="stat-icon">⚠️</div>
+          <div class="stat-icon"><svg class="icon"><use href="#icon-alert-triangle"></use></svg></div>
           <div class="stat-info">
             <span class="stat-value" id="relatorioTotalAtrasoAno">R$ 0,00</span>
             <span class="stat-label">Total em atraso no ano</span>
           </div>
         </div>
         <div class="card stat-card stat-warn">
-          <div class="stat-icon">🏷️</div>
+          <div class="stat-icon"><svg class="icon"><use href="#icon-tag"></use></svg></div>
           <div class="stat-info">
             <span class="stat-value" id="relatorioTotalDescontoAno">R$ 0,00</span>
             <span class="stat-label">Total de descontos concedidos no ano</span>
@@ -378,17 +411,17 @@
         <h3>Backup do banco de dados</h3>
         <p class="modal-subtitle">Baixe um arquivo com todos os contratos, pagamentos e configurações, ou restaure a partir de um backup salvo anteriormente. Restaurar substitui todos os dados atuais.</p>
         <div class="contrato-actions" style="margin-top:10px;">
-          <button type="button" class="btn btn-ghost" id="btnExportBackup">⬇ Exportar backup (JSON)</button>
-          <button type="button" class="btn btn-ghost" id="btnImportBackup">⬆ Restaurar backup (JSON)</button>
+          <button type="button" class="btn btn-ghost" id="btnExportBackup"><svg class="icon"><use href="#icon-download"></use></svg> Exportar backup (JSON)</button>
+          <button type="button" class="btn btn-ghost" id="btnImportBackup"><svg class="icon"><use href="#icon-upload"></use></svg> Restaurar backup (JSON)</button>
           <input type="file" id="inputImportBackup" accept=".json,application/json" class="hidden">
         </div>
       </div>
 
       <div class="card">
-        <h3>⚠️ Zona de perigo</h3>
+        <h3><svg class="icon"><use href="#icon-alert-triangle"></use></svg> Zona de perigo</h3>
         <p class="modal-subtitle">Apaga permanentemente todos os contratos, pagamentos e configurações salvos no servidor. Esta ação não pode ser desfeita — exporte um backup antes, se quiser manter os dados.</p>
         <div class="contrato-actions" style="margin-top:10px;">
-          <button type="button" class="btn btn-danger" id="btnDeleteDatabase">🗑️ Excluir todos os dados</button>
+          <button type="button" class="btn btn-danger" id="btnDeleteDatabase"><svg class="icon"><use href="#icon-trash"></use></svg> Excluir todos os dados</button>
         </div>
       </div>
     </section>
@@ -456,8 +489,8 @@
         <div id="fAnexoAtual" class="total-preview hidden">
           <span id="fAnexoNome"></span>
           <div class="contrato-actions">
-            <a id="fAnexoLink" href="#" target="_blank" class="btn btn-ghost btn-sm">👁 Ver</a>
-            <button type="button" class="btn btn-danger btn-sm" id="btnRemoverAnexo">🗑️ Remover</button>
+            <a id="fAnexoLink" href="#" target="_blank" class="btn btn-ghost btn-sm"><svg class="icon"><use href="#icon-eye"></use></svg> Ver</a>
+            <button type="button" class="btn btn-danger btn-sm" id="btnRemoverAnexo"><svg class="icon"><use href="#icon-trash"></use></svg> Remover</button>
           </div>
         </div>
         <input type="file" id="fAnexoInput" accept=".pdf,.jpg,.jpeg,.png">
@@ -556,7 +589,7 @@
     </div>
     <div class="modal-body">
       <p class="modal-subtitle" id="histContratoInfo"></p>
-      <button type="button" class="btn btn-ghost btn-sm" id="btnExportHistoricoContrato">⬇ Exportar CSV deste contrato</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="btnExportHistoricoContrato"><svg class="icon"><use href="#icon-download"></use></svg> Exportar CSV deste contrato</button>
       <div id="histContratoList" class="cards-list"></div>
     </div>
   </div>
