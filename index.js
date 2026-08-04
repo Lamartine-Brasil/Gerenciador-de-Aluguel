@@ -1263,28 +1263,39 @@ function openHistoricoContrato(contratoId) {
   historicoContratoAtualId = contratoId;
   document.getElementById('histContratoInfo').textContent = `#${c.numero} — ${c.imovel} — ${c.inquilino}`;
   const list = document.getElementById('histContratoList');
-  const pagamentos = [];
-  c.dividas.forEach(d => d.pagamentos.forEach(p => pagamentos.push({ ...p, vencimentoDivida: d.vencimento, valorLiquido: valorLiquidoPagamento(c, d, p) })));
-  pagamentos.sort((a, b) => a.data < b.data ? 1 : -1);
+  const dividasOrdenadas = c.dividas.slice().sort((a, b) => a.vencimento < b.vencimento ? 1 : -1);
 
-  if (!pagamentos.length) {
-    list.innerHTML = '<div class="empty-state">Nenhum pagamento registrado ainda.</div>';
+  if (!dividasOrdenadas.length) {
+    list.innerHTML = '<div class="empty-state">Nenhuma dívida gerada ainda para este contrato.</div>';
   } else {
-    list.innerHTML = pagamentos.map(p => `
-      <div class="card">
-        <div class="contrato-grid">
-          <div><span>Dívida (vencimento)</span><strong>${formatDate(p.vencimentoDivida)}</strong></div>
-          <div><span>Data do pagamento</span><strong>${formatDate(p.data)}</strong></div>
-          <div><span>Valor pago</span><strong>${formatCurrency(p.valor)}</strong></div>
-          ${Math.abs(p.valorLiquido - p.valor) > 0.001 ? `<div><span>Valor líquido</span><strong>${formatCurrency(p.valorLiquido)}</strong></div>` : ''}
-          ${p.desconto ? `<div><span>Desconto</span><strong>${formatCurrency(p.desconto)}</strong></div>` : ''}
-          ${p.desconto && p.motivoDesconto ? `<div><span>Motivo do desconto</span><strong>${escapeHtml(p.motivoDesconto)}</strong></div>` : ''}
-          <div><span>Forma de pagamento</span><strong>${escapeHtml(p.forma) || '--'}</strong></div>
-          <div><span>Quem recebeu</span><strong>${escapeHtml(p.quemRecebeu) || '--'}</strong></div>
-          <div><span>Observação</span><strong>${escapeHtml(p.observacao) || '--'}</strong></div>
+    list.innerHTML = dividasOrdenadas.map(d => {
+      const status = getStatus(d);
+      const pagamentosHtml = d.pagamentos.map(p => {
+        const valorLiquido = valorLiquidoPagamento(c, d, p);
+        return `
+          <div class="contrato-sub">
+            ${icon('dollar')} Pago em ${formatDate(p.data)} · ${formatCurrency(p.valor)}
+            ${Math.abs(valorLiquido - p.valor) > 0.001 ? ` (líquido: ${formatCurrency(valorLiquido)})` : ''}
+            ${p.desconto ? ` · Desconto: ${formatCurrency(p.desconto)}${p.motivoDesconto ? ` (${escapeHtml(p.motivoDesconto)})` : ''}` : ''}
+            ${p.forma ? ` · ${escapeHtml(p.forma)}` : ''}
+            ${p.quemRecebeu ? ` · Recebido por ${escapeHtml(p.quemRecebeu)}` : ''}
+            ${p.observacao ? ` · ${escapeHtml(p.observacao)}` : ''}
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="card">
+          <div class="contrato-grid">
+            <div><span>Vencimento</span><strong>${formatDate(d.vencimento)}</strong></div>
+            <div><span>Valor total</span><strong>${formatCurrency(d.total)}</strong></div>
+            <div><span>Status</span><strong><span class="status-badge status-${status}">${statusLabel(status)}</span></strong></div>
+            ${d.observacao ? `<div><span>Observação</span><strong>${escapeHtml(d.observacao)}</strong></div>` : ''}
+          </div>
+          ${pagamentosHtml || '<div class="contrato-sub">Ainda sem pagamento registrado para esta dívida.</div>'}
         </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   }
   openModal('modalHistoricoContrato');
 }
