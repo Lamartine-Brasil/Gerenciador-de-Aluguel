@@ -600,6 +600,22 @@ a { color: var(--accent); }
 }
 .alert-banner strong { color: var(--text); }
 
+.alert-banner-accent { background: rgba(10,132,255,0.12); border-color: rgba(10,132,255,0.3); color: var(--accent); }
+
+.alert-banner-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.alert-banner-item {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-pill);
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s var(--ease), transform .15s var(--ease);
+}
+.alert-banner-item:hover { background: var(--border); transform: translateY(-1px); }
+
 /* ===================== CALENDÁRIO ===================== */
 .calendario-mes-label { font-weight: 600; min-width: 130px; text-align: center; display: inline-block; }
 
@@ -634,13 +650,29 @@ a { color: var(--accent); }
 .calendar-day.is-today { border-color: var(--accent); border-width: 2px; }
 .calendar-day.is-selected { box-shadow: 0 0 0 2px var(--accent) inset; }
 
+/* Cor de fundo do dia inteiro conforme o "pior" status do que vence naquele
+   dia (atrasado > ativo > só pagamento recebido) — muito mais visível do que
+   só os pontinhos, dá pra escanear o mês inteiro rapidinho. */
+.calendar-day.has-atrasado { background: var(--danger-bg); border-color: rgba(255,69,58,0.35); }
+.calendar-day.has-atrasado:hover { background: var(--danger-bg); filter: brightness(1.15); }
+.calendar-day.has-ativo { background: rgba(10,132,255,0.10); border-color: rgba(10,132,255,0.3); }
+.calendar-day.has-ativo:hover { background: rgba(10,132,255,0.10); filter: brightness(1.15); }
+.calendar-day.has-pago { background: var(--success-bg); border-color: rgba(48,209,88,0.3); }
+.calendar-day.has-pago:hover { background: var(--success-bg); filter: brightness(1.15); }
+
 .calendar-day-number { font-size: 12px; font-weight: 600; }
 
-.calendar-day-dots { display: flex; gap: 3px; flex-wrap: wrap; margin-top: auto; }
-.calendar-dot { width: 6px; height: 6px; border-radius: 50%; }
+.calendar-day-valor { font-size: 10.5px; font-weight: 700; color: var(--text-dim); margin-top: 2px; line-height: 1.2; }
+.calendar-day.has-atrasado .calendar-day-valor { color: var(--danger); }
+.calendar-day.has-ativo .calendar-day-valor { color: var(--accent); }
+
+.calendar-day-dots { display: flex; gap: 4px; flex-wrap: wrap; margin-top: auto; }
+.calendar-dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 0 1px var(--bg-elevated); }
 
 @media (max-width: 640px) {
   .calendar-day-number { font-size: 10px; }
+  .calendar-day-valor { display: none; }
+  .calendar-dot { width: 6px; height: 6px; }
   .calendar-weekdays { font-size: 10px; }
 }
 

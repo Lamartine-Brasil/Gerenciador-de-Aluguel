@@ -1181,6 +1181,8 @@ function openPagamento(dividaId) {
   document.getElementById('pagContratoInfo').textContent = `#${c.numero} — ${c.imovel} — ${c.inquilino} — Vencimento: ${formatDate(d.vencimento)} — Total: ${formatCurrency(d.total)}`;
   document.getElementById('pagData').value = todayStr();
   document.getElementById('pagDesconto').value = '';
+  document.getElementById('pagMotivoDesconto').value = '';
+  document.getElementById('pagCampoMotivoDesconto').classList.add('hidden');
   document.getElementById('pagValor').value = (d.total + calcAtrasoAtual(d)).toFixed(2);
   document.getElementById('pagForma').value = '';
   populatePessoaSelect(document.getElementById('pagQuemRecebeu'), c.quemRecebeu || '', 'Nenhum / outro');
@@ -1196,6 +1198,7 @@ document.getElementById('pagDesconto').addEventListener('input', () => {
   const desconto = Number(document.getElementById('pagDesconto').value) || 0;
   const base = d.total + calcAtrasoAtual(d);
   document.getElementById('pagValor').value = Math.max(base - desconto, 0).toFixed(2);
+  document.getElementById('pagCampoMotivoDesconto').classList.toggle('hidden', desconto <= 0);
 });
 
 formPagamento.addEventListener('submit', (e) => {
@@ -1207,6 +1210,7 @@ formPagamento.addEventListener('submit', (e) => {
   const pagamento = {
     data: document.getElementById('pagData').value,
     desconto: Number(document.getElementById('pagDesconto').value) || 0,
+    motivoDesconto: document.getElementById('pagMotivoDesconto').value.trim(),
     valor: Number(document.getElementById('pagValor').value) || 0,
     forma: document.getElementById('pagForma').value,
     quemRecebeu: document.getElementById('pagQuemRecebeu').value.trim(),
@@ -1247,6 +1251,7 @@ function openHistoricoContrato(contratoId) {
           <div><span>Valor pago</span><strong>${formatCurrency(p.valor)}</strong></div>
           ${Math.abs(p.valorLiquido - p.valor) > 0.001 ? `<div><span>Valor líquido</span><strong>${formatCurrency(p.valorLiquido)}</strong></div>` : ''}
           ${p.desconto ? `<div><span>Desconto</span><strong>${formatCurrency(p.desconto)}</strong></div>` : ''}
+          ${p.desconto && p.motivoDesconto ? `<div><span>Motivo do desconto</span><strong>${escapeHtml(p.motivoDesconto)}</strong></div>` : ''}
           <div><span>Forma de pagamento</span><strong>${escapeHtml(p.forma) || '--'}</strong></div>
           <div><span>Quem recebeu</span><strong>${escapeHtml(p.quemRecebeu) || '--'}</strong></div>
           <div><span>Observação</span><strong>${escapeHtml(p.observacao) || '--'}</strong></div>
@@ -1553,6 +1558,18 @@ function renderDashboard() {
   bindDividaCardActions(recentList);
 }
 
+// Muda para a aba Contratos e filtra a busca pelo número do contrato — usado
+// como "link" clicável nos alertas do Dashboard, para não deixar quem vê o
+// aviso sem um jeito direto de chegar no contrato correspondente.
+function irParaContrato(numero) {
+  const btnContratos = document.querySelector('.tab-btn[data-tab="contratos"]');
+  if (btnContratos) btnContratos.click();
+  const searchInput = document.getElementById('searchContratos');
+  searchInput.value = '#' + numero;
+  contratosPaginaAtual = 1;
+  renderContratos();
+}
+
 function renderAlertaVencimento(ativos) {
   const banner = document.getElementById('dashboardAlertaVencimento');
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
@@ -1568,9 +1585,12 @@ function renderAlertaVencimento(ativos) {
     return;
   }
 
-  const itens = vencendo.map(d => `${escapeHtml(d.imovel)} (${escapeHtml(d.inquilino)}) — ${formatDate(d.vencimento)}`).join(' · ');
-  banner.innerHTML = `<strong>${icon('alert-triangle')} ${vencendo.length} dívida(s) vencendo nos próximos ${DIAS_ALERTA_VENCIMENTO} dias</strong><span>${itens}</span>`;
+  const itens = vencendo.map(d => `<button type="button" class="alert-banner-item" data-ir-contrato="${d.numero}">#${d.numero} ${escapeHtml(d.imovel)} (${escapeHtml(d.inquilino)}) — ${formatDate(d.vencimento)}</button>`).join('');
+  banner.innerHTML = `<strong>${icon('alert-triangle')} ${vencendo.length} dívida(s) vencendo nos próximos ${DIAS_ALERTA_VENCIMENTO} dias</strong><div class="alert-banner-list">${itens}</div>`;
   banner.classList.remove('hidden');
+  banner.querySelectorAll('[data-ir-contrato]').forEach(btn => {
+    btn.addEventListener('click', () => irParaContrato(btn.dataset.irContrato));
+  });
 }
 
 // Contratos ativos (não encerrados) que já passaram do "aniversário" de 1 ano
@@ -1587,9 +1607,12 @@ function renderAlertaReajuste() {
     return;
   }
 
-  const itens = pendentes.map(c => `${escapeHtml(c.imovel)} (${escapeHtml(c.inquilino)}) — sugestão: ${formatCurrency(valorReajusteSugerido(c))}`).join(' · ');
-  banner.innerHTML = `<strong>${icon('trending-up')} ${pendentes.length} contrato(s) com reajuste sugerido</strong><span>${itens}</span>`;
+  const itens = pendentes.map(c => `<button type="button" class="alert-banner-item" data-abrir-reajuste="${c.id}">#${c.numero} ${escapeHtml(c.imovel)} (${escapeHtml(c.inquilino)}) — sugestão: ${formatCurrency(valorReajusteSugerido(c))}</button>`).join('');
+  banner.innerHTML = `<strong>${icon('trending-up')} ${pendentes.length} contrato(s) com reajuste sugerido</strong><div class="alert-banner-list">${itens}</div>`;
   banner.classList.remove('hidden');
+  banner.querySelectorAll('[data-abrir-reajuste]').forEach(btn => {
+    btn.addEventListener('click', () => openReajuste(btn.dataset.abrirReajuste));
+  });
 }
 
 /* ===================== RENDER: ATRASOS ===================== */
@@ -1651,6 +1674,7 @@ function renderHistorico() {
         <div><span>Valor pago</span><strong>${formatCurrency(e.valor)}</strong></div>
         ${Math.abs(valorLiquido - e.valor) > 0.001 ? `<div><span>Valor líquido</span><strong>${formatCurrency(valorLiquido)}</strong></div>` : ''}
         ${e.desconto ? `<div><span>Desconto</span><strong>${formatCurrency(e.desconto)}</strong></div>` : ''}
+        ${e.desconto && e.motivoDesconto ? `<div><span>Motivo do desconto</span><strong>${escapeHtml(e.motivoDesconto)}</strong></div>` : ''}
         <div><span>Forma de pagamento</span><strong>${escapeHtml(e.forma) || '--'}</strong></div>
         <div><span>Quem recebeu</span><strong>${escapeHtml(e.quemRecebeu) || '--'}</strong></div>
         <div><span>Observação</span><strong>${escapeHtml(e.observacao) || '--'}</strong></div>
@@ -1724,12 +1748,16 @@ function renderDespesas() {
         <strong style="color:var(--danger)">${formatCurrency(d.valor)}</strong>
       </div>
       <div class="contrato-actions">
+        <button type="button" class="btn btn-ghost btn-sm" data-edit-despesa="${d.id}">${icon('pencil')} Editar</button>
         <button type="button" class="btn btn-danger btn-sm" data-remove-despesa="${d.id}">${icon('trash')} Excluir</button>
       </div>
     </div>
   `).join('');
   list.querySelectorAll('[data-remove-despesa]').forEach(btn => {
     btn.addEventListener('click', () => excluirDespesa(btn.dataset.removeDespesa));
+  });
+  list.querySelectorAll('[data-edit-despesa]').forEach(btn => {
+    btn.addEventListener('click', () => editarDespesa(btn.dataset.editDespesa));
   });
 }
 
@@ -1744,22 +1772,64 @@ function excluirDespesa(id) {
   showToast('Despesa excluída.', 'success');
 }
 
+const LABELS_DESPESA = { data: 'Data', descricao: 'Descrição', valor: 'Valor (R$)', contratoId: 'Contrato relacionado' };
+
+function editarDespesa(id) {
+  const d = state.despesas.find(x => x.id === id);
+  if (!d) return;
+  document.getElementById('despesaId').value = d.id;
+  document.getElementById('despData').value = d.data;
+  document.getElementById('despDescricao').value = d.descricao;
+  document.getElementById('despValor').value = d.valor;
+  populateDespesaContratoSelect();
+  document.getElementById('despContrato').value = d.contratoId || '';
+  document.getElementById('formDespesaTitle').textContent = 'Editar despesa';
+  document.getElementById('btnSalvarDespesa').textContent = 'Salvar alterações';
+  document.getElementById('btnCancelarEdicaoDespesa').classList.remove('hidden');
+  document.getElementById('despDescricao').focus();
+}
+
+function cancelarEdicaoDespesa() {
+  document.getElementById('despesaId').value = '';
+  formDespesa.reset();
+  document.getElementById('despData').value = todayStr();
+  document.getElementById('formDespesaTitle').textContent = 'Nova despesa';
+  document.getElementById('btnSalvarDespesa').textContent = 'Adicionar despesa';
+  document.getElementById('btnCancelarEdicaoDespesa').classList.add('hidden');
+}
+
+document.getElementById('btnCancelarEdicaoDespesa').addEventListener('click', cancelarEdicaoDespesa);
+
 formDespesa.addEventListener('submit', (e) => {
   e.preventDefault();
+  const despesaId = document.getElementById('despesaId').value;
   const data = document.getElementById('despData').value;
   const descricao = document.getElementById('despDescricao').value.trim();
   const valor = Number(document.getElementById('despValor').value) || 0;
   const contratoId = document.getElementById('despContrato').value || null;
   if (!data || !descricao || valor <= 0) return;
 
-  state.despesas.push({ id: uuid(), data, descricao, valor, contratoId, criadoEm: Date.now() });
-  registrarAuditoria('despesa_criada', `Despesa registrada: ${descricao} (${formatCurrency(valor)})`);
-  saveState();
-  const dataAtual = data;
-  formDespesa.reset();
-  document.getElementById('despData').value = dataAtual;
-  renderDespesas();
-  showToast('Despesa adicionada com sucesso.', 'success');
+  if (despesaId) {
+    const d = state.despesas.find(x => x.id === despesaId);
+    if (!d) return;
+    const antes = Object.assign({}, d);
+    Object.assign(d, { data, descricao, valor, contratoId });
+    const alteracoes = diffCampos(antes, d, LABELS_DESPESA);
+    registrarAuditoria('despesa_editada', `Despesa editada: ${descricao} (${formatCurrency(valor)})`, alteracoes);
+    saveState();
+    cancelarEdicaoDespesa();
+    renderDespesas();
+    showToast('Despesa atualizada com sucesso.', 'success');
+  } else {
+    state.despesas.push({ id: uuid(), data, descricao, valor, contratoId, criadoEm: Date.now() });
+    registrarAuditoria('despesa_criada', `Despesa registrada: ${descricao} (${formatCurrency(valor)})`);
+    saveState();
+    const dataAtual = data;
+    formDespesa.reset();
+    document.getElementById('despData').value = dataAtual;
+    renderDespesas();
+    showToast('Despesa adicionada com sucesso.', 'success');
+  }
 });
 
 document.getElementById('despesaFiltroAno').addEventListener('change', renderDespesas);
@@ -1914,12 +1984,18 @@ function renderImoveis() {
     <div class="card">
       <div class="contrato-top">
         <div class="contrato-title">${escapeHtml(i.nome)}</div>
-        <button type="button" class="btn btn-danger btn-sm" data-remove-imovel="${i.id}">${icon('trash')} Remover</button>
+        <div class="contrato-actions">
+          <button type="button" class="btn btn-ghost btn-sm" data-edit-imovel="${i.id}">${icon('pencil')} Editar</button>
+          <button type="button" class="btn btn-danger btn-sm" data-remove-imovel="${i.id}">${icon('trash')} Remover</button>
+        </div>
       </div>
     </div>
   `).join('');
   list.querySelectorAll('[data-remove-imovel]').forEach(btn => {
     btn.addEventListener('click', () => removeImovel(btn.dataset.removeImovel));
+  });
+  list.querySelectorAll('[data-edit-imovel]').forEach(btn => {
+    btn.addEventListener('click', () => editarImovel(btn.dataset.editImovel));
   });
 }
 
@@ -1931,6 +2007,40 @@ function removeImovel(id) {
   saveState();
   renderImoveis();
   showToast('Imóvel removido.', 'success');
+}
+
+// Diferente de remover, editar o nome ATUALIZA também os contratos que já usam
+// essa descrição (já que aqui a intenção normal é corrigir um erro de digitação,
+// não trocar de imóvel) — a lista de imóveis é só um cadastro por nome, sem um
+// vínculo por id com o contrato.
+function editarImovel(id) {
+  const i = state.imoveis.find(x => x.id === id);
+  if (!i) return;
+  const novoNome = prompt('Editar descrição do imóvel:', i.nome);
+  if (novoNome === null) return;
+  const nome = novoNome.trim();
+  if (!nome) { showToast('A descrição do imóvel não pode ficar vazia.', 'error'); return; }
+  if (nome === i.nome) return;
+  if (state.imoveis.some(x => x.id !== id && x.nome.toLowerCase() === nome.toLowerCase())) {
+    showToast('Já existe um imóvel cadastrado com essa descrição.', 'error');
+    return;
+  }
+
+  const nomeAntigo = i.nome;
+  i.nome = nome;
+  let contratosAtualizados = 0;
+  state.contratos.forEach(c => {
+    if (c.imovel === nomeAntigo) { c.imovel = nome; contratosAtualizados++; }
+  });
+
+  registrarAuditoria(
+    'imovel_editado',
+    `Imóvel renomeado: "${nomeAntigo}" → "${nome}"${contratosAtualizados ? ` (${contratosAtualizados} contrato(s) atualizado(s))` : ''}`,
+    [{ campo: 'Descrição do imóvel', de: nomeAntigo, para: nome }]
+  );
+  saveState();
+  renderAll();
+  showToast('Imóvel atualizado com sucesso.', 'success');
 }
 
 formImovel.addEventListener('submit', (e) => {
@@ -2617,12 +2727,44 @@ function renderComparativoAnual(anoSelecionado) {
 }
 
 /* ===================== RENDER: AUDITORIA ===================== */
+function populateAuditoriaFiltros() {
+  const todas = state.auditoria || [];
+
+  const selectAno = document.getElementById('auditoriaFiltroAno');
+  const anos = new Set(todas.map(e => new Date(e.timestamp).getFullYear()));
+  anos.add(new Date().getFullYear());
+  const anosOrdenados = Array.from(anos).sort((a, b) => b - a);
+  const anoAtual = selectAno.value;
+  selectAno.innerHTML = '<option value="">Todos os anos</option>' + anosOrdenados.map(a => `<option value="${a}">${a}</option>`).join('');
+  selectAno.value = anosOrdenados.map(String).includes(anoAtual) ? anoAtual : '';
+
+  const selectUsuario = document.getElementById('auditoriaFiltroUsuario');
+  const usuarios = Array.from(new Set(todas.map(e => e.usuario))).sort();
+  const usuarioAtual = selectUsuario.value;
+  selectUsuario.innerHTML = '<option value="">Todos os usuários</option>' + usuarios.map(u => `<option value="${escapeHtml(u)}">${escapeHtml(u)}</option>`).join('');
+  selectUsuario.value = usuarios.includes(usuarioAtual) ? usuarioAtual : '';
+}
+
 function renderAuditoria() {
+  populateAuditoriaFiltros();
   const list = document.getElementById('auditoriaList');
-  const entries = (state.auditoria || []).slice().sort((a, b) => b.timestamp - a.timestamp);
+
+  const ano = document.getElementById('auditoriaFiltroAno').value;
+  const mes = document.getElementById('auditoriaFiltroMes').value;
+  const usuario = document.getElementById('auditoriaFiltroUsuario').value;
+
+  const entries = (state.auditoria || [])
+    .filter(e => {
+      const dt = new Date(e.timestamp);
+      if (ano && dt.getFullYear() !== Number(ano)) return false;
+      if (mes !== '' && dt.getMonth() !== Number(mes)) return false;
+      if (usuario && e.usuario !== usuario) return false;
+      return true;
+    })
+    .sort((a, b) => b.timestamp - a.timestamp);
 
   if (!entries.length) {
-    list.innerHTML = '<div class="empty-state">Nenhum evento registrado ainda.</div>';
+    list.innerHTML = '<div class="empty-state">Nenhum evento encontrado para esse filtro.</div>';
     return;
   }
 
@@ -2644,6 +2786,10 @@ function renderAuditoria() {
 }
 
 document.getElementById('relatorioAno').addEventListener('change', renderRelatorios);
+
+['auditoriaFiltroAno', 'auditoriaFiltroMes', 'auditoriaFiltroUsuario'].forEach(id => {
+  document.getElementById(id).addEventListener('change', renderAuditoria);
+});
 
 /* ===================== CALENDÁRIO ===================== */
 let calendarioAtual = new Date();
@@ -2690,6 +2836,14 @@ function renderCalendario() {
     if (dataStr === hojeStr) classes.push('is-today');
     if (dataStr === calendarioDiaSelecionado) classes.push('is-selected');
 
+    // Cor de fundo do dia todo = pior status entre os vencimentos daquele dia
+    // (atrasado ganha de ativo, que ganha de "só teve pagamento recebido").
+    const temAtrasado = vencimentos.some(d => getStatus(d) === 'atrasado');
+    const temAtivo = vencimentos.some(d => getStatus(d) === 'ativo');
+    if (temAtrasado) classes.push('has-atrasado');
+    else if (temAtivo) classes.push('has-ativo');
+    else if (vencimentos.length || pagamentosNoDia.length) classes.push('has-pago');
+
     const dots = [];
     vencimentos.forEach(d => {
       const st = getStatus(d);
@@ -2698,9 +2852,15 @@ function renderCalendario() {
     });
     pagamentosNoDia.forEach(() => dots.push('<span class="calendar-dot" style="background:var(--success)"></span>'));
 
+    const totalVencimentos = vencimentos.reduce((sum, d) => sum + d.total, 0);
+    const valorLabel = totalVencimentos > 0
+      ? `<div class="calendar-day-valor">${formatCurrency(totalVencimentos)}</div>`
+      : '';
+
     return `
       <div class="${classes.join(' ')}" data-data="${dataStr}">
         <span class="calendar-day-number">${c.dia}</span>
+        ${valorLabel}
         <div class="calendar-day-dots">${dots.join('')}</div>
       </div>
     `;
@@ -2826,13 +2986,14 @@ document.getElementById('btnExportHistoricoContrato').addEventListener('click', 
   c.dividas.forEach(d => d.pagamentos.forEach(p => pagamentos.push({ ...p, vencimentoDivida: d.vencimento, valorLiquido: valorLiquidoPagamento(c, d, p) })));
   if (!pagamentos.length) { showToast('Nenhum pagamento para exportar.', 'error'); return; }
 
-  const headers = ['Dívida (Vencimento)', 'Data do Pagamento', 'Valor Pago', 'Valor Líquido', 'Desconto', 'Forma de Pagamento', 'Quem Recebeu', 'Observação'];
+  const headers = ['Dívida (Vencimento)', 'Data do Pagamento', 'Valor Pago', 'Valor Líquido', 'Desconto', 'Motivo do Desconto', 'Forma de Pagamento', 'Quem Recebeu', 'Observação'];
   const rows = pagamentos.map(p => [
     formatDate(p.vencimentoDivida),
     formatDate(p.data),
     p.valor.toFixed(2),
     p.valorLiquido.toFixed(2),
     (p.desconto || 0).toFixed(2),
+    p.motivoDesconto || '',
     p.forma || '',
     p.quemRecebeu || '',
     p.observacao || '',

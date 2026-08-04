@@ -133,7 +133,7 @@
       </div>
 
       <div id="dashboardAlertaVencimento" class="alert-banner hidden"></div>
-      <div id="dashboardAlertaReajuste" class="alert-banner hidden"></div>
+      <div id="dashboardAlertaReajuste" class="alert-banner alert-banner-accent hidden"></div>
 
       <div class="panel-header">
         <h3>Contratos recentes</h3>
@@ -241,9 +241,10 @@
       </div>
 
       <div class="card">
-        <h3>Nova despesa</h3>
+        <h3 id="formDespesaTitle">Nova despesa</h3>
         <p class="modal-subtitle">Cadastro simples e rápido — pode ou não estar ligada a um contrato específico.</p>
         <form id="formDespesa" class="config-form">
+          <input type="hidden" id="despesaId">
           <label class="field">
             <span>Data *</span>
             <input type="date" id="despData" required>
@@ -262,7 +263,8 @@
               <option value="">Nenhum (despesa geral)</option>
             </select>
           </label>
-          <button type="submit" class="btn btn-primary">Adicionar despesa</button>
+          <button type="submit" class="btn btn-primary" id="btnSalvarDespesa">Adicionar despesa</button>
+          <button type="button" class="btn btn-ghost hidden" id="btnCancelarEdicaoDespesa">Cancelar edição</button>
         </form>
       </div>
 
@@ -455,6 +457,29 @@
         <h2>Auditoria</h2>
       </div>
       <p class="modal-subtitle">Registro dos últimos eventos importantes do sistema: contratos criados/editados/excluídos, pagamentos registrados e usuários adicionados/removidos.</p>
+      <div class="toolbar">
+        <select id="auditoriaFiltroAno" class="input select">
+          <option value="">Todos os anos</option>
+        </select>
+        <select id="auditoriaFiltroMes" class="input select">
+          <option value="">Todos os meses</option>
+          <option value="0">Janeiro</option>
+          <option value="1">Fevereiro</option>
+          <option value="2">Março</option>
+          <option value="3">Abril</option>
+          <option value="4">Maio</option>
+          <option value="5">Junho</option>
+          <option value="6">Julho</option>
+          <option value="7">Agosto</option>
+          <option value="8">Setembro</option>
+          <option value="9">Outubro</option>
+          <option value="10">Novembro</option>
+          <option value="11">Dezembro</option>
+        </select>
+        <select id="auditoriaFiltroUsuario" class="input select">
+          <option value="">Todos os usuários</option>
+        </select>
+      </div>
       <div id="auditoriaList" class="cards-list"></div>
     </section>
 
@@ -794,6 +819,10 @@
       <label class="field">
         <span>Desconto (R$)</span>
         <input type="number" id="pagDesconto" step="0.01" min="0" placeholder="0,00">
+      </label>
+      <label class="field hidden" id="pagCampoMotivoDesconto">
+        <span>Motivo do desconto</span>
+        <input type="text" id="pagMotivoDesconto" placeholder="Ex: atraso na manutenção, acordo verbal...">
       </label>
       <label class="field">
         <span>Valor pago (R$) *</span>

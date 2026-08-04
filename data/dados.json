@@ -1,13 +1,1298 @@
 {
-    "contratos": [],
+    "contratos": [
+        {
+            "id": "c_seed_0021",
+            "numero": 1,
+            "imovel": "Apartamento 101 - Edifício Solar, Rua das Palmeiras, 45",
+            "inquilino": "Maria Silva",
+            "quemRecebeu": "Banco Itaú - Conta Corrente",
+            "dataInicio": "2024-01-05",
+            "diaPagamento": 5,
+            "aluguel": 1800,
+            "desconto": 0,
+            "juros": 0,
+            "multa": 0,
+            "condominio": 350,
+            "anexoContrato": null,
+            "corretorNome": "Carlos Imóveis Corretora",
+            "corretorPercentual": 5,
+            "caucao": 3600,
+            "caucaoDevolvida": false,
+            "dataCaucaoDevolvida": null,
+            "valorCaucaoDevolvida": null,
+            "dataUltimoReajuste": "2025-01-05",
+            "encerrado": false,
+            "dataEncerramento": null,
+            "criadoEm": 1704456000000,
+            "dividas": [
+                {
+                    "id": "dv_seed_0018",
+                    "vencimento": "2026-06-05",
+                    "aluguel": 1800,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 350,
+                    "total": 2150,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": true,
+                    "dataPagamento": "2026-06-06",
+                    "pagamentos": [
+                        {
+                            "data": "2026-06-06",
+                            "desconto": 0,
+                            "motivoDesconto": "",
+                            "valor": 2150,
+                            "forma": "Pix",
+                            "quemRecebeu": "Banco Itaú - Conta Corrente",
+                            "observacao": ""
+                        }
+                    ],
+                    "criadoEm": 1780660800000
+                },
+                {
+                    "id": "dv_seed_0019",
+                    "vencimento": "2026-07-05",
+                    "aluguel": 1800,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 350,
+                    "total": 2150,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": false,
+                    "dataPagamento": null,
+                    "pagamentos": [],
+                    "criadoEm": 1783252800000
+                },
+                {
+                    "id": "dv_seed_0020",
+                    "vencimento": "2026-08-05",
+                    "aluguel": 1800,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 350,
+                    "total": 2150,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": false,
+                    "dataPagamento": null,
+                    "pagamentos": [],
+                    "criadoEm": 1785931200000
+                }
+            ]
+        },
+        {
+            "id": "c_seed_0024",
+            "numero": 2,
+            "imovel": "Apartamento 302 - Rua das Flores, 123",
+            "inquilino": "João Pereira",
+            "quemRecebeu": "Pix Pessoal",
+            "dataInicio": "2025-03-10",
+            "diaPagamento": 10,
+            "aluguel": 1500,
+            "desconto": 0,
+            "juros": 0,
+            "multa": 0,
+            "condominio": 0,
+            "anexoContrato": null,
+            "corretorNome": "",
+            "corretorPercentual": 0,
+            "caucao": 0,
+            "caucaoDevolvida": false,
+            "dataCaucaoDevolvida": null,
+            "valorCaucaoDevolvida": null,
+            "dataUltimoReajuste": "2025-03-10",
+            "encerrado": false,
+            "dataEncerramento": null,
+            "criadoEm": 1741608000000,
+            "dividas": [
+                {
+                    "id": "dv_seed_0022",
+                    "vencimento": "2026-07-10",
+                    "aluguel": 1500,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 0,
+                    "total": 1500,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": true,
+                    "dataPagamento": "2026-07-10",
+                    "pagamentos": [
+                        {
+                            "data": "2026-07-10",
+                            "desconto": 0,
+                            "motivoDesconto": "",
+                            "valor": 1500,
+                            "forma": "Pix",
+                            "quemRecebeu": "Pix Pessoal",
+                            "observacao": ""
+                        }
+                    ],
+                    "criadoEm": 1783684800000
+                },
+                {
+                    "id": "dv_seed_0023",
+                    "vencimento": "2026-08-10",
+                    "aluguel": 1500,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 0,
+                    "total": 1500,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": false,
+                    "dataPagamento": null,
+                    "pagamentos": [],
+                    "criadoEm": 1786363200000
+                }
+            ]
+        },
+        {
+            "id": "c_seed_0029",
+            "numero": 3,
+            "imovel": "Casa 12 - Rua dos Ipês, 78",
+            "inquilino": "Fernanda Costa",
+            "quemRecebeu": "Pix Pessoal",
+            "dataInicio": "2025-05-01",
+            "diaPagamento": 1,
+            "aluguel": 1200,
+            "desconto": 0,
+            "juros": 0,
+            "multa": 0,
+            "condominio": 0,
+            "anexoContrato": null,
+            "corretorNome": "",
+            "corretorPercentual": 0,
+            "caucao": 0,
+            "caucaoDevolvida": false,
+            "dataCaucaoDevolvida": null,
+            "valorCaucaoDevolvida": null,
+            "dataUltimoReajuste": "2025-05-01",
+            "encerrado": false,
+            "dataEncerramento": null,
+            "criadoEm": 1746100800000,
+            "dividas": [
+                {
+                    "id": "dv_seed_0025",
+                    "vencimento": "2026-05-01",
+                    "aluguel": 1200,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 0,
+                    "total": 1200,
+                    "valorAtrasoBase": 60,
+                    "observacao": "",
+                    "pago": false,
+                    "dataPagamento": null,
+                    "pagamentos": [],
+                    "criadoEm": 1777636800000
+                },
+                {
+                    "id": "dv_seed_0026",
+                    "vencimento": "2026-06-01",
+                    "aluguel": 1200,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 0,
+                    "total": 1200,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": false,
+                    "dataPagamento": null,
+                    "pagamentos": [],
+                    "criadoEm": 1780315200000
+                },
+                {
+                    "id": "dv_seed_0027",
+                    "vencimento": "2026-07-01",
+                    "aluguel": 1200,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 0,
+                    "total": 1200,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": false,
+                    "dataPagamento": null,
+                    "pagamentos": [],
+                    "criadoEm": 1782907200000
+                },
+                {
+                    "id": "dv_seed_0028",
+                    "vencimento": "2026-08-01",
+                    "aluguel": 1200,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 0,
+                    "total": 1200,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": false,
+                    "dataPagamento": null,
+                    "pagamentos": [],
+                    "criadoEm": 1785585600000
+                }
+            ]
+        },
+        {
+            "id": "c_seed_0033",
+            "numero": 4,
+            "imovel": "Kitnet 5 - Rua Augusta, 900",
+            "inquilino": "Ricardo Alves",
+            "quemRecebeu": "Pix Pessoal",
+            "dataInicio": "2025-06-15",
+            "diaPagamento": 15,
+            "aluguel": 900,
+            "desconto": 0,
+            "juros": 0,
+            "multa": 0,
+            "condominio": 0,
+            "anexoContrato": null,
+            "corretorNome": "Ana Paula Corretora",
+            "corretorPercentual": 6,
+            "caucao": 0,
+            "caucaoDevolvida": false,
+            "dataCaucaoDevolvida": null,
+            "valorCaucaoDevolvida": null,
+            "dataUltimoReajuste": "2025-06-15",
+            "encerrado": false,
+            "dataEncerramento": null,
+            "criadoEm": 1749988800000,
+            "dividas": [
+                {
+                    "id": "dv_seed_0030",
+                    "vencimento": "2026-06-15",
+                    "aluguel": 900,
+                    "desconto": 50,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 0,
+                    "total": 850,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": true,
+                    "dataPagamento": "2026-06-16",
+                    "pagamentos": [
+                        {
+                            "data": "2026-06-16",
+                            "desconto": 50,
+                            "motivoDesconto": "Atraso na manutenção do encanamento, combinado com o inquilino",
+                            "valor": 850,
+                            "forma": "Dinheiro",
+                            "quemRecebeu": "Pix Pessoal",
+                            "observacao": ""
+                        }
+                    ],
+                    "criadoEm": 1781524800000
+                },
+                {
+                    "id": "dv_seed_0031",
+                    "vencimento": "2026-07-15",
+                    "aluguel": 900,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 0,
+                    "total": 900,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": true,
+                    "dataPagamento": "2026-07-15",
+                    "pagamentos": [
+                        {
+                            "data": "2026-07-15",
+                            "desconto": 0,
+                            "motivoDesconto": "",
+                            "valor": 900,
+                            "forma": "Pix",
+                            "quemRecebeu": "Pix Pessoal",
+                            "observacao": ""
+                        }
+                    ],
+                    "criadoEm": 1784116800000
+                },
+                {
+                    "id": "dv_seed_0032",
+                    "vencimento": "2026-08-15",
+                    "aluguel": 900,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 0,
+                    "total": 900,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": false,
+                    "dataPagamento": null,
+                    "pagamentos": [],
+                    "criadoEm": 1786795200000
+                }
+            ]
+        },
+        {
+            "id": "c_seed_0037",
+            "numero": 5,
+            "imovel": "Sala Comercial 210 - Av. Paulista, 1500",
+            "inquilino": "Empresa XYZ Comércio Ltda",
+            "quemRecebeu": "Banco Itaú - Conta Corrente",
+            "dataInicio": "2023-04-20",
+            "diaPagamento": 20,
+            "aluguel": 4500,
+            "desconto": 0,
+            "juros": 0,
+            "multa": 0,
+            "condominio": 800,
+            "anexoContrato": null,
+            "corretorNome": "Roberto Souza",
+            "corretorPercentual": 4,
+            "caucao": 9000,
+            "caucaoDevolvida": true,
+            "dataCaucaoDevolvida": "2026-07-05",
+            "valorCaucaoDevolvida": 9000,
+            "dataUltimoReajuste": "2025-04-20",
+            "encerrado": true,
+            "dataEncerramento": "2026-06-30",
+            "criadoEm": 1681992000000,
+            "dividas": [
+                {
+                    "id": "dv_seed_0034",
+                    "vencimento": "2026-04-20",
+                    "aluguel": 4500,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 800,
+                    "total": 5300,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": true,
+                    "dataPagamento": "2026-04-21",
+                    "pagamentos": [
+                        {
+                            "data": "2026-04-21",
+                            "desconto": 0,
+                            "motivoDesconto": "",
+                            "valor": 5300,
+                            "forma": "Pix",
+                            "quemRecebeu": "Banco Itaú - Conta Corrente",
+                            "observacao": ""
+                        }
+                    ],
+                    "criadoEm": 1776686400000
+                },
+                {
+                    "id": "dv_seed_0035",
+                    "vencimento": "2026-05-20",
+                    "aluguel": 4500,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 800,
+                    "total": 5300,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": true,
+                    "dataPagamento": "2026-05-20",
+                    "pagamentos": [
+                        {
+                            "data": "2026-05-20",
+                            "desconto": 0,
+                            "motivoDesconto": "",
+                            "valor": 5300,
+                            "forma": "Pix",
+                            "quemRecebeu": "Banco Itaú - Conta Corrente",
+                            "observacao": ""
+                        }
+                    ],
+                    "criadoEm": 1779278400000
+                },
+                {
+                    "id": "dv_seed_0036",
+                    "vencimento": "2026-06-20",
+                    "aluguel": 4500,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 800,
+                    "total": 5300,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": true,
+                    "dataPagamento": "2026-06-22",
+                    "pagamentos": [
+                        {
+                            "data": "2026-06-22",
+                            "desconto": 0,
+                            "motivoDesconto": "",
+                            "valor": 5300,
+                            "forma": "Pix",
+                            "quemRecebeu": "Banco Itaú - Conta Corrente",
+                            "observacao": ""
+                        }
+                    ],
+                    "criadoEm": 1781956800000
+                }
+            ]
+        },
+        {
+            "id": "c_seed_0040",
+            "numero": 6,
+            "imovel": "Casa 3 - Rua João Pessoa, 250",
+            "inquilino": "Paulo Henrique",
+            "quemRecebeu": "Pix Pessoal",
+            "dataInicio": "2024-08-08",
+            "diaPagamento": 8,
+            "aluguel": 1350,
+            "desconto": 0,
+            "juros": 0,
+            "multa": 0,
+            "condominio": 200,
+            "anexoContrato": null,
+            "corretorNome": "",
+            "corretorPercentual": 0,
+            "caucao": 2700,
+            "caucaoDevolvida": false,
+            "dataCaucaoDevolvida": null,
+            "valorCaucaoDevolvida": null,
+            "dataUltimoReajuste": "2025-01-08",
+            "encerrado": false,
+            "dataEncerramento": null,
+            "criadoEm": 1723118400000,
+            "dividas": [
+                {
+                    "id": "dv_seed_0038",
+                    "vencimento": "2026-07-08",
+                    "aluguel": 1350,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 200,
+                    "total": 1550,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": true,
+                    "dataPagamento": "2026-07-08",
+                    "pagamentos": [
+                        {
+                            "data": "2026-07-08",
+                            "desconto": 0,
+                            "motivoDesconto": "",
+                            "valor": 1550,
+                            "forma": "Dinheiro",
+                            "quemRecebeu": "Pix Pessoal",
+                            "observacao": ""
+                        }
+                    ],
+                    "criadoEm": 1783512000000
+                },
+                {
+                    "id": "dv_seed_0039",
+                    "vencimento": "2026-08-08",
+                    "aluguel": 1350,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 200,
+                    "total": 1550,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": false,
+                    "dataPagamento": null,
+                    "pagamentos": [],
+                    "criadoEm": 1786190400000
+                }
+            ]
+        },
+        {
+            "id": "c_seed_0043",
+            "numero": 7,
+            "imovel": "Apartamento 45 - Edifício Bela Vista, Av. Brasil, 600",
+            "inquilino": "Camila Rocha",
+            "quemRecebeu": "Carlos Imóveis Corretora",
+            "dataInicio": "2025-07-25",
+            "diaPagamento": 25,
+            "aluguel": 2000,
+            "desconto": 0,
+            "juros": 0,
+            "multa": 0,
+            "condominio": 0,
+            "anexoContrato": null,
+            "corretorNome": "Carlos Imóveis Corretora",
+            "corretorPercentual": 5,
+            "caucao": 0,
+            "caucaoDevolvida": false,
+            "dataCaucaoDevolvida": null,
+            "valorCaucaoDevolvida": null,
+            "dataUltimoReajuste": "2025-07-25",
+            "encerrado": false,
+            "dataEncerramento": null,
+            "criadoEm": 1753444800000,
+            "dividas": [
+                {
+                    "id": "dv_seed_0041",
+                    "vencimento": "2026-07-25",
+                    "aluguel": 2000,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 0,
+                    "total": 2000,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": true,
+                    "dataPagamento": "2026-07-25",
+                    "pagamentos": [
+                        {
+                            "data": "2026-07-25",
+                            "desconto": 0,
+                            "motivoDesconto": "",
+                            "valor": 2000,
+                            "forma": "Pix",
+                            "quemRecebeu": "Carlos Imóveis Corretora",
+                            "observacao": ""
+                        }
+                    ],
+                    "criadoEm": 1784980800000
+                },
+                {
+                    "id": "dv_seed_0042",
+                    "vencimento": "2026-08-25",
+                    "aluguel": 2000,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 0,
+                    "total": 2000,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": false,
+                    "dataPagamento": null,
+                    "pagamentos": [],
+                    "criadoEm": 1787659200000
+                }
+            ]
+        },
+        {
+            "id": "c_seed_0047",
+            "numero": 8,
+            "imovel": "Apartamento 201 - Edifício Solar, Rua das Palmeiras, 45",
+            "inquilino": "Bruno Martins",
+            "quemRecebeu": "Banco Itaú - Conta Corrente",
+            "dataInicio": "2025-09-05",
+            "diaPagamento": 5,
+            "aluguel": 1700,
+            "desconto": 0,
+            "juros": 0,
+            "multa": 0,
+            "condominio": 300,
+            "anexoContrato": null,
+            "corretorNome": "",
+            "corretorPercentual": 0,
+            "caucao": 0,
+            "caucaoDevolvida": false,
+            "dataCaucaoDevolvida": null,
+            "valorCaucaoDevolvida": null,
+            "dataUltimoReajuste": "2025-09-05",
+            "encerrado": false,
+            "dataEncerramento": null,
+            "criadoEm": 1757073600000,
+            "dividas": [
+                {
+                    "id": "dv_seed_0044",
+                    "vencimento": "2026-06-05",
+                    "aluguel": 1700,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 300,
+                    "total": 2000,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": true,
+                    "dataPagamento": "2026-06-05",
+                    "pagamentos": [
+                        {
+                            "data": "2026-06-05",
+                            "desconto": 0,
+                            "motivoDesconto": "",
+                            "valor": 2000,
+                            "forma": "Pix",
+                            "quemRecebeu": "Banco Itaú - Conta Corrente",
+                            "observacao": ""
+                        }
+                    ],
+                    "criadoEm": 1780660800000
+                },
+                {
+                    "id": "dv_seed_0045",
+                    "vencimento": "2026-07-05",
+                    "aluguel": 1700,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 300,
+                    "total": 2000,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": true,
+                    "dataPagamento": "2026-07-06",
+                    "pagamentos": [
+                        {
+                            "data": "2026-07-06",
+                            "desconto": 0,
+                            "motivoDesconto": "",
+                            "valor": 2000,
+                            "forma": "Pix",
+                            "quemRecebeu": "Banco Itaú - Conta Corrente",
+                            "observacao": ""
+                        }
+                    ],
+                    "criadoEm": 1783252800000
+                },
+                {
+                    "id": "dv_seed_0046",
+                    "vencimento": "2026-08-05",
+                    "aluguel": 1700,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 300,
+                    "total": 2000,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": false,
+                    "dataPagamento": null,
+                    "pagamentos": [],
+                    "criadoEm": 1785931200000
+                }
+            ]
+        },
+        {
+            "id": "c_seed_0050",
+            "numero": 9,
+            "imovel": "Kitnet 6 - Rua Augusta, 900",
+            "inquilino": "Juliana Andrade",
+            "quemRecebeu": "Pix Pessoal",
+            "dataInicio": "2025-11-12",
+            "diaPagamento": 12,
+            "aluguel": 950,
+            "desconto": 0,
+            "juros": 0,
+            "multa": 0,
+            "condominio": 0,
+            "anexoContrato": null,
+            "corretorNome": "Ana Paula Corretora",
+            "corretorPercentual": 6,
+            "caucao": 950,
+            "caucaoDevolvida": true,
+            "dataCaucaoDevolvida": "2026-05-01",
+            "valorCaucaoDevolvida": 950,
+            "dataUltimoReajuste": "2025-11-12",
+            "encerrado": false,
+            "dataEncerramento": null,
+            "criadoEm": 1762948800000,
+            "dividas": [
+                {
+                    "id": "dv_seed_0048",
+                    "vencimento": "2026-07-12",
+                    "aluguel": 950,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 0,
+                    "total": 950,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": true,
+                    "dataPagamento": "2026-07-12",
+                    "pagamentos": [
+                        {
+                            "data": "2026-07-12",
+                            "desconto": 0,
+                            "motivoDesconto": "",
+                            "valor": 950,
+                            "forma": "Pix",
+                            "quemRecebeu": "Pix Pessoal",
+                            "observacao": ""
+                        }
+                    ],
+                    "criadoEm": 1783857600000
+                },
+                {
+                    "id": "dv_seed_0049",
+                    "vencimento": "2026-08-12",
+                    "aluguel": 950,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 0,
+                    "total": 950,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": false,
+                    "dataPagamento": null,
+                    "pagamentos": [],
+                    "criadoEm": 1786536000000
+                }
+            ]
+        },
+        {
+            "id": "c_seed_0053",
+            "numero": 10,
+            "imovel": "Casa 20 - Rua Voluntários da Pátria, 500",
+            "inquilino": "Eduardo Lima",
+            "quemRecebeu": "Pix Pessoal",
+            "dataInicio": "2023-02-03",
+            "diaPagamento": 3,
+            "aluguel": 1600,
+            "desconto": 0,
+            "juros": 0,
+            "multa": 0,
+            "condominio": 0,
+            "anexoContrato": null,
+            "corretorNome": "",
+            "corretorPercentual": 0,
+            "caucao": 0,
+            "caucaoDevolvida": false,
+            "dataCaucaoDevolvida": null,
+            "valorCaucaoDevolvida": null,
+            "dataUltimoReajuste": "2025-02-03",
+            "encerrado": false,
+            "dataEncerramento": null,
+            "criadoEm": 1675425600000,
+            "dividas": [
+                {
+                    "id": "dv_seed_0051",
+                    "vencimento": "2026-06-03",
+                    "aluguel": 1600,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 0,
+                    "total": 1600,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": true,
+                    "dataPagamento": "2026-06-03",
+                    "pagamentos": [
+                        {
+                            "data": "2026-06-03",
+                            "desconto": 0,
+                            "motivoDesconto": "",
+                            "valor": 1600,
+                            "forma": "Dinheiro",
+                            "quemRecebeu": "Pix Pessoal",
+                            "observacao": ""
+                        }
+                    ],
+                    "criadoEm": 1780488000000
+                },
+                {
+                    "id": "dv_seed_0052",
+                    "vencimento": "2026-07-03",
+                    "aluguel": 1600,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 0,
+                    "total": 1600,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": false,
+                    "dataPagamento": null,
+                    "pagamentos": [],
+                    "criadoEm": 1783080000000
+                },
+                {
+                    "id": "c_mse2hksa_lmlvpwq",
+                    "vencimento": "2026-08-03",
+                    "aluguel": 1600,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 0,
+                    "total": 1600,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": false,
+                    "dataPagamento": null,
+                    "pagamentos": [],
+                    "criadoEm": 1785812221307
+                }
+            ]
+        },
+        {
+            "id": "c_seed_0057",
+            "numero": 11,
+            "imovel": "Loja 3 - Rua Comércio, 88",
+            "inquilino": "Marcos Vinícius (Loja de Roupas MV)",
+            "quemRecebeu": "Banco Itaú - Conta Corrente",
+            "dataInicio": "2022-01-01",
+            "diaPagamento": 1,
+            "aluguel": 2200,
+            "desconto": 0,
+            "juros": 0,
+            "multa": 0,
+            "condominio": 400,
+            "anexoContrato": null,
+            "corretorNome": "",
+            "corretorPercentual": 0,
+            "caucao": 4400,
+            "caucaoDevolvida": false,
+            "dataCaucaoDevolvida": null,
+            "valorCaucaoDevolvida": null,
+            "dataUltimoReajuste": "2025-01-01",
+            "encerrado": true,
+            "dataEncerramento": "2026-07-15",
+            "criadoEm": 1641038400000,
+            "dividas": [
+                {
+                    "id": "dv_seed_0054",
+                    "vencimento": "2026-05-01",
+                    "aluguel": 2200,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 400,
+                    "total": 2600,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": true,
+                    "dataPagamento": "2026-05-01",
+                    "pagamentos": [
+                        {
+                            "data": "2026-05-01",
+                            "desconto": 0,
+                            "motivoDesconto": "",
+                            "valor": 2600,
+                            "forma": "Pix",
+                            "quemRecebeu": "Banco Itaú - Conta Corrente",
+                            "observacao": ""
+                        }
+                    ],
+                    "criadoEm": 1777636800000
+                },
+                {
+                    "id": "dv_seed_0055",
+                    "vencimento": "2026-06-01",
+                    "aluguel": 2200,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 400,
+                    "total": 2600,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": true,
+                    "dataPagamento": "2026-06-01",
+                    "pagamentos": [
+                        {
+                            "data": "2026-06-01",
+                            "desconto": 0,
+                            "motivoDesconto": "",
+                            "valor": 2600,
+                            "forma": "Pix",
+                            "quemRecebeu": "Banco Itaú - Conta Corrente",
+                            "observacao": ""
+                        }
+                    ],
+                    "criadoEm": 1780315200000
+                },
+                {
+                    "id": "dv_seed_0056",
+                    "vencimento": "2026-07-01",
+                    "aluguel": 2200,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 400,
+                    "total": 2600,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": true,
+                    "dataPagamento": "2026-07-02",
+                    "pagamentos": [
+                        {
+                            "data": "2026-07-02",
+                            "desconto": 0,
+                            "motivoDesconto": "",
+                            "valor": 2600,
+                            "forma": "Pix",
+                            "quemRecebeu": "Banco Itaú - Conta Corrente",
+                            "observacao": ""
+                        }
+                    ],
+                    "criadoEm": 1782907200000
+                }
+            ]
+        },
+        {
+            "id": "c_seed_0061",
+            "numero": 12,
+            "imovel": "Apartamento 302 - Rua das Flores, 123",
+            "inquilino": "Sandra Oliveira",
+            "quemRecebeu": "Pix Pessoal",
+            "dataInicio": "2025-08-20",
+            "diaPagamento": 20,
+            "aluguel": 1100,
+            "desconto": 0,
+            "juros": 0,
+            "multa": 0,
+            "condominio": 0,
+            "anexoContrato": null,
+            "corretorNome": "",
+            "corretorPercentual": 0,
+            "caucao": 0,
+            "caucaoDevolvida": false,
+            "dataCaucaoDevolvida": null,
+            "valorCaucaoDevolvida": null,
+            "dataUltimoReajuste": "2025-08-20",
+            "encerrado": false,
+            "dataEncerramento": null,
+            "criadoEm": 1755691200000,
+            "dividas": [
+                {
+                    "id": "dv_seed_0058",
+                    "vencimento": "2026-05-20",
+                    "aluguel": 1100,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 0,
+                    "total": 1100,
+                    "valorAtrasoBase": 45,
+                    "observacao": "",
+                    "pago": false,
+                    "dataPagamento": null,
+                    "pagamentos": [],
+                    "criadoEm": 1779278400000
+                },
+                {
+                    "id": "dv_seed_0059",
+                    "vencimento": "2026-06-20",
+                    "aluguel": 1100,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 0,
+                    "total": 1100,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": false,
+                    "dataPagamento": null,
+                    "pagamentos": [],
+                    "criadoEm": 1781956800000
+                },
+                {
+                    "id": "dv_seed_0060",
+                    "vencimento": "2026-07-20",
+                    "aluguel": 1100,
+                    "desconto": 0,
+                    "juros": 0,
+                    "multa": 0,
+                    "condominio": 0,
+                    "total": 1100,
+                    "valorAtrasoBase": 0,
+                    "observacao": "",
+                    "pago": false,
+                    "dataPagamento": null,
+                    "pagamentos": [],
+                    "criadoEm": 1784548800000
+                }
+            ]
+        }
+    ],
     "config": {
         "taxaJurosMensal": 1,
         "taxaMultaPercent": 2,
         "corretorPercentualPadrao": 5,
-        "percentualReajusteSugerido": 5
+        "percentualReajusteSugerido": 6
     },
-    "auditoria": [],
-    "pessoas": [],
-    "despesas": [],
-    "imoveis": []
+    "auditoria": [
+        {
+            "id": "a_seed_0071",
+            "timestamp": 1704456000000,
+            "usuario": "admin",
+            "acao": "contrato_criado",
+            "descricao": "Contrato criado: Apartamento 101 - Edifício Solar, Rua das Palmeiras, 45 - Maria Silva (corretor: Carlos Imóveis Corretora, 5%)",
+            "alteracoes": []
+        },
+        {
+            "id": "a_seed_0072",
+            "timestamp": 1736078400000,
+            "usuario": "admin",
+            "acao": "contrato_reajustado",
+            "descricao": "Aluguel reajustado: Apartamento 101 - Maria Silva de R$ 1.700,00 para R$ 1.800,00 (1 dívida(s) em aberto atualizada(s))",
+            "alteracoes": [
+                {
+                    "campo": "Aluguel (R$)",
+                    "de": 1700,
+                    "para": 1800
+                }
+            ]
+        },
+        {
+            "id": "a_seed_0073",
+            "timestamp": 1780747200000,
+            "usuario": "admin",
+            "acao": "pagamento_registrado",
+            "descricao": "Pagamento registrado: Apartamento 101 - Maria Silva (05-06-2026) - R$ 2.150,00",
+            "alteracoes": []
+        },
+        {
+            "id": "a_seed_0074",
+            "timestamp": 1782820800000,
+            "usuario": "admin",
+            "acao": "contrato_editado",
+            "descricao": "Contrato editado: Sala Comercial 210 - Av. Paulista, 1500 - Empresa XYZ Comércio Ltda",
+            "alteracoes": [
+                {
+                    "campo": "Quem recebe",
+                    "de": "",
+                    "para": "Banco Itaú - Conta Corrente"
+                }
+            ]
+        },
+        {
+            "id": "a_seed_0075",
+            "timestamp": 1782825300000,
+            "usuario": "admin",
+            "acao": "contrato_encerrado",
+            "descricao": "Contrato encerrado: Sala Comercial 210 - Av. Paulista, 1500 - Empresa XYZ Comércio Ltda",
+            "alteracoes": []
+        },
+        {
+            "id": "a_seed_0076",
+            "timestamp": 1783252800000,
+            "usuario": "admin",
+            "acao": "caucao_devolvida",
+            "descricao": "Caução devolvida: Sala Comercial 210 - Av. Paulista, 1500 - Empresa XYZ Comércio Ltda (R$ 9.000,00 em 05-07-2026) — Devolução integral após vistoria sem pendências",
+            "alteracoes": []
+        },
+        {
+            "id": "a_seed_0077",
+            "timestamp": 1784116800000,
+            "usuario": "admin",
+            "acao": "contrato_encerrado",
+            "descricao": "Contrato encerrado: Loja 3 - Rua Comércio, 88 - Marcos Vinícius (Loja de Roupas MV)",
+            "alteracoes": []
+        },
+        {
+            "id": "a_seed_0078",
+            "timestamp": 1785240000000,
+            "usuario": "admin",
+            "acao": "despesa_criada",
+            "descricao": "Despesa registrada: Conserto de portão elétrico (R$ 480,00)",
+            "alteracoes": []
+        },
+        {
+            "id": "a_seed_0079",
+            "timestamp": 1785672000000,
+            "usuario": "admin",
+            "acao": "despesa_criada",
+            "descricao": "Despesa registrada: Troca de fechadura - Casa 12 (R$ 180,00)",
+            "alteracoes": []
+        },
+        {
+            "id": "a_seed_0080",
+            "timestamp": 1785756600000,
+            "usuario": "admin",
+            "acao": "usuario_adicionado",
+            "descricao": "Usuário adicionado: gerente",
+            "alteracoes": []
+        },
+        {
+            "id": "a_seed_0081",
+            "timestamp": 1785759000000,
+            "usuario": "gerente",
+            "acao": "imovel_editado",
+            "descricao": "Imóvel renomeado: \"Kitnet 6 - Rua Augusta 900\" → \"Kitnet 6 - Rua Augusta, 900\" (1 contrato(s) atualizado(s))",
+            "alteracoes": [
+                {
+                    "campo": "Descrição do imóvel",
+                    "de": "Kitnet 6 - Rua Augusta 900",
+                    "para": "Kitnet 6 - Rua Augusta, 900"
+                }
+            ]
+        },
+        {
+            "id": "a_seed_0082",
+            "timestamp": 1785760800000,
+            "usuario": "gerente",
+            "acao": "despesa_editada",
+            "descricao": "Despesa editada: Reparo hidráulico - vazamento (R$ 320,00)",
+            "alteracoes": [
+                {
+                    "campo": "Valor (R$)",
+                    "de": 280,
+                    "para": 320
+                }
+            ]
+        },
+        {
+            "id": "c_mse2hksb_nklgvbq",
+            "timestamp": 1785812221307,
+            "usuario": "admin",
+            "acao": "divida_editada",
+            "descricao": "Atualização em lote: 1 dívida(s) geradas em 1 contrato(s)",
+            "alteracoes": []
+        }
+    ],
+    "pessoas": [
+        {
+            "id": "p_seed_0012",
+            "nome": "Carlos Imóveis Corretora"
+        },
+        {
+            "id": "p_seed_0013",
+            "nome": "Ana Paula Corretora"
+        },
+        {
+            "id": "p_seed_0014",
+            "nome": "Roberto Souza"
+        },
+        {
+            "id": "p_seed_0015",
+            "nome": "Banco Itaú - Conta Corrente"
+        },
+        {
+            "id": "p_seed_0016",
+            "nome": "Pix Pessoal"
+        },
+        {
+            "id": "p_seed_0017",
+            "nome": "Lamartine"
+        }
+    ],
+    "despesas": [
+        {
+            "id": "d_seed_0062",
+            "data": "2026-06-10",
+            "descricao": "Reparo hidráulico - vazamento",
+            "valor": 320,
+            "contratoId": "c_seed_0021",
+            "criadoEm": 1781092800000
+        },
+        {
+            "id": "d_seed_0063",
+            "data": "2026-06-18",
+            "descricao": "Material de limpeza para áreas comuns",
+            "valor": 85.5,
+            "contratoId": null,
+            "criadoEm": 1781784000000
+        },
+        {
+            "id": "d_seed_0064",
+            "data": "2026-07-02",
+            "descricao": "Pintura da fachada - Kitnet 5",
+            "valor": 650,
+            "contratoId": "c_seed_0033",
+            "criadoEm": 1782993600000
+        },
+        {
+            "id": "d_seed_0065",
+            "data": "2026-07-15",
+            "descricao": "Taxa de cartório - renovação de contrato",
+            "valor": 120,
+            "contratoId": null,
+            "criadoEm": 1784116800000
+        },
+        {
+            "id": "d_seed_0066",
+            "data": "2026-07-28",
+            "descricao": "Conserto de portão elétrico",
+            "valor": 480,
+            "contratoId": "c_seed_0057",
+            "criadoEm": 1785240000000
+        },
+        {
+            "id": "d_seed_0067",
+            "data": "2026-08-01",
+            "descricao": "Dedetização anual",
+            "valor": 250,
+            "contratoId": null,
+            "criadoEm": 1785585600000
+        },
+        {
+            "id": "d_seed_0068",
+            "data": "2026-08-02",
+            "descricao": "Troca de fechadura - Casa 12",
+            "valor": 180,
+            "contratoId": "c_seed_0029",
+            "criadoEm": 1785672000000
+        },
+        {
+            "id": "d_seed_0069",
+            "data": "2025-12-20",
+            "descricao": "Reforma do telhado - Casa 3",
+            "valor": 2100,
+            "contratoId": "c_seed_0040",
+            "criadoEm": 1766232000000
+        },
+        {
+            "id": "d_seed_0070",
+            "data": "2025-09-05",
+            "descricao": "Contador - honorários mensais",
+            "valor": 300,
+            "contratoId": null,
+            "criadoEm": 1757073600000
+        }
+    ],
+    "imoveis": [
+        {
+            "id": "i_seed_0001",
+            "nome": "Apartamento 101 - Edifício Solar, Rua das Palmeiras, 45"
+        },
+        {
+            "id": "i_seed_0002",
+            "nome": "Apartamento 201 - Edifício Solar, Rua das Palmeiras, 45"
+        },
+        {
+            "id": "i_seed_0003",
+            "nome": "Apartamento 302 - Rua das Flores, 123"
+        },
+        {
+            "id": "i_seed_0004",
+            "nome": "Apartamento 45 - Edifício Bela Vista, Av. Brasil, 600"
+        },
+        {
+            "id": "i_seed_0005",
+            "nome": "Casa 12 - Rua dos Ipês, 78"
+        },
+        {
+            "id": "i_seed_0006",
+            "nome": "Casa 3 - Rua João Pessoa, 250"
+        },
+        {
+            "id": "i_seed_0007",
+            "nome": "Casa 20 - Rua Voluntários da Pátria, 500"
+        },
+        {
+            "id": "i_seed_0008",
+            "nome": "Kitnet 5 - Rua Augusta, 900"
+        },
+        {
+            "id": "i_seed_0009",
+            "nome": "Kitnet 6 - Rua Augusta, 900"
+        },
+        {
+            "id": "i_seed_0010",
+            "nome": "Sala Comercial 210 - Av. Paulista, 1500"
+        },
+        {
+            "id": "i_seed_0011",
+            "nome": "Loja 3 - Rua Comércio, 88"
+        }
+    ]
 }

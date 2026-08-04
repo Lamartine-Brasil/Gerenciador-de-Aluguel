@@ -39,14 +39,22 @@ Contratos.
       diferente da convenção "valor cheio" usada em Atrasos/Relatórios — decisão consciente)
 - [x] Card: próximo vencimento
 - [x] Card: total de despesas lançadas no mês atual
-- [x] Alerta de dívidas vencendo nos próximos 5 dias
-- [x] Alerta de contratos no "aniversário" de reajuste (1 ano desde o último reajuste, ou
-      desde o início se nunca foi reajustado), com o valor sugerido para cada um
+- [x] Alerta de dívidas vencendo nos próximos 5 dias e alerta de contratos no "aniversário"
+      de reajuste (1 ano desde o último reajuste, ou desde o início se nunca reajustado, com
+      o valor sugerido) — os dois alertas têm cores diferentes (vencimento em laranja,
+      reajuste em azul) para não se confundirem visualmente, e cada item dentro deles é
+      clicável: no de vencimento, leva direto para o contrato na aba Contratos (busca
+      automaticamente por "#número"); no de reajuste, abre direto o modal "Reajustar" já
+      com o valor sugerido preenchido
 - [x] Lista das dívidas mais recentes
 
 ### Cadastros — Imóveis
 - [x] Aba dedicada de cadastro de imóveis (descrição livre, ex: "Apartamento 302 - Rua
-      das Flores #123"), gerenciada como uma lista simples (adicionar/remover)
+      das Flores #123"), gerenciada como uma lista simples (adicionar/editar/remover)
+- [x] Editar o nome/descrição de um imóvel já cadastrado atualiza também todos os
+      contratos que já usavam a descrição antiga (diferente de remover, que não afeta
+      contratos existentes) — pensado para corrigir erros de digitação sem deixar
+      contratos antigos "órfãos" com um nome que não existe mais na lista
 - [x] Ao criar ou editar um contrato, o imóvel é escolhido de um seletor alimentado por
       essa lista, em vez de digitado como texto livre — evita erros de digitação e
       duplicidade. Se não houver nenhum imóvel cadastrado ainda, um aviso no formulário
@@ -161,6 +169,10 @@ Contratos.
 - [x] Valor sugerido automaticamente = total da dívida + atraso atual (juros/multa)
 - [x] Campo "Desconto (R$)": ao digitar, recalcula o valor pago automaticamente
       (total + atraso - desconto); o campo valor pago continua editável manualmente depois
+- [x] Campo "Motivo do desconto": aparece só quando o desconto é maior que zero — campo
+      dedicado para registrar o porquê do desconto, separado da "Observação" genérica.
+      Exibido no Histórico (aba geral, modal por contrato e exportação CSV) junto do
+      valor do desconto
 - [x] Campo "Forma de pagamento": seleção obrigatória entre Dinheiro e Pix
 - [x] Campo "Quem recebeu": seletor da lista de "Pessoas" cadastrada em Configurações
       (a mesma lista usada para corretor), pré-selecionado com o recebedor padrão do
@@ -200,8 +212,9 @@ Contratos.
 - [x] Filtro por ano e por mês; card com total do período filtrado e card com total do
       ano inteiro (independente do mês filtrado), para consultar tanto mensal quanto
       anualmente
-- [x] Lista das despesas do período filtrado, mais recente primeiro, com botão excluir
-      por item
+- [x] Lista das despesas do período filtrado, mais recente primeiro, com botão editar
+      (reaproveita o mesmo formulário do topo, trocando para modo "Editar despesa" com
+      botão "Cancelar edição") e botão excluir por item
 - [x] Despesas também aparecem fora da própria aba: card "Despesas no mês" no Dashboard,
       coluna "Despesas" e card "Total de despesas no ano"/"Lucro líquido no ano" em
       Relatórios, e gráfico "Despesas mensais" em Gráficos (ver abaixo)
@@ -251,8 +264,14 @@ Contratos.
 ### Análises — Calendário
 - [x] Aba dedicada com grade mensal (estilo calendário), navegação entre meses
       (anterior/próximo/hoje)
-- [x] Cada dia mostra pontos coloridos indicando vencimentos (azul=ativo,
-      vermelho=atrasado, verde=pago) e pagamentos recebidos naquele dia
+- [x] Cada dia com vencimento ou pagamento tem o FUNDO da célula inteira colorido
+      (não só pontinhos pequenos) conforme o pior status do dia — vermelho se tem algo
+      atrasado, azul se tem vencimento ainda ativo, verde se só tem pago/pagamento
+      recebido — muito mais fácil de escanear o mês inteiro rapidamente
+- [x] Mostra também o valor total (R$) dos vencimentos daquele dia, direto na célula
+      (escondido em telas pequenas para não espremer o dia), além dos pontos coloridos
+      individuais (agora maiores) indicando vencimentos (azul=ativo, vermelho=atrasado,
+      verde=pago) e pagamentos recebidos
 - [x] Clicar em um dia mostra a lista detalhada de vencimentos e pagamentos daquela
       data abaixo do calendário
 
@@ -260,13 +279,17 @@ Contratos.
 - [x] Aba dedicada com o histórico dos eventos principais do sistema — cada entrada
       mostra o quê, quem fez e quando. Tipos de evento registrados: contrato criado,
       editado, excluído, reajustado, encerrado ou reaberto; caução devolvida; dívida
-      editada ou excluída; pagamento registrado; despesa criada ou excluída; usuário
-      administrador adicionado ou removido; chave `COOKIE_SECRET` regenerada
+      editada ou excluída; pagamento registrado; despesa criada, editada ou excluída;
+      imóvel editado; usuário administrador adicionado ou removido; chave
+      `COOKIE_SECRET` regenerada
 - [x] Diff campo a campo: edições de contrato (imóvel, inquilino, quem recebe, corretor,
-      caução), de dívida (vencimento, valores, observação) e de reajuste (aluguel antigo
-      → novo) mostram uma lista "campo: valor antigo → valor novo" logo abaixo da
-      descrição do evento, sempre que houver algo de fato alterado (campos iguais não
-      aparecem no diff)
+      caução), de dívida (vencimento, valores, observação), de despesa e de reajuste
+      (aluguel antigo → novo) mostram uma lista "campo: valor antigo → valor novo" logo
+      abaixo da descrição do evento, sempre que houver algo de fato alterado (campos
+      iguais não aparecem no diff)
+- [x] Filtros por ano, mês e usuário (quem fez a alteração) — os selects de ano e usuário
+      são montados dinamicamente a partir dos eventos existentes, sem precisar de
+      cadastro separado
 - [x] Lista ordenada do mais recente para o mais antigo, mantendo os últimos 300 eventos
 
 ### Sistema — Configurações

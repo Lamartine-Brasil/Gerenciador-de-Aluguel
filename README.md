@@ -85,14 +85,18 @@ navegação):
 **Visão Geral**
 
 - **Dashboard** — quantas dívidas estão ativas, quanto está em atraso no total, próximo
-  vencimento, despesas lançadas no mês, um alerta para dívidas que vencem nos próximos 5
-  dias e um alerta para contratos no "aniversário" de reajuste (com o valor sugerido)
+  vencimento, despesas lançadas no mês, um alerta (laranja) para dívidas que vencem nos
+  próximos 5 dias e um alerta (azul, para não se confundir com o de vencimento) para
+  contratos no "aniversário" de reajuste. Cada item dentro dos alertas é clicável: no de
+  vencimento leva direto para o contrato na aba Contratos; no de reajuste abre direto o
+  reajuste já com o valor sugerido preenchido
 
 **Cadastros**
 
 - **Imóveis** — cadastro simples de imóveis (uma lista de descrições, ex: "Apartamento
   302 - Rua das Flores #123"), usado como seletor ao criar/editar um contrato — evita
-  digitar o mesmo endereço toda vez e reduz erro de digitação
+  digitar o mesmo endereço toda vez e reduz erro de digitação. Editar a descrição de um
+  imóvel já cadastrado atualiza automaticamente os contratos que já usavam o nome antigo
 - **Contratos** — cada contrato (imóvel + inquilino) aparece como um card, identificado por
   um número sequencial único (`#1`, `#2`...), com todas as suas dívidas (uma por mês)
   dentro. Ao criar um contrato, informe a data de início e o dia de pagamento (1-31); se a
@@ -124,8 +128,9 @@ navegação):
   contrato tem corretor e/ou condomínio, mostra também o "valor líquido" (o que
   efetivamente fica com o proprietário, descontando o que só passa pela mão dele)
 - **Despesas** — cadastro simples de despesas (data, descrição, valor), opcionalmente
-  ligadas a um contrato ou avulsas, consultáveis por mês e por ano. Também aparecem no
-  Dashboard, em Relatórios (com "lucro líquido" = pago menos despesas) e em Gráficos
+  ligadas a um contrato ou avulsas, consultáveis por mês e por ano, com edição e exclusão
+  por item. Também aparecem no Dashboard, em Relatórios (com "lucro líquido" = pago menos
+  despesas) e em Gráficos
 
 **Análises**
 
@@ -139,14 +144,17 @@ navegação):
   total de descontos concedidos, total de despesas e lucro líquido, e quebra de
   pagamentos por forma no ano. Todo valor "recebido" mostrado aqui é líquido — já
   descontando a comissão do corretor e o condomínio de cada pagamento
-- **Calendário** — grade mensal mostrando vencimentos e pagamentos dia a dia
+- **Calendário** — grade mensal mostrando vencimentos e pagamentos dia a dia, com o fundo
+  da célula inteira colorido conforme o status do dia (mais fácil de escanear o mês do
+  que só pontinhos pequenos) e o valor total dos vencimentos de cada dia
 
 **Sistema**
 
 - **Auditoria** — histórico dos eventos principais (contrato criado/editado/excluído/
-  encerrado, caução devolvida, pagamento registrado, despesa lançada, usuário
-  adicionado/removido, chave de segurança regenerada), com quem fez e quando. Edições de
-  contrato, dívida e reajuste mostram um diff campo a campo (valor antigo → novo)
+  encerrado, caução devolvida, pagamento registrado, despesa lançada/editada, imóvel
+  editado, usuário adicionado/removido, chave de segurança regenerada), com quem fez e
+  quando. Edições de contrato, dívida, despesa e reajuste mostram um diff campo a campo
+  (valor antigo → novo). Filtros por ano, mês e usuário
 - **Configurações** — taxas de juros/multa, valores padrão, percentual de reajuste
   sugerido, cadastro de pessoas (recebedores/corretores), conta do administrador,
   geração de uma nova chave `COOKIE_SECRET` pelo próprio site, outros usuários
@@ -335,6 +343,7 @@ não existe — cada dívida tem o seu.
 |---------------|--------|----------------------------------------------|
 | `data`        | string `AAAA-MM-DD` | Data em que o pagamento foi feito     |
 | `desconto`    | number | Desconto aplicado a este pagamento (opcional) |
+| `motivoDesconto` | string | Motivo do desconto — só relevante quando `desconto > 0`, campo dedicado separado da `observacao` genérica |
 | `valor`       | number | Valor pago (já descontado, se houver desconto)|
 | `forma`       | string | Forma de pagamento: `Dinheiro` ou `Pix`       |
 | `quemRecebeu` | string | Quem recebeu — nome escolhido da lista de "pessoas" (ou vazio) |
@@ -413,11 +422,13 @@ total ou receita. Consultáveis por mês e por ano na aba "Despesas".
 Tipos de `acao` registrados: `contrato_criado`, `contrato_editado`, `contrato_excluido`,
 `contrato_reajustado`, `contrato_encerrado`, `contrato_reaberto`, `caucao_devolvida`,
 `divida_editada`, `divida_excluida`, `pagamento_registrado`, `despesa_criada`,
-`despesa_excluida`, `usuario_adicionado`, `usuario_removido`, `cookie_secret_regenerado`.
+`despesa_editada`, `despesa_excluida`, `imovel_editado`, `usuario_adicionado`,
+`usuario_removido`, `cookie_secret_regenerado`.
 
 Cada item de `alteracoes` é `{ campo, de, para }` — o valor antigo e o novo de um campo
 que realmente mudou (função `diffCampos()` em `index.js`). Usado nas edições de contrato,
-dívida e reajuste, para detalhar exatamente o que mudou, além da descrição em texto.
+dívida, despesa e reajuste, para detalhar exatamente o que mudou, além da descrição em
+texto. A aba Auditoria também tem filtros por ano, mês e usuário.
 
 Mantém só os últimos 300 eventos — os mais antigos são descartados automaticamente.
 
