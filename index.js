@@ -379,10 +379,19 @@ function totalLiquidoDivida(c, d) {
   return (Number(d.total) || 0) - deducoesDivida(c, d);
 }
 
-// Mesma conta aplicada a um pagamento concreto (que pode ter sido maior ou
-// menor que o total da dívida).
+// O líquido de um PAGAMENTO concreto é o que foi pago menos o que vai ser
+// repassado. A comissão do corretor sempre sai. O condomínio só sai quando ele
+// de fato veio junto neste pagamento — informado na hora de registrar, e por
+// padrão NÃO vem (o normal é o inquilino pagar o condomínio direto).
+// Pagamentos antigos, gravados antes desse campo existir, herdam a regra da
+// dívida: se o condomínio era cobrado junto, ele estava embutido no valor.
+function condominioNoPagamento(d, p) {
+  if (p.condominioRecebido === undefined) return condominioCobrado(d);
+  return p.condominioRecebido ? (Number(d.condominio) || 0) : 0;
+}
+
 function valorLiquidoPagamento(c, d, p) {
-  return (Number(p.valor) || 0) - deducoesDivida(c, d);
+  return (Number(p.valor) || 0) - comissaoCorretor(c, d) - condominioNoPagamento(d, p);
 }
 
 function showToast(message, type = '') {
@@ -1455,14 +1464,38 @@ formDevolucaoCaucao.addEventListener('submit', (e) => {
 /* ===================== PAGAMENTO ===================== */
 const formPagamento = document.getElementById('formPagamento');
 
-// O valor sugerido é o TOTAL A COBRAR da parcela (aluguel + juros + multa +
-// condomínio − desconto), e nada além disso. O acréscimo por atraso calculado
-// automaticamente NÃO entra aqui: cobrar ou não os juros/multa do atraso é
-// decisão de quem recebe, então ele fica num aviso à parte, com um botão para
-// somar. Quitar a parcela não depende do valor: receber menos continua dando
-// quitação da parcela inteira.
-function valorSugeridoPagamento(d) {
-  return Number(d.total) || 0;
+// Valor sugerido = total a cobrar da parcela, MENOS o condomínio quando ele não
+// veio junto (que é o padrão). Duas coisas de propósito ficam de fora:
+//   - o acréscimo por atraso, que fica num aviso à parte com um botão "Somar";
+//   - o condomínio, marcado no próprio modal quando o inquilino entrega junto.
+// Cobrar ou não cada um deles é decisão de quem recebe. Quitar a parcela não
+// depende do valor: receber menos continua dando quitação da parcela inteira.
+function valorSugeridoPagamento(d, condominioRecebido) {
+  const total = Number(d.total) || 0;
+  const cond = condominioCobrado(d);
+  return condominioRecebido ? total : total - cond;
+}
+
+// Lê no formulário se o condomínio foi marcado como recebido junto.
+function condominioRecebidoNoForm() {
+  return document.getElementById('pagCondominioRecebido').value === '1';
+}
+
+// Recalcula o valor sugerido a partir do que está marcado agora no modal.
+function atualizarValorSugerido() {
+  const achado = encontrarDivida(document.getElementById('pagDividaId').value);
+  if (!achado) return;
+  const { contrato: c, divida: d } = achado;
+  const desconto = Number(document.getElementById('pagDesconto').value) || 0;
+  const recebido = condominioRecebidoNoForm();
+  document.getElementById('pagValor').value =
+    Math.max(valorSugeridoPagamento(d, recebido) - desconto, 0).toFixed(2);
+  document.getElementById('pagLiquidoPrevia').textContent = formatCurrency(
+    valorLiquidoPagamento(c, d, {
+      valor: Number(document.getElementById('pagValor').value) || 0,
+      condominioRecebido: recebido,
+    })
+  );
 }
 
 function openPagamento(dividaId) {
@@ -1476,10 +1509,21 @@ function openPagamento(dividaId) {
   document.getElementById('pagDesconto').value = '';
   document.getElementById('pagMotivoDesconto').value = '';
   document.getElementById('pagCampoMotivoDesconto').classList.add('hidden');
-  document.getElementById('pagValor').value = valorSugeridoPagamento(d).toFixed(2);
   document.getElementById('pagForma').value = '';
-  populatePessoaSelect(document.getElementById('pagQuemRecebeu'), c.quemRecebeu || '', 'Nenhum / outro');
+  populatePessoaSelect(document.getElementById('pagQuemRecebeu'), c.quemRecebeu || '', 'Selecione...');
+  // "Quem recebeu" é obrigatório: sem ninguém cadastrado (e sem recebedor padrão
+  // no contrato) o pagamento ficaria travado sem explicação nenhuma.
+  document.getElementById('pagSemPessoasHint').classList
+    .toggle('hidden', state.pessoas.length > 0 || !!c.quemRecebeu);
   document.getElementById('pagObservacao').value = '';
+
+  // O condomínio só é perguntado quando existe e é cobrado junto com o aluguel;
+  // com o inquilino pagando direto, não há o que receber. Padrão: NÃO recebido.
+  const perguntaCondominio = condominioCobrado(d) > 0;
+  document.getElementById('pagCampoCondominio').classList.toggle('hidden', !perguntaCondominio);
+  document.getElementById('pagCondominioRecebido').value = '0';
+  document.getElementById('pagCondominioValor').textContent = formatCurrency(condominioCobrado(d));
+  atualizarValorSugerido();
 
   const atraso = calcAtrasoAtual(d);
   const aviso = document.getElementById('pagAtrasoAviso');
@@ -1499,19 +1543,30 @@ document.getElementById('btnSomarAtraso').addEventListener('click', () => {
   if (!achado) return;
   const { divida: d } = achado;
   const desconto = Number(document.getElementById('pagDesconto').value) || 0;
-  const comAtraso = valorSugeridoPagamento(d) + calcAtrasoAtual(d) - desconto;
+  const comAtraso = valorSugeridoPagamento(d, condominioRecebidoNoForm()) + calcAtrasoAtual(d) - desconto;
   document.getElementById('pagValor').value = Math.max(comAtraso, 0).toFixed(2);
   showToast('Juros/multa por atraso somados ao valor.', 'success');
 });
 
+document.getElementById('pagCondominioRecebido').addEventListener('change', atualizarValorSugerido);
+
 document.getElementById('pagDesconto').addEventListener('input', () => {
-  const dividaId = document.getElementById('pagDividaId').value;
-  const achado = encontrarDivida(dividaId);
-  if (!achado) return;
-  const { divida: d } = achado;
   const desconto = Number(document.getElementById('pagDesconto').value) || 0;
-  document.getElementById('pagValor').value = Math.max(valorSugeridoPagamento(d) - desconto, 0).toFixed(2);
+  atualizarValorSugerido();
   document.getElementById('pagCampoMotivoDesconto').classList.toggle('hidden', desconto <= 0);
+});
+
+// O valor pode ser editado à mão depois — a prévia do líquido acompanha.
+document.getElementById('pagValor').addEventListener('input', () => {
+  const achado = encontrarDivida(document.getElementById('pagDividaId').value);
+  if (!achado) return;
+  const { contrato: c, divida: d } = achado;
+  document.getElementById('pagLiquidoPrevia').textContent = formatCurrency(
+    valorLiquidoPagamento(c, d, {
+      valor: Number(document.getElementById('pagValor').value) || 0,
+      condominioRecebido: condominioRecebidoNoForm(),
+    })
+  );
 });
 
 formPagamento.addEventListener('submit', (e) => {
@@ -1527,6 +1582,7 @@ formPagamento.addEventListener('submit', (e) => {
     valor: Number(document.getElementById('pagValor').value) || 0,
     forma: document.getElementById('pagForma').value,
     quemRecebeu: document.getElementById('pagQuemRecebeu').value.trim(),
+    condominioRecebido: condominioCobrado(d) > 0 ? condominioRecebidoNoForm() : false,
     observacao: document.getElementById('pagObservacao').value.trim(),
   };
   d.pagamentos.push(pagamento);
@@ -1563,6 +1619,7 @@ function openHistoricoContrato(contratoId) {
             ${icon('dollar')} Pago em ${formatDate(p.data)} · ${formatCurrency(p.valor)}
             ${Math.abs(valorLiquido - p.valor) > 0.001 ? ` (líquido: ${formatCurrency(valorLiquido)})` : ''}
             ${p.desconto ? ` · Desconto: ${formatCurrency(p.desconto)}${p.motivoDesconto ? ` (${escapeHtml(p.motivoDesconto)})` : ''}` : ''}
+            ${condominioNoPagamento(d, p) > 0 ? ` · Condomínio junto: ${formatCurrency(condominioNoPagamento(d, p))}` : ''}
             ${p.forma ? ` · ${escapeHtml(p.forma)}` : ''}
             ${p.quemRecebeu ? ` · Recebido por ${escapeHtml(p.quemRecebeu)}` : ''}
             ${p.observacao ? ` · ${escapeHtml(p.observacao)}` : ''}
@@ -1829,6 +1886,14 @@ function colunasDividas(c, dividas) {
   return cols;
 }
 
+// Injeta o rótulo da coluna na própria célula. Em tela estreita a tabela vira
+// uma lista (sem cabeçalho e sem rolagem horizontal) e o CSS usa esse atributo
+// para escrever o nome do campo antes do valor, via `content: attr(data-rotulo)`.
+function comRotulo(celulaHtml, rotulo) {
+  if (!rotulo) return celulaHtml;
+  return celulaHtml.replace('<td', `<td data-rotulo="${escapeHtml(rotulo)}"`);
+}
+
 // Sem "R$" nas células: o cabeçalho da tabela já diz que a coluna é dinheiro, e
 // repetir o símbolo oito vezes por linha era o que fazia a tabela não caber na
 // tela. Zero fica apagado, para a vista cair no que tem valor.
@@ -1885,7 +1950,7 @@ function dividasTabelaHtml(c, dividas) {
         <tbody>
           ${dividas.map(d => `
             <tr class="divida-row status-${getStatus(d)}" data-divida-id="${d.id}">
-              ${cols.map(col => celulaDivida(c, d, col)).join('')}
+              ${cols.map(col => comRotulo(celulaDivida(c, d, col), col.rotulo)).join('')}
             </tr>
           `).join('')}
         </tbody>
@@ -1967,36 +2032,79 @@ function bindGrupoActions(container) {
   bindDividaRowActions(container);
 }
 
-/* ===================== RENDER: CARD SIMPLES DE DÍVIDA (Dashboard/Atrasos) =====================
- * Usado nas telas que listam dívidas "achatadas" (não agrupadas por contrato).
+/* ===================== RENDER: TABELA DE DÍVIDAS "ACHATADAS" =====================
+ * Dashboard e Atrasos listam dívidas de contratos DIFERENTES, então ganham duas
+ * colunas a mais (o contrato e o inquilino) — no resto é a mesma tabela de
+ * dentro de um contrato, com as mesmas colunas, cores e botões de ícone. Os
+ * itens já vêm "achatados" com os dados do contrato pai, então cada um serve ao
+ * mesmo tempo como contrato e como dívida nas funções de cálculo.
  */
-function dividaCardHtml(item) {
-  const status = getStatus(item);
-  const atrasoAtual = calcAtrasoAtual(item);
+function colunasDividasFlat(itens) {
+  const alguma = (fn) => itens.some(fn);
+  const temCorretor = alguma(d => !!d.corretorNome);
+  const temDeducoes = temCorretor || alguma(d => condominioCobrado(d) > 0);
+  const cols = [
+    { key: 'contrato', rotulo: 'Contrato', txt: true },
+    { key: 'inquilino', rotulo: 'Inquilino', txt: true },
+    { key: 'vencimento', rotulo: 'Venc.', txt: true },
+    { key: 'status', rotulo: 'Status', txt: true },
+    { key: 'aluguel', rotulo: 'Aluguel' },
+  ];
+  if (alguma(d => condominioCobrado(d) > 0)) cols.push({ key: 'condominio', rotulo: '+ Cond.' });
+  if (alguma(d => Number(d.juros) > 0)) cols.push({ key: 'juros', rotulo: '+ Juros' });
+  if (alguma(d => Number(d.multa) > 0)) cols.push({ key: 'multa', rotulo: '+ Multa' });
+  if (alguma(d => Number(d.desconto) > 0)) cols.push({ key: 'desconto', rotulo: '− Desc.' });
+  cols.push({ key: 'total', rotulo: temDeducoes ? '= A cobrar' : '= Total', forte: true });
+  if (temCorretor) cols.push({ key: 'corretor', rotulo: '− Corretor', dica: 'Percentual do aluguel que vai para o corretor do contrato' });
+  if (temDeducoes) cols.push({ key: 'liquido', rotulo: '= Líquido', forte: true, dica: 'Total a cobrar menos a comissão do corretor e o condomínio, que são repassados' });
+  if (alguma(d => getStatus(d) === 'atrasado')) {
+    cols.push({ key: 'atraso', rotulo: 'Atraso', dica: 'Juros e multa acumulados até hoje' });
+    cols.push({ key: 'dias', rotulo: 'Dias' });
+  }
+  cols.push({ key: 'acoesFlat', rotulo: '', txt: true, acoes: true });
+  return cols;
+}
+
+function celulaDividaFlat(item, col) {
+  if (col.key === 'contrato') {
+    return `<td class="col-txt">
+      <span class="divida-venc">#${item.numero || '--'}</span>
+      <span class="divida-obs" title="${escapeHtml(item.imovel)}">${escapeHtml(item.imovel)}</span>
+    </td>`;
+  }
+  if (col.key === 'inquilino') return `<td class="col-txt">${escapeHtml(item.inquilino)}</td>`;
+  if (col.key === 'acoesFlat') {
+    const status = getStatus(item);
+    return `<td class="col-acoes">
+      <div class="divida-acoes">
+        ${status !== 'pago' ? `<button class="btn-acao is-pagar" data-divida-action="pagar" data-divida-id="${item.id}" title="Registrar pagamento" aria-label="Registrar pagamento">${icon('dollar')}</button>` : ''}
+        <button class="btn-acao" data-grupo-action="historico" data-contrato-id="${item.contratoId}" title="Histórico deste contrato" aria-label="Histórico do contrato">${icon('receipt')}</button>
+        <button class="btn-acao" data-divida-action="editar" data-divida-id="${item.id}" title="Editar esta dívida" aria-label="Editar dívida">${icon('pencil')}</button>
+      </div>
+    </td>`;
+  }
+  // o item achatado serve como contrato e como dívida
+  return celulaDivida(item, item, col);
+}
+
+function dividasTabelaFlatHtml(itens) {
+  const cols = colunasDividasFlat(itens);
   return `
-    <div class="contrato-card status-${status}" data-divida-id="${item.id}">
-      <div class="contrato-top">
-        <div>
-          <div class="contrato-title">#${item.numero || '--'} — ${escapeHtml(item.imovel)}</div>
-          <div class="contrato-sub">${icon('user')} ${escapeHtml(item.inquilino)} · Vencimento: ${formatDate(item.vencimento)}</div>
-        </div>
-        <span class="status-badge status-${status}">${statusLabel(status)}</span>
-      </div>
-      <!-- o item "achatado" já carrega os dados do contrato pai (corretor,
-           percentual), então serve como contrato e como dívida no extrato -->
-      <div class="divida-row-valores">
-        ${extratoDividaInlineHtml(item, item)}
-        ${status === 'atrasado' ? `<div class="valor-item"><span>Em atraso</span><strong class="text-danger">${formatCurrency(atrasoAtual)}</strong></div>` : ''}
-        ${status === 'atrasado' ? `<div class="valor-item"><span>Dias</span><strong class="text-danger">${diasAtraso(item)}</strong></div>` : ''}
-        ${item.quemRecebeu ? `<div class="valor-item"><span>Quem recebe</span><strong>${escapeHtml(item.quemRecebeu)}</strong></div>` : ''}
-      </div>
-      ${item.observacao ? `<div class="contrato-sub">${icon('file-text')} ${escapeHtml(item.observacao)}</div>` : ''}
-      <div class="contrato-actions">
-        ${status !== 'pago' ? `<button class="btn btn-success btn-sm" data-divida-action="pagar" data-divida-id="${item.id}">${icon('dollar')} Pagar</button>` : ''}
-        <button class="btn btn-ghost btn-sm" data-grupo-action="historico" data-contrato-id="${item.contratoId}">${icon('receipt')} Histórico</button>
-        <button class="btn btn-ghost btn-sm" data-divida-action="editar" data-divida-id="${item.id}">${icon('pencil')} Editar</button>
-      </div>
+    <div class="dividas-scroll">
+      <table class="dividas-tabela">
+        <thead>
+          <tr>${cols.map(col => `<th class="${col.txt ? 'col-txt' : ''}${col.forte ? ' is-forte' : ''}${col.acoes ? ' col-acoes' : ''}"${col.dica ? ` title="${escapeHtml(col.dica)}"` : ''}>${escapeHtml(col.rotulo)}</th>`).join('')}</tr>
+        </thead>
+        <tbody>
+          ${itens.map(item => `
+            <tr class="divida-row status-${getStatus(item)}" data-divida-id="${item.id}">
+              ${cols.map(col => comRotulo(celulaDividaFlat(item, col), col.rotulo)).join('')}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
     </div>
+    <p class="dividas-legenda">Valores em R$.</p>
   `;
 }
 
@@ -2061,9 +2169,7 @@ function renderDashboard() {
   const atrasados = dividas.filter(d => getStatus(d) === 'atrasado');
   const totalAtraso = atrasados.reduce((sum, d) => sum + d.total + calcAtrasoAtual(d), 0);
 
-  // "Contratos ativos" não tem mais card no topo (era repetição do que a lista
-  // logo abaixo já mostra) — o número segue vivo no Resumo financeiro.
-  document.getElementById('uiResumoAtivos').textContent = ativos.length;
+  document.getElementById('statAtivos').textContent = ativos.length;
   document.getElementById('statAtraso').textContent = formatCurrency(totalAtraso);
 
   const pendentes = dividas.filter(d => getStatus(d) !== 'pago');
@@ -2083,7 +2189,7 @@ function renderDashboard() {
   const recentes = dividas.slice().sort((a, b) => b.criadoEm - a.criadoEm).slice(0, 5);
   const recentList = document.getElementById('dashboardRecentList');
   recentList.innerHTML = recentes.length
-    ? recentes.map(dividaCardHtml).join('')
+    ? dividasTabelaFlatHtml(recentes)
     : '<div class="empty-state">Nenhum contrato cadastrado ainda. Clique em "Novo contrato" para começar.</div>';
   bindDividaCardActions(recentList);
 }
@@ -2158,7 +2264,7 @@ function renderAtrasos() {
     list.innerHTML = '<div class="empty-state">Nenhuma dívida em atraso. 🎉</div>';
     return;
   }
-  list.innerHTML = atrasados.map(dividaCardHtml).join('');
+  list.innerHTML = dividasTabelaFlatHtml(atrasados);
   bindDividaCardActions(list);
 }
 
@@ -2238,6 +2344,7 @@ function renderHistorico() {
         ${Math.abs(valorLiquido - e.valor) > 0.001 ? `<div><span>Valor líquido</span><strong>${formatCurrency(valorLiquido)}</strong></div>` : ''}
         ${e.desconto ? `<div><span>Desconto</span><strong>${formatCurrency(e.desconto)}</strong></div>` : ''}
         ${e.desconto && e.motivoDesconto ? `<div><span>Motivo do desconto</span><strong>${escapeHtml(e.motivoDesconto)}</strong></div>` : ''}
+        ${condominioCobrado(e.divida) > 0 ? `<div><span>Condomínio junto</span><strong>${condominioNoPagamento(e.divida, e) > 0 ? 'Sim — ' + formatCurrency(condominioNoPagamento(e.divida, e)) : 'Não'}</strong></div>` : ''}
         <div><span>Forma de pagamento</span><strong>${escapeHtml(e.forma) || '--'}</strong></div>
         <div><span>Quem recebeu</span><strong>${escapeHtml(e.quemRecebeu) || '--'}</strong></div>
         <div><span>Observação</span><strong>${escapeHtml(e.observacao) || '--'}</strong></div>
@@ -2288,7 +2395,7 @@ document.getElementById('btnExportHistorico').addEventListener('click', () => {
       formatDate(e.data),
       (Number(e.valor) || 0).toFixed(2),
       comissaoCorretor(e.contrato, e.divida).toFixed(2),
-      condominioCobrado(e.divida).toFixed(2),
+      condominioNoPagamento(e.divida, e).toFixed(2),
       valorLiquidoPagamento(e.contrato, e.divida, e).toFixed(2),
       (e.desconto || 0).toFixed(2),
       e.motivoDesconto || '',
@@ -3256,7 +3363,7 @@ const CODIGOS_RECIBO = [
     ['vencimento', 'Data de vencimento da dívida'],
     ['mes_referencia', 'Competência (mês/ano do vencimento)'],
     ['aluguel', 'Valor do aluguel'],
-    ['condominio', 'Condomínio cobrado do inquilino (0 se ele paga direto)'],
+    ['condominio', 'Condomínio recebido junto neste pagamento (0 se não veio)'],
     ['juros', 'Juros lançados na dívida'],
     ['multa', 'Multa lançada na dívida'],
     ['desconto_divida', 'Desconto lançado na dívida'],
@@ -3309,7 +3416,7 @@ function dadosRecibo(c, d, p, indice) {
     vencimento: formatDate(d.vencimento),
     mes_referencia: mesReferencia(d.vencimento),
     aluguel: formatCurrency(d.aluguel || 0),
-    condominio: formatCurrency(condominioCobrado(d)),
+    condominio: formatCurrency(condominioNoPagamento(d, p)),
     juros: formatCurrency(d.juros || 0),
     multa: formatCurrency(d.multa || 0),
     desconto_divida: formatCurrency(d.desconto || 0),
@@ -4765,7 +4872,7 @@ document.getElementById('btnExportHistoricoContrato').addEventListener('click', 
     formatDate(p.data),
     (Number(p.valor) || 0).toFixed(2),
     comissaoCorretor(c, p.divida).toFixed(2),
-    condominioCobrado(p.divida).toFixed(2),
+    condominioNoPagamento(p.divida, p).toFixed(2),
     valorLiquidoPagamento(c, p.divida, p).toFixed(2),
     (p.desconto || 0).toFixed(2),
     p.motivoDesconto || '',
@@ -4778,7 +4885,7 @@ document.getElementById('btnExportHistoricoContrato').addEventListener('click', 
   rows.push(['TOTAIS', '', `${pagamentos.length} pagamento(s)`,
     soma(p => Number(p.valor) || 0).toFixed(2),
     soma(p => comissaoCorretor(c, p.divida)).toFixed(2),
-    soma(p => condominioCobrado(p.divida)).toFixed(2),
+    soma(p => condominioNoPagamento(p.divida, p)).toFixed(2),
     soma(p => valorLiquidoPagamento(c, p.divida, p)).toFixed(2),
     soma(p => Number(p.desconto) || 0).toFixed(2)]);
 

@@ -134,9 +134,13 @@ juros, multa e valores em atraso não entram nessa base. Quanto pagar a cada cor
 no card "Corretor a pagar no mês" (Dashboard) e na tabela "Comissão de corretores no ano"
 (Relatórios, também no CSV).
 
-O **condomínio** tem duas formas, escolhidas em cada dívida: *"eu cobro junto com o aluguel e
-repasso"* (entra no total a cobrar e sai de novo no líquido) ou *"o inquilino paga direto"*
-(não entra em nada — o dinheiro nunca passa por você; fica só a anotação do valor).
+O **condomínio** aparece em dois momentos. No contrato você diz se cobra junto com o aluguel
+ou se o inquilino paga direto. E, **toda vez que registra um pagamento**, o sistema pergunta
+se o condomínio veio junto naquele dinheiro — o padrão é **não**. Quando você responde que
+veio, o valor sugerido sobe e o condomínio é descontado do líquido, porque será repassado.
+
+Por isso, no dia a dia, **o líquido de um pagamento é o que você recebeu menos o que vai
+para o corretor**.
 
 Se você não usa corretor nem condomínio, nada disso aparece: a tela mostra um **Total** só.
 
@@ -185,9 +189,12 @@ Se você não usa corretor nem condomínio, nada disso aparece: a tela mostra um
 
 **Financeiro**
 
-- **Registrar pagamento** — o valor sugerido é o **total a cobrar da parcela**, e nada além
-  disso. Se a parcela está vencida, o acréscimo de juros/multa por atraso aparece num aviso
-  à parte, com um botão "Somar ao valor" — cobrar ou não esse acréscimo é decisão sua.
+- **Registrar pagamento** — o valor sugerido é o **total a cobrar da parcela sem o
+  condomínio** (que por padrão o inquilino paga direto). Duas coisas ficam de fora de
+  propósito, porque cobrar ou não cada uma é decisão sua: o acréscimo de juros/multa por
+  atraso, que aparece num aviso com o botão "Somar ao valor", e o condomínio, no campo
+  "Recebeu o condomínio junto?". Uma prévia mostra na hora quanto fica com você.
+  "Quem recebeu" é obrigatório.
   Receber **menos** que o sugerido é permitido e **quita a parcela inteira** do mesmo jeito,
   já que a quitação é sempre da parcela toda; o valor recebido é o que fica no histórico e
   no recibo
@@ -498,18 +505,21 @@ financeira, é em uma delas — nenhuma tela recalcula nada por conta própria:
 
 | Função | O que devolve |
 |---|---|
-| `condominioCobrado(d)` | o condomínio que de fato foi cobrado do inquilino (0 quando ele paga direto) |
+| `condominioCobrado(d)` | o condomínio que a dívida cobra do inquilino (0 quando ele paga direto) |
+| `condominioNoPagamento(d, p)` | o condomínio que veio naquele pagamento — 0 quando não veio (o padrão). Pagamentos gravados antes desse campo existir herdam a regra da dívida |
 | `calcTotal(d)` | **total a cobrar**: `aluguel − desconto + juros + multa + condomínio cobrado` |
 | `comissaoCorretor(c, d)` | percentual do **aluguel** da dívida (0 sem corretor). É o único lugar que define a base da comissão |
 | `deducoesDivida(c, d)` | comissão + condomínio cobrado — o que é repassado a terceiros |
-| `totalLiquidoDivida(c, d)` / `valorLiquidoPagamento(c, d, p)` | total a cobrar (ou valor pago) menos as deduções |
+| `totalLiquidoDivida(c, d)` | projeção: total a cobrar menos as deduções |
+| `valorLiquidoPagamento(c, d, p)` | o que sobrou de fato: `pago − comissão − condomínio recebido junto`. Como o padrão é o inquilino pagar o condomínio direto, quase sempre é só `pago − comissão` |
 
 Duas consequências que vale ter em mente ao mexer nisso:
 
-- **O valor sugerido no pagamento é `d.total`**, sem somar `calcAtrasoAtual()`. O acréscimo
-  por atraso fica num aviso à parte com um botão "Somar ao valor", porque cobrar ou não os
-  juros/multa é decisão de quem recebe. Registrar um valor menor **quita a parcela inteira**
-  do mesmo jeito (`d.pago = true`), já que a quitação é sempre da parcela toda.
+- **O valor sugerido no pagamento é `d.total` menos o condomínio**, e sem somar
+  `calcAtrasoAtual()`. Tanto o atraso quanto o condomínio ficam em controles à parte no
+  modal, porque cobrar ou não cada um é decisão de quem recebe. Registrar um valor menor
+  **quita a parcela inteira** do mesmo jeito (`d.pago = true`), já que a quitação é sempre
+  da parcela toda.
 - **`calcAtrasoAtual()` usa `d.total`** como base dos juros/multa — ou seja, o valor cheio
   devido pelo inquilino, não o líquido. Trocar isso mudaria todos os totais de Atrasos,
   Relatórios e Gráficos.
@@ -586,7 +596,7 @@ vez de criar vários contratos separados.
 | `juros`            | number (R$)       | Juros já lançados nesta dívida — na criação do contrato é digitado em % do aluguel e convertido para R$; na edição de uma dívida existente é digitado direto em R$ |
 | `multa`            | number (R$)       | Multa já lançada nesta dívida — mesma lógica do `juros` acima |
 | `condominio`       | number            | Valor do condomínio                                     |
-| `condominioDireto` | boolean           | `true` = o inquilino paga o condomínio direto, então ele **não** entra no total a cobrar nem é deduzido do líquido (o dinheiro nunca passa pelo proprietário); `false` = cobrado junto com o aluguel e repassado. Herdado do contrato ao gerar as dívidas mensais |
+| `condominioDireto` | boolean           | `true` = o inquilino paga o condomínio direto, então ele **não** entra no total a cobrar (o dinheiro nunca passa pelo proprietário); `false` = cobrado junto com o aluguel. Herdado do contrato ao gerar as dívidas mensais. Se ele foi de fato recebido em cada pagamento é outra coisa — ver `condominioRecebido` no pagamento |
 | `total`             | number            | **Total a cobrar**: `aluguel - desconto + juros + multa + condomínio cobrado` (`condominioCobrado()` devolve 0 quando `condominioDireto`) |
 | `valorAtrasoBase`  | number            | Atraso herdado/manual, somado ao atraso calculado       |
 | `observacao`       | string            | Observações livres desta dívida                         |
@@ -612,12 +622,14 @@ não existe — cada dívida tem o seu.
 | `motivoDesconto` | string | Motivo do desconto — só relevante quando `desconto > 0`, campo dedicado separado da `observacao` genérica |
 | `valor`       | number | Valor pago (já descontado, se houver desconto)|
 | `forma`       | string | Forma de pagamento: `Dinheiro` ou `Pix`       |
-| `quemRecebeu` | string | Quem recebeu — nome escolhido da lista de "pessoas" (ou vazio) |
+| `quemRecebeu` | string | Quem recebeu — nome escolhido da lista de "pessoas". **Obrigatório** |
+| `condominioRecebido` | boolean | Se o condomínio veio junto neste pagamento. Perguntado toda vez, com **Não** como padrão. Ausente em pagamentos gravados antes deste campo existir — nesse caso `condominioNoPagamento()` cai na regra da dívida, e nenhum valor histórico muda |
 | `observacao`  | string | Observação do pagamento                       |
 
 O "valor líquido" (`valorLiquidoPagamento()` em `index.js`) não é salvo — é calculado na
 hora: `valor - (aluguel da dívida × corretorPercentual/100, se houver corretor) -
-condominio da dívida`. No Histórico aparece ao lado do valor bruto; em Relatórios e nos
+(condomínio da dívida, só se `condominioRecebido`)`. Como o padrão é o inquilino pagar o
+condomínio direto, na prática costuma ser `valor − comissão do corretor`. No Histórico aparece ao lado do valor bruto; em Relatórios e nos
 gráficos "Pagamentos por forma" e "Receita mensal", todo valor "recebido" já é esse valor
 líquido (não mostra o bruto separadamente). A "Evolução do total em atraso" é a exceção —
 continua com o valor cheio devido, já que representa dívida em aberto, não receita.

@@ -28,9 +28,15 @@ Organização deste documento:
     Total a cobrar = aluguel − desconto + juros + multa + condomínio cobrado
     Total líquido  = total a cobrar − comissão do corretor − condomínio cobrado
 
-- **Total a cobrar** é o que o inquilino deve. É a base dos juros/multa por atraso, do
-  valor sugerido no pagamento e do recibo.
-- **Total líquido** é o que de fato sobra para o proprietário.
+  E, no PAGAMENTO já registrado, o que valeu de verdade:
+    Líquido do pagamento = valor pago − comissão do corretor
+                           − condomínio (só se foi recebido junto)
+
+- **Total a cobrar** é o que o inquilino deve. É a base dos juros/multa por atraso e do
+  recibo.
+- **Total líquido** é a projeção do que sobra para o proprietário.
+- **Líquido do pagamento** é o que sobrou de fato: como o padrão é o inquilino pagar o
+  condomínio direto, na maioria das vezes é simplesmente *pago menos o corretor*.
 - Comissão do corretor e condomínio **subtraem**, porque são repassados: o dinheiro passa
   pela mão do proprietário mas não fica com ele. A diferença entre os dois é que o
   condomínio (quando cobrado junto) entra no total a cobrar e sai de novo no líquido,
@@ -53,13 +59,23 @@ Organização deste documento:
   Relatórios (também no CSV do relatório).
 
 1.4 Condomínio: cobrado junto ou pago direto
-- Escolha por dívida, no campo "Quem paga o condomínio?" (herdada do contrato ao gerar as
-  dívidas mensais):
-  - **Cobro junto e repasso** — entra no total a cobrar e sai de novo no total líquido.
-  - **O inquilino paga direto** — não entra no total a cobrar nem sai do líquido; o
-    dinheiro nunca passa pelo proprietário. Fica só como anotação do valor, exibida
-    apagada e fora da conta.
-- Vale para telas, recibo, PDF e CSVs: `condominioCobrado()` é quem decide.
+Duas decisões diferentes, em dois momentos diferentes:
+
+a) No CONTRATO/DÍVIDA — "Quem paga o condomínio?" (herdada do contrato ao gerar as dívidas):
+   - **Cobro junto e repasso** — entra no total a cobrar e sai de novo no total líquido.
+   - **O inquilino paga direto** — não entra em nada; o dinheiro nunca passa pelo
+     proprietário. Fica só como anotação do valor, exibida apagada e fora da conta.
+   Quem decide isso é `condominioCobrado()`, usada em telas, recibo, PDF e CSVs.
+
+b) No PAGAMENTO — "Recebeu o condomínio junto?", perguntado **toda vez** que se registra um
+   pagamento de uma dívida que cobra condomínio. O padrão é **Não**.
+   - **Não** (padrão): o valor sugerido já vem sem o condomínio, e o líquido do pagamento é
+     simplesmente o pago menos a comissão do corretor.
+   - **Sim**: o valor sugerido inclui o condomínio, e ele é deduzido do líquido, porque vai
+     ser repassado.
+   Fica gravado em `pagamento.condominioRecebido`. Pagamentos antigos, gravados antes desse
+   campo existir, herdam a regra da dívida (`condominioNoPagamento()`) — nenhum valor
+   histórico muda.
 
 1.5 Caução
 - Valor opcional por contrato. É só anotação: nunca soma em nenhum total, dívida, atraso
@@ -132,7 +148,7 @@ dentro de Contratos, Atrasos ou Histórico.
       reajuste (azul), com cores diferentes para não se confundirem. Cada item é clicável:
       o de vencimento leva ao contrato em Contratos (busca por "#número"); o de reajuste
       abre o modal "Reajustar" já com o valor sugerido
-- [x] Lista das dívidas mais recentes, com a mesma linha de valores usada em Contratos
+- [x] Lista das dívidas mais recentes, na mesma tabela usada em Contratos e Atrasos
 
 2.3 Imóveis
 - [x] Cadastro reutilizável (descrição livre, ex: "Apartamento 302 - Rua das Flores #123"),
@@ -155,6 +171,10 @@ dentro de Contratos, Atrasos ou Histórico.
 - [x] As colunas são decididas por contrato: só entra a coluna que tem valor em alguma
       dívida dele. Um contrato sem condomínio nem corretor fica com quatro colunas de
       dinheiro; o mais completo, com todas
+- [x] Em tela estreita (até 1180px, o que inclui todo celular) a tabela vira **lista**: o
+      cabeçalho some, cada dívida vira um bloco e os valores se acomodam em duas ou três
+      linhas, cada um com o nome do campo na frente. Não há rolagem horizontal — o rótulo
+      vem do `data-rotulo` que o JS grava em cada célula
 - [x] As células não repetem "R$" (uma legenda abaixo da tabela diz que os valores são em
       R$, e o que cada total significa) — era isso que fazia a tabela não caber na tela.
       Zeros ficam apagados, para a vista cair no que tem valor
@@ -209,16 +229,23 @@ dentro de Contratos, Atrasos ou Histórico.
 - [x] Aberto por dívida em Contratos ou Atrasos. Mostra o extrato da dívida em coluna
       (aluguel → acréscimos → total), e pede data, desconto, valor pago, forma
       (Dinheiro/Pix), quem recebeu e observação
-- [x] **Valor sugerido = total a cobrar da parcela**, e nada além disso. O acréscimo por
-      atraso NÃO entra sozinho: aparece num aviso à parte ("vencida há N dias, juros/multa
-      somam R$ X") com um botão "Somar ao valor", porque cobrar ou não esse acréscimo é
-      decisão de quem recebe
+- [x] **Valor sugerido = total a cobrar da parcela, menos o condomínio** (que por padrão
+      não vem junto). Duas coisas ficam de fora de propósito, porque cobrar ou não cada
+      uma é decisão de quem recebe:
+      - o acréscimo por atraso, num aviso à parte ("vencida há N dias, juros/multa somam
+        R$ X") com um botão "Somar ao valor";
+      - o condomínio, no campo "Recebeu o condomínio junto?" (padrão: Não) — marcar "Sim"
+        soma o condomínio ao valor e passa a deduzi-lo do líquido
+- [x] Prévia do líquido dentro do próprio modal ("Fica com você"), que acompanha o valor
+      digitado e a resposta sobre o condomínio
 - [x] Receber menos que o sugerido é permitido e **quita a parcela inteira** do mesmo
       jeito — a quitação é sempre da parcela toda. O texto do modal diz isso
 - [x] Campo "Desconto (R$)" recalcula o valor pago; "Motivo do desconto" só aparece quando
       há desconto, e é exibido no Histórico e nas exportações
-- [x] "Quem recebeu" vem da lista de Pessoas, pré-selecionado com o recebedor padrão do
-      contrato. Não é obrigatório
+- [x] "Quem recebeu" é **obrigatório**, escolhido da lista de Pessoas e pré-selecionado
+      com o recebedor padrão do contrato. Sem ninguém cadastrado (e sem recebedor padrão),
+      um aviso no modal manda cadastrar em Configurações › Financeiro › Pessoas — senão o
+      pagamento travaria sem explicação
 - [x] Ao confirmar: marca a dívida como paga, registra a data e zera o atraso base daquela
       dívida (as outras dívidas do contrato não são afetadas)
 
@@ -243,8 +270,9 @@ dentro de Contratos, Atrasos ou Histórico.
 - [x] O texto é editável em Configurações > Recibo (ver 2.12)
 
 2.7 Atrasos
-- [x] Só as dívidas com status "atrasado", de todos os contratos, com a mesma linha de
-      valores de Contratos
+- [x] Só as dívidas com status "atrasado", de todos os contratos, na mesma tabela usada em
+      Contratos — com duas colunas a mais (contrato e inquilino), já que aqui as dívidas
+      vêm de contratos diferentes
 - [x] Card com o total em atraso (valor cheio devido) somando todas
 - [x] Juros/multa calculados conforme as taxas configuradas, e "dias em atraso" exibido em
       cada dívida vencida (`diasAtraso()`), aqui, no Dashboard e nas linhas de Contratos

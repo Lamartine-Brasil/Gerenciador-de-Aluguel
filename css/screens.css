@@ -166,9 +166,11 @@
   grid-template-columns: repeat(auto-fit, minmax(240px, 360px));
   justify-content: start;
 }
-/* São 5 indicadores: com uma coluna mínima menor eles cabem todos na mesma
-   linha em telas largas, em vez de sobrar um sozinho na linha de baixo. */
-#tab-relatorios .cards-grid { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+/* São 5 indicadores (no Dashboard, quando há corretor): com uma coluna mínima
+   menor eles cabem todos na mesma linha em telas largas, em vez de sobrar um
+   sozinho na linha de baixo. */
+#tab-relatorios .cards-grid,
+#tab-dashboard .cards-grid { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
 
 .stat-danger  .stat-value { color: var(--danger); }
 .stat-success .stat-value { color: var(--success); }
@@ -389,6 +391,70 @@
 }
 .divida-obs .icon { width: 12px; height: 12px; vertical-align: -2px; }
 
+/* -----------------------------------------------------------------------------
+   A MESMA TABELA EM TELA ESTREITA — vira lista, em vez de rolar na horizontal
+   Cada dívida passa a ser um bloco; os valores se acomodam em duas ou três
+   linhas, cada um com o nome do campo na frente (o `data-rotulo` que o JS põe
+   em cada célula). Sem cabeçalho e sem rolagem lateral, que é o que atrapalha
+   no celular e em janela estreita.
+----------------------------------------------------------------------------- */
+@media (max-width: 1180px) {
+  .dividas-scroll { overflow-x: visible; border: 0; background: none; border-radius: 0; }
+  .dividas-tabela,
+  .dividas-tabela tbody { display: block; }
+  .dividas-tabela thead { display: none; }
+
+  .dividas-tabela tr.divida-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px var(--space-4);
+    padding: var(--space-3);
+    margin-bottom: var(--space-2);
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    border-left: 3px solid var(--text-faint);
+    border-radius: var(--radius-sm);
+  }
+  .divida-row.status-ativo    { border-left-color: var(--accent); }
+  .divida-row.status-atrasado { border-left-color: var(--danger); }
+  .divida-row.status-pago     { border-left-color: var(--success); }
+  .divida-row:hover > td { background: none; }
+
+  .dividas-tabela td {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 0;
+    border: 0;
+    text-align: left;
+  }
+  /* o nome do campo, que no modo tabela vive no cabeçalho */
+  .dividas-tabela td[data-rotulo]::before {
+    content: attr(data-rotulo);
+    color: var(--text-faint);
+    font-size: var(--text-2xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  /* vencimento, contrato e status abrem o bloco, em linha própria */
+  .dividas-tabela td:first-child,
+  .dividas-tabela td:nth-child(2) { flex-basis: auto; }
+  .divida-row > td:first-child { border-left: 0; }
+  /* Os botões ficam em linha própria, no fim do bloco: com `margin-left: auto`
+     numa linha de flex que embrulha, eles escapavam para fora da tela. */
+  .dividas-tabela .col-acoes {
+    position: static;
+    flex: 1 0 100%;
+    justify-content: flex-end;
+    margin-top: var(--space-1);
+    padding-left: 0;
+    background: none;
+    box-shadow: none;
+  }
+  .divida-obs { max-width: none; }
+}
+
 /* Legenda curta abaixo da tabela: onde ficou dito que os números são em R$
    (as células não repetem o símbolo) e o que cada total significa. */
 .dividas-legenda {
@@ -562,6 +628,12 @@
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  min-width: 0;
+}
+/* Em Despesas este espaço leva uma frase, não um contador — no celular ela
+   precisa poder quebrar, senão empurra a linha para fora da tela. */
+@media (max-width: 720px) {
+  .list-count { white-space: normal; flex: 1 1 100%; }
 }
 
 /* =============================================================================
