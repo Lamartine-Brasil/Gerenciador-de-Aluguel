@@ -1,0 +1,734 @@
+/* =============================================================================
+   TELAS — estilos específicos de cada área do sistema
+   -----------------------------------------------------------------------------
+   Boa parte do HTML destas telas é gerado pelo JavaScript (index.js) e não pode
+   ser alterado: os nomes de classe abaixo são exatamente os que o JS emite.
+   O visual "premium" vem daqui, sem tocar em uma linha de lógica.
+============================================================================= */
+
+/* =============================================================================
+   LOGIN
+============================================================================= */
+.login-screen {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr;
+  background: var(--bg);
+}
+
+.login-aside {
+  display: none;
+  position: relative;
+  overflow: hidden;
+  padding: var(--space-9) var(--space-8);
+  flex-direction: column;
+  justify-content: space-between;
+  background:
+    radial-gradient(circle at 20% 20%, var(--accent-soft), transparent 55%),
+    radial-gradient(circle at 80% 80%, var(--success-bg), transparent 55%),
+    var(--bg-subtle);
+  border-right: 1px solid var(--border);
+}
+.login-aside::after {
+  /* malha sutil, dá textura sem pesar */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--border-subtle) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-subtle) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(circle at 30% 40%, #000, transparent 75%);
+  -webkit-mask-image: radial-gradient(circle at 30% 40%, #000, transparent 75%);
+  opacity: 0.7;
+  pointer-events: none;
+}
+.login-aside > * { position: relative; z-index: 1; }
+.login-pitch h2 { font-size: var(--text-3xl); max-width: 12ch; margin-bottom: var(--space-3); }
+.login-pitch p { color: var(--text-dim); font-size: var(--text-md); max-width: 42ch; }
+.login-points { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-6); }
+.login-point { display: flex; align-items: center; gap: var(--space-3); color: var(--text-dim); font-size: var(--text-base); }
+.login-point .icon { color: var(--accent); }
+
+.login-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  animation: fadeIn var(--dur-slow) var(--ease-out);
+}
+
+.login-logo {
+  width: 52px; height: 52px;
+  margin-bottom: var(--space-5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  background: linear-gradient(150deg, var(--accent), var(--accent-active));
+  color: var(--accent-contrast);
+  font-size: var(--text-xl);
+  box-shadow: var(--shadow);
+}
+
+.login-card h1 { font-size: var(--text-2xl); margin-bottom: var(--space-1); }
+.login-sub { color: var(--text-dim); font-size: var(--text-md); margin-bottom: var(--space-6); }
+.login-card form { display: flex; flex-direction: column; gap: var(--space-4); }
+.login-card .btn { padding: 11px var(--space-4); margin-top: var(--space-1); }
+.login-foot { margin-top: var(--space-6); font-size: var(--text-xs); color: var(--text-faint); }
+
+@media (min-width: 940px) {
+  .login-screen { grid-template-columns: 1.1fr 1fr; }
+  .login-aside { display: flex; }
+}
+
+/* =============================================================================
+   STAT CARD (KPIs)
+============================================================================= */
+/* Ícone em cima, valor embaixo: o número recebe a largura inteira do card, então
+   valores longos ("R$ 70.672,00") não quebram em duas linhas quando há muitos
+   indicadores lado a lado (Relatórios tem 5). */
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-5);
+}
+.stat-card:hover { border-color: var(--border-strong); }
+
+.stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px; height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  color: var(--text-dim);
+  font-size: var(--text-md);
+}
+.stat-info { display: flex; flex-direction: column; min-width: 0; width: 100%; }
+.stat-value {
+  /* Acompanha a largura disponível: em telas menores um valor como
+     "R$ 23.874,98" quebrava em duas linhas dentro do card. */
+  font-size: clamp(var(--text-lg), 1.6vw, var(--text-2xl));
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.stat-label {
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  margin-top: var(--space-1);
+  line-height: 1.35;
+}
+
+.stat-danger  .stat-icon { background: var(--danger-bg);  color: var(--danger); }
+.stat-success .stat-icon { background: var(--success-bg); color: var(--success); }
+.stat-warn    .stat-icon { background: var(--warn-bg);    color: var(--warn); }
+.stat-accent  .stat-icon { background: var(--accent-soft); color: var(--accent); }
+/* Poucos indicadores não devem esticar por toda a largura da tela (o grid
+   automático distribui o espaço entre os cards existentes e eles ficam enormes). */
+#tab-atrasos .cards-grid { grid-template-columns: minmax(260px, 400px); }
+#tab-despesas .cards-grid {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 360px));
+  justify-content: start;
+}
+
+.stat-danger  .stat-value { color: var(--danger); }
+.stat-success .stat-value { color: var(--success); }
+.stat-warn    .stat-value { color: var(--warn); }
+
+/* No celular os indicadores ficam em duas colunas — tudo encolhe um pouco. */
+@media (max-width: 560px) {
+  .stat-card { gap: var(--space-2); padding: var(--space-3); }
+  .stat-icon { width: 32px; height: 32px; font-size: var(--text-base); }
+  .stat-value { font-size: var(--text-md); }
+  .stat-label { font-size: var(--text-2xs); }
+}
+
+/* =============================================================================
+   DASHBOARD
+============================================================================= */
+.dash-alerts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+/* Sem nenhum alerta visível o bloco inteiro sai do fluxo (não deixa buraco). */
+.dash-alerts:not(:has(> .alert-banner:not(.hidden))) { display: none; }
+
+/* Resumo financeiro — apresenta, num formato comparativo, os mesmos números já
+   calculados e exibidos nos indicadores acima (nenhum cálculo novo). */
+.resumo-card { display: flex; flex-direction: column; gap: var(--space-4); }
+.resumo-bar {
+  display: flex;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--surface-3);
+}
+.resumo-bar span { display: block; height: 100%; transition: width var(--dur-slow) var(--ease); }
+.resumo-legend { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-6); }
+.resumo-item { display: flex; flex-direction: column; gap: 2px; min-width: 120px; }
+.resumo-item-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+}
+.resumo-item-label::before {
+  content: '';
+  width: 8px; height: 8px;
+  border-radius: 2px;
+  background: var(--text-faint);
+}
+.resumo-item-atraso .resumo-item-label::before   { background: var(--danger); }
+.resumo-item-despesa .resumo-item-label::before  { background: var(--warn); }
+.resumo-item-ativos .resumo-item-label::before   { background: var(--accent); }
+.resumo-item-proximo .resumo-item-label::before  { background: var(--success); }
+.resumo-item-value {
+  font-size: var(--text-md);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+/* =============================================================================
+   CONTRATOS — cards agrupados com as dívidas dentro
+============================================================================= */
+.contrato-grupo {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  animation: fadeIn var(--dur-slow) var(--ease);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.contrato-grupo:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+
+.contrato-grupo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.contrato-grupo-header > div:first-child { min-width: 0; flex: 1 1 280px; }
+
+.contrato-title {
+  font-size: var(--text-md);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}
+/* Fluxo normal (não flex) de propósito: o índice.js emite "ícone + texto" solto
+   dentro deste bloco, e em flex cada nó de texto vira um item que não quebra
+   junto do ícone — o ícone acabava sozinho numa linha em textos longos. */
+.contrato-sub {
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--text-dim);
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
+}
+.contrato-sub .icon { color: var(--text-faint); margin-right: 2px; }
+
+.contrato-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+}
+.contrato-grupo-header .contrato-actions { justify-content: flex-end; }
+
+.contrato-grupo-dividas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+.contrato-grupo-dividas .empty-state { background: none; border: 0; padding: var(--space-5); }
+
+/* Expandir/recolher as dívidas sem sair da página. */
+.contrato-grupo-dividas.collapsed .divida-row:nth-child(n+4) { display: none; }
+.contrato-grupo-toggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: var(--space-1);
+  padding: 4px var(--space-2);
+  border-radius: var(--radius-xs);
+  color: var(--text-dim);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.contrato-grupo-toggle:hover { background: var(--surface-2); color: var(--text); }
+.contrato-grupo-toggle .icon { transition: transform var(--dur) var(--ease); }
+.contrato-grupo-toggle.is-open .icon { transform: rotate(180deg); }
+
+/* Linha de dívida (um mês) */
+.divida-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--text-faint);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.divida-row:hover { background: var(--surface-3); }
+.divida-row.status-ativo    { border-left-color: var(--accent); }
+.divida-row.status-atrasado { border-left-color: var(--danger); }
+.divida-row.status-pago     { border-left-color: var(--success); }
+
+.divida-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.divida-row-venc {
+  font-weight: 650;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.divida-row-valores { display: flex; gap: var(--space-5); flex-wrap: wrap; }
+.divida-row-valores div span {
+  display: block;
+  color: var(--text-faint);
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 1px;
+}
+.divida-row-valores div strong {
+  font-size: var(--text-sm);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.divida-row-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.divida-row .contrato-sub { margin: 0; }
+
+@media (min-width: 900px) {
+  .divida-row {
+    grid-template-columns: 150px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-4);
+  }
+  .divida-row-top { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .divida-row .contrato-sub { grid-column: 1 / -1; }
+}
+
+/* =============================================================================
+   CARD DE DÍVIDA (Dashboard / Atrasos / Calendário) — leitura tipo tabela
+============================================================================= */
+.contrato-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text-faint);
+  border-radius: var(--radius);
+  animation: fadeIn var(--dur-slow) var(--ease);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.contrato-card:hover { box-shadow: var(--shadow-sm); border-color: var(--border-strong); }
+.contrato-card.status-ativo    { border-left-color: var(--accent); }
+.contrato-card.status-atrasado { border-left-color: var(--danger); }
+.contrato-card.status-pago     { border-left-color: var(--success); }
+
+.contrato-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.contrato-top > div { min-width: 0; }
+
+.contrato-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: var(--space-3) var(--space-4);
+}
+.contrato-grid div span {
+  display: block;
+  color: var(--text-faint);
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+.contrato-grid div strong {
+  font-size: var(--text-base);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 1024px) {
+  #atrasosList .contrato-card,
+  #dashboardRecentList .contrato-card {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.6fr) auto;
+    align-items: center;
+    gap: var(--space-5);
+  }
+  #atrasosList .contrato-card .contrato-top,
+  #dashboardRecentList .contrato-card .contrato-top { flex-direction: column; gap: var(--space-2); }
+  #atrasosList .contrato-card .contrato-sub,
+  #dashboardRecentList .contrato-card .contrato-sub { margin-top: 0; }
+  #atrasosList .contrato-card > .contrato-sub,
+  #dashboardRecentList .contrato-card > .contrato-sub { grid-column: 1 / -1; }
+}
+
+/* =============================================================================
+   IMÓVEIS — lista em formato de tabela
+============================================================================= */
+#imoveisList .card,
+#pessoasList .card,
+#usersList .card {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+#imoveisList .card:hover,
+#pessoasList .card:hover,
+#usersList .card:hover { background: var(--surface-2); border-color: var(--border-strong); }
+#imoveisList .contrato-top,
+#pessoasList .contrato-top,
+#usersList .contrato-top { align-items: center; flex-wrap: nowrap; gap: var(--space-4); }
+#imoveisList .contrato-title,
+#pessoasList .contrato-title,
+#usersList .contrato-title {
+  font-size: var(--text-base);
+  font-weight: 550;
+  flex: 1;
+  min-width: 0;
+}
+#imoveisList .contrato-actions,
+#pessoasList .contrato-actions { flex-wrap: nowrap; flex-shrink: 0; }
+
+#pessoasList, #usersList { margin-bottom: var(--space-4); }
+#pessoasList:empty, #usersList:empty { display: none; }
+
+@media (min-width: 768px) {
+  #imoveisHead { display: flex; }
+  #imoveisHead .col-acoes { margin-left: auto; }
+}
+
+/* Barra de filtro/paginação embutida em listas (montada pela camada de UI) */
+.list-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+.list-tools .search-wrap { flex: 1 1 240px; }
+.list-count {
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* =============================================================================
+   HISTÓRICO + AUDITORIA — timeline
+============================================================================= */
+#historicoList,
+#auditoriaList {
+  position: relative;
+  padding-left: var(--space-6);
+}
+#historicoList::before,
+#auditoriaList::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 12px;
+  bottom: 12px;
+  width: 2px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(to bottom, var(--border), var(--border-subtle));
+}
+#historicoList > .card,
+#auditoriaList > .card {
+  position: relative;
+  padding: var(--space-4);
+}
+#historicoList > .card::before,
+#auditoriaList > .card::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--space-6) * -1 + 3px);
+  top: var(--space-5);
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 4px var(--bg);
+}
+#historicoList > .card::before { border-color: var(--success); }
+#historicoList > .card:hover,
+#auditoriaList > .card:hover { border-color: var(--border-strong); }
+#historicoList > .empty-state::before,
+#auditoriaList > .empty-state::before { content: none; }
+/* Sem nenhum item não existe linha do tempo — evita um traço solto ao lado do
+   estado vazio. */
+#historicoList:not(:has(> .card))::before,
+#auditoriaList:not(:has(> .card))::before { content: none; }
+#historicoList:not(:has(> .card)),
+#auditoriaList:not(:has(> .card)) { padding-left: 0; }
+
+.auditoria-diff {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.auditoria-diff li { padding: 3px 0; overflow-wrap: anywhere; }
+.auditoria-diff li + li { border-top: 1px solid var(--border-subtle); }
+.auditoria-diff strong { color: var(--text); font-weight: 650; }
+
+/* =============================================================================
+   DESPESAS — lista em formato de tabela
+============================================================================= */
+#despesasList .card {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+#despesasList .card:hover { background: var(--surface-2); border-color: var(--border-strong); }
+#despesasList .contrato-top { align-items: center; }
+#despesasList .contrato-title { font-size: var(--text-base); font-weight: 600; }
+#despesasList .contrato-top > strong {
+  font-size: var(--text-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (min-width: 900px) {
+  #despesasList .card { flex-direction: row; align-items: center; gap: var(--space-4); }
+  #despesasList .contrato-top { flex: 1; min-width: 0; }
+  #despesasList .contrato-actions { margin: 0; flex-wrap: nowrap; }
+}
+
+/* =============================================================================
+   GRÁFICOS
+============================================================================= */
+.charts-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+@media (min-width: 900px) {
+  .charts-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.chart-card { display: flex; flex-direction: column; }
+.chart-card > h3 {
+  font-size: var(--text-base);
+  font-weight: 650;
+  color: var(--text);
+  margin-bottom: var(--space-4);
+}
+.chart-card canvas { width: 100% !important; max-width: 100%; display: block; }
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  justify-content: center;
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+.chart-legend:empty { display: none; }
+.chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+}
+.chart-legend-dot { width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0; }
+.chart-legend-item strong { color: var(--text); font-weight: 650; font-variant-numeric: tabular-nums; }
+
+/* =============================================================================
+   CALENDÁRIO
+============================================================================= */
+.calendario-mes-label {
+  font-weight: 650;
+  font-size: var(--text-md);
+  min-width: 150px;
+  text-align: center;
+  display: inline-block;
+  text-transform: capitalize;
+}
+
+.calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  text-align: center;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  margin-bottom: var(--space-2);
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.calendar-day {
+  position: relative;
+  min-height: 92px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  cursor: pointer;
+  overflow: hidden;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.calendar-day:hover { background: var(--surface-3); border-color: var(--border-strong); }
+.calendar-day.is-outside { cursor: default; background: transparent; border-color: transparent; }
+.calendar-day.is-outside:hover { background: transparent; border-color: transparent; }
+/* Os dias fora do mês são apenas preenchimento da grade. O número deles é
+   omitido de propósito: o `renderCalendario()` do index.js numera as células
+   finais com o índice do array (aparecia "37, 38, 39..." no fim do mês), então
+   mostrar esse número exibiria informação errada. Ver README para a correção. */
+.calendar-day.is-outside .calendar-day-number { visibility: hidden; }
+.calendar-day.is-today { border-color: var(--accent); }
+.calendar-day.is-today .calendar-day-number {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-radius: var(--radius-pill);
+  padding: 0 7px;
+}
+.calendar-day.is-selected { box-shadow: 0 0 0 2px var(--accent) inset; }
+
+.calendar-day.has-atrasado { background: var(--danger-bg);  border-color: var(--danger-border); }
+.calendar-day.has-ativo    { background: var(--accent-soft); border-color: var(--accent-ring); }
+.calendar-day.has-pago     { background: var(--success-bg); border-color: var(--success-border); }
+.calendar-day.has-atrasado:hover,
+.calendar-day.has-ativo:hover,
+.calendar-day.has-pago:hover { filter: brightness(1.12); }
+
+.calendar-day-number {
+  align-self: flex-start;
+  font-size: var(--text-sm);
+  font-weight: 650;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+.calendar-day-valor {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.calendar-day.has-atrasado .calendar-day-valor { color: var(--danger); }
+.calendar-day.has-ativo .calendar-day-valor    { color: var(--accent); }
+.calendar-day.has-pago .calendar-day-valor     { color: var(--success); }
+
+.calendar-day-dots { display: flex; gap: 3px; flex-wrap: wrap; margin-top: auto; }
+.calendar-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+@media (max-width: 720px) {
+  .calendar-grid { gap: 4px; }
+  .calendar-day { min-height: 58px; padding: 4px; }
+  .calendar-day-valor { display: none; }
+  .calendar-day-number { font-size: var(--text-xs); }
+}
+
+/* =============================================================================
+   RELATÓRIOS
+============================================================================= */
+#tab-relatorios .table-card { padding: var(--space-4) 0; }
+#tab-relatorios .table-card > h3,
+#tab-relatorios .table-card > .modal-subtitle { padding: 0 var(--space-5); }
+#tab-relatorios .table-card > h3 { margin-bottom: var(--space-3); }
+#tab-relatorios .table-card > .modal-subtitle { margin-bottom: var(--space-4); }
+
+/* =============================================================================
+   CONFIGURAÇÕES
+============================================================================= */
+.config-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+@media (min-width: 1000px) {
+  .config-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .config-grid .config-span { grid-column: 1 / -1; }
+}
+
+.danger-zone { border-color: var(--danger-border); background: var(--danger-bg); }
+.danger-zone > h3 { color: var(--danger); }
+.danger-zone .modal-subtitle { color: var(--text-dim); }
+
+/* =============================================================================
+   ANEXO DO CONTRATO
+============================================================================= */
+#fAnexoAtual { flex-wrap: wrap; }
+#fAnexoNome {
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}

@@ -2,10 +2,13 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
-<meta name="theme-color" content="#0f1115">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0a0c11">
 <title>Gestão de Aluguéis</title>
-<link rel="stylesheet" href="index.css">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/screens.css">
 </head>
 <body>
 
@@ -37,607 +40,863 @@
     <symbol id="icon-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="2.7"/></symbol>
     <symbol id="icon-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c1-4 4-6 7.5-6s6.5 2 7.5 6"/></symbol>
     <symbol id="icon-wallet" viewBox="0 0 24 24"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h12A1.5 1.5 0 0 1 19 7.5V9"/><path d="M4 7.5V18a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 18v-7.5A1.5 1.5 0 0 0 18.5 9H5.5A1.5 1.5 0 0 1 4 7.5Z"/><circle cx="16" cy="13.5" r="1.2" fill="currentColor" stroke="none"/></symbol>
+    <!-- ícones adicionados para a nova casca (sidebar, header, menus) -->
+    <symbol id="icon-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="icon-panel-left" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15"/></symbol>
+    <symbol id="icon-bell" viewBox="0 0 24 24"><path d="M18 15V10a6 6 0 1 0-12 0v5l-1.5 2.5h15L18 15Z"/><path d="M10 20a2 2 0 0 0 4 0"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path d="m6 9.5 6 6 6-6"/></symbol>
+    <symbol id="icon-log-out" viewBox="0 0 24 24"><path d="M15 5H7a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8"/><path d="M13 12h8m0 0-3-3m3 3-3 3"/></symbol>
+    <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-13.7-5.3L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 13.7 5.3L20 16"/><path d="M20 20v-4h-4"/></symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/></symbol>
+    <symbol id="icon-users" viewBox="0 0 24 24"><circle cx="9.5" cy="8" r="3.2"/><path d="M3 20c.9-3.6 3.5-5.5 6.5-5.5s5.6 1.9 6.5 5.5"/><path d="M16.5 5.2a3.2 3.2 0 0 1 0 5.6M18 14.8c2 .8 3.3 2.5 3.9 5.2"/></symbol>
+    <symbol id="icon-database" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6"/><path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/></symbol>
+    <symbol id="icon-percent" viewBox="0 0 24 24"><path d="m6 18 12-12"/><circle cx="7.5" cy="7.5" r="2.2"/><circle cx="16.5" cy="16.5" r="2.2"/></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+    <symbol id="icon-inbox" viewBox="0 0 24 24"><path d="M4 13h4l1.5 3h5L16 13h4"/><path d="M5.5 5h13l1.5 8v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-5l1.5-8Z"/></symbol>
   </defs>
 </svg>
 
 <!-- ===================== LOGIN ===================== -->
 <section id="loginScreen" class="login-screen">
-  <div class="login-card">
-    <div class="login-logo"><svg class="icon"><use href="#icon-home"></use></svg></div>
-    <h1>Gestão de Aluguéis</h1>
-    <p class="login-sub">Acesse o painel administrativo</p>
-    <form id="loginForm" autocomplete="off">
-      <label class="field">
-        <span>Usuário</span>
-        <input type="text" id="loginUser" name="username" placeholder="Usuário" required autocomplete="username">
-      </label>
-      <label class="field">
-        <span>Senha</span>
-        <input type="password" id="loginPass" name="password" placeholder="Senha" required autocomplete="current-password">
-      </label>
-      <p id="loginError" class="error-msg hidden">Usuário ou senha incorretos.</p>
-      <button type="submit" class="btn btn-primary btn-block">Entrar</button>
-    </form>
+
+  <aside class="login-aside" aria-hidden="true">
+    <span class="brand">
+      <span class="brand-mark"><svg class="icon"><use href="#icon-home"></use></svg></span>
+      <span class="brand-name">Gestão de Aluguéis</span>
+    </span>
+    <div class="login-pitch">
+      <h2>Seus aluguéis sob controle.</h2>
+      <p>Contratos, vencimentos, pagamentos, despesas e relatórios — tudo em um só painel, sempre atualizado.</p>
+      <div class="login-points">
+        <span class="login-point"><svg class="icon"><use href="#icon-check"></use></svg> Dívidas mensais geradas automaticamente</span>
+        <span class="login-point"><svg class="icon"><use href="#icon-check"></use></svg> Alertas de vencimento e de reajuste</span>
+        <span class="login-point"><svg class="icon"><use href="#icon-check"></use></svg> Relatórios anuais e backup completo</span>
+      </div>
+    </div>
+    <span class="login-foot">Dados armazenados no seu próprio servidor.</span>
+  </aside>
+
+  <div class="login-main">
+    <div class="login-card">
+      <div class="login-logo"><svg class="icon"><use href="#icon-home"></use></svg></div>
+      <h1>Bem-vindo de volta</h1>
+      <p class="login-sub">Acesse o painel administrativo</p>
+      <form id="loginForm" autocomplete="off">
+        <label class="field">
+          <span>Usuário</span>
+          <input type="text" id="loginUser" name="username" placeholder="Seu usuário" required autocomplete="username">
+        </label>
+        <label class="field">
+          <span>Senha</span>
+          <input type="password" id="loginPass" name="password" placeholder="Sua senha" required autocomplete="current-password">
+        </label>
+        <p id="loginError" class="error-msg hidden">Usuário ou senha incorretos.</p>
+        <button type="submit" class="btn btn-primary btn-block">Entrar</button>
+      </form>
+      <p class="login-foot">Sessão protegida por cookie assinado. Após 5 tentativas o acesso é bloqueado temporariamente.</p>
+    </div>
   </div>
+
 </section>
 
 <!-- ===================== APP ===================== -->
 <div id="app" class="app hidden">
 
-  <header class="topbar">
-    <div class="topbar-left">
-      <span class="brand"><svg class="icon"><use href="#icon-home"></use></svg> Gestão de Aluguéis</span>
+  <!-- ---------- SIDEBAR ---------- -->
+  <aside class="sidebar" id="uiSidebar">
+    <div class="sidebar-head">
+      <span class="brand">
+        <span class="brand-mark"><svg class="icon"><use href="#icon-home"></use></svg></span>
+        <span class="brand-name">Gestão de Aluguéis</span>
+      </span>
     </div>
-    <div class="topbar-right">
-      <button id="btnAtualizarTodasDividas" class="btn btn-ghost" title="Gerar as dívidas em atraso de todos os contratos até hoje"><svg class="icon"><use href="#icon-calendar"></use></svg><span class="btn-label-full"> Atualizar dívidas</span></button>
-      <button id="btnThemeToggle" class="btn btn-ghost" title="Alternar tema claro/escuro"><svg class="icon"><use href="#icon-moon"></use></svg></button>
-      <span class="user-chip"><svg class="icon"><use href="#icon-user"></use></svg> <span id="currentUserName">admin</span></span>
-      <button id="btnLogout" class="btn btn-ghost">Sair</button>
+
+    <nav class="tabs" id="tabsNav" aria-label="Navegação principal">
+      <div class="nav-group">
+        <button class="tab-btn active" data-tab="dashboard" data-tooltip="Dashboard" aria-current="page"><span class="tab-icon"><svg class="icon"><use href="#icon-grid"></use></svg></span><span class="tab-label">Dashboard</span></button>
+      </div>
+
+      <div class="nav-group">
+        <p class="nav-group-label">Gestão</p>
+        <button class="tab-btn" data-tab="imoveis" data-tooltip="Imóveis"><span class="tab-icon"><svg class="icon"><use href="#icon-home"></use></svg></span><span class="tab-label">Imóveis</span></button>
+        <button class="tab-btn" data-tab="contratos" data-tooltip="Contratos"><span class="tab-icon"><svg class="icon"><use href="#icon-file-text"></use></svg></span><span class="tab-label">Contratos</span></button>
+        <button class="tab-btn" data-tab="atrasos" data-tooltip="Atrasos"><span class="tab-icon"><svg class="icon"><use href="#icon-clock"></use></svg></span><span class="tab-label">Atrasos</span></button>
+        <button class="tab-btn" data-tab="historico" data-tooltip="Histórico"><span class="tab-icon"><svg class="icon"><use href="#icon-receipt"></use></svg></span><span class="tab-label">Histórico</span></button>
+      </div>
+
+      <div class="nav-group">
+        <p class="nav-group-label">Financeiro</p>
+        <button class="tab-btn" data-tab="despesas" data-tooltip="Despesas"><span class="tab-icon"><svg class="icon"><use href="#icon-wallet"></use></svg></span><span class="tab-label">Despesas</span></button>
+        <button class="tab-btn" data-tab="graficos" data-tooltip="Gráficos"><span class="tab-icon"><svg class="icon"><use href="#icon-bar-chart"></use></svg></span><span class="tab-label">Gráficos</span></button>
+        <button class="tab-btn" data-tab="relatorios" data-tooltip="Relatórios"><span class="tab-icon"><svg class="icon"><use href="#icon-clipboard-list"></use></svg></span><span class="tab-label">Relatórios</span></button>
+      </div>
+
+      <div class="nav-group">
+        <p class="nav-group-label">Agenda</p>
+        <button class="tab-btn" data-tab="calendario" data-tooltip="Calendário"><span class="tab-icon"><svg class="icon"><use href="#icon-calendar"></use></svg></span><span class="tab-label">Calendário</span></button>
+      </div>
+
+      <div class="nav-group">
+        <p class="nav-group-label">Sistema</p>
+        <button class="tab-btn" data-tab="auditoria" data-tooltip="Auditoria"><span class="tab-icon"><svg class="icon"><use href="#icon-shield-check"></use></svg></span><span class="tab-label">Auditoria</span></button>
+        <button class="tab-btn" data-tab="config" data-tooltip="Configurações"><span class="tab-icon"><svg class="icon"><use href="#icon-gear"></use></svg></span><span class="tab-label">Configurações</span></button>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <svg class="icon"><use href="#icon-shield-check"></use></svg>
+      <span class="sidebar-foot-text">Dados no seu servidor</span>
     </div>
-  </header>
+  </aside>
 
-  <nav class="tabs" id="tabsNav">
-    <button class="tab-btn active" data-tab="dashboard"><span class="tab-icon"><svg class="icon"><use href="#icon-grid"></use></svg></span><span>Dashboard</span></button>
-    <span class="tabs-divider" aria-hidden="true"></span>
-    <button class="tab-btn" data-tab="imoveis"><span class="tab-icon"><svg class="icon"><use href="#icon-home"></use></svg></span><span>Imóveis</span></button>
-    <button class="tab-btn" data-tab="contratos"><span class="tab-icon"><svg class="icon"><use href="#icon-file-text"></use></svg></span><span>Contratos</span></button>
-    <span class="tabs-divider" aria-hidden="true"></span>
-    <button class="tab-btn" data-tab="atrasos"><span class="tab-icon"><svg class="icon"><use href="#icon-clock"></use></svg></span><span>Atrasos</span></button>
-    <button class="tab-btn" data-tab="historico"><span class="tab-icon"><svg class="icon"><use href="#icon-receipt"></use></svg></span><span>Histórico</span></button>
-    <button class="tab-btn" data-tab="despesas"><span class="tab-icon"><svg class="icon"><use href="#icon-wallet"></use></svg></span><span>Despesas</span></button>
-    <span class="tabs-divider" aria-hidden="true"></span>
-    <button class="tab-btn" data-tab="graficos"><span class="tab-icon"><svg class="icon"><use href="#icon-bar-chart"></use></svg></span><span>Gráficos</span></button>
-    <button class="tab-btn" data-tab="relatorios"><span class="tab-icon"><svg class="icon"><use href="#icon-clipboard-list"></use></svg></span><span>Relatórios</span></button>
-    <button class="tab-btn" data-tab="calendario"><span class="tab-icon"><svg class="icon"><use href="#icon-calendar"></use></svg></span><span>Calendário</span></button>
-    <span class="tabs-divider" aria-hidden="true"></span>
-    <button class="tab-btn" data-tab="auditoria"><span class="tab-icon"><svg class="icon"><use href="#icon-shield-check"></use></svg></span><span>Auditoria</span></button>
-    <button class="tab-btn" data-tab="config"><span class="tab-icon"><svg class="icon"><use href="#icon-gear"></use></svg></span><span>Config.</span></button>
-  </nav>
+  <!-- ---------- ÁREA PRINCIPAL ---------- -->
+  <div class="app-main">
 
-  <main class="content">
+    <header class="topbar">
+      <button type="button" class="icon-btn sidebar-mobile-toggle" id="uiDrawerToggle" aria-label="Abrir menu" aria-expanded="false">
+        <svg class="icon"><use href="#icon-menu"></use></svg>
+      </button>
+      <button type="button" class="icon-btn sidebar-collapse" id="uiSidebarToggle" aria-label="Recolher menu lateral" title="Recolher menu lateral" aria-expanded="true">
+        <svg class="icon"><use href="#icon-panel-left"></use></svg>
+      </button>
 
-    <!-- ---------- DASHBOARD ---------- -->
-    <section id="tab-dashboard" class="tab-panel active">
-      <div class="panel-header">
-        <h2>Painel Principal</h2>
+      <div class="topbar-search search-wrap">
+        <svg class="icon search-wrap-icon"><use href="#icon-search"></use></svg>
+        <input type="search" id="globalSearch" class="input" placeholder="Pesquisar contrato, imóvel ou inquilino..." aria-label="Pesquisar contratos">
+        <kbd class="kbd-hint">/</kbd>
       </div>
-      <div class="cards-grid">
-        <div class="card stat-card">
-          <div class="stat-icon"><svg class="icon"><use href="#icon-file-text"></use></svg></div>
-          <div class="stat-info">
-            <span class="stat-value" id="statAtivos">0</span>
-            <span class="stat-label">Contratos ativos</span>
+
+      <div class="topbar-actions">
+        <button id="btnAtualizarTodasDividas" class="btn btn-ghost btn-sm" title="Gerar as dívidas em atraso de todos os contratos até hoje">
+          <svg class="icon"><use href="#icon-refresh"></use></svg><span class="btn-label-full">Atualizar dívidas</span>
+        </button>
+
+        <div class="topbar-divider" aria-hidden="true"></div>
+
+        <div class="dropdown" id="uiNotifications">
+          <button type="button" class="icon-btn" id="uiNotifButton" aria-label="Notificações" aria-haspopup="true" aria-expanded="false">
+            <svg class="icon"><use href="#icon-bell"></use></svg>
+            <span class="notif-badge hidden" id="uiNotifBadge">0</span>
+          </button>
+          <div class="dropdown-menu dropdown-menu-lg hidden" id="uiNotifMenu" role="menu" aria-label="Notificações">
+            <div class="dropdown-header">Notificações <span id="uiNotifSummary"></span></div>
+            <div class="notif-list" id="uiNotifList"></div>
           </div>
         </div>
-        <div class="card stat-card stat-danger">
-          <div class="stat-icon"><svg class="icon"><use href="#icon-alert-triangle"></use></svg></div>
-          <div class="stat-info">
-            <span class="stat-value" id="statAtraso">R$ 0,00</span>
-            <span class="stat-label">Total em atraso</span>
-          </div>
-        </div>
-        <div class="card stat-card stat-warn">
-          <div class="stat-icon"><svg class="icon"><use href="#icon-calendar"></use></svg></div>
-          <div class="stat-info">
-            <span class="stat-value" id="statProximo">--</span>
-            <span class="stat-label">Próximo vencimento</span>
-          </div>
-        </div>
-        <div class="card stat-card stat-warn">
-          <div class="stat-icon"><svg class="icon"><use href="#icon-wallet"></use></svg></div>
-          <div class="stat-info">
-            <span class="stat-value" id="statDespesasMesDashboard">R$ 0,00</span>
-            <span class="stat-label">Despesas no mês</span>
-          </div>
-        </div>
-      </div>
 
-      <div id="dashboardAlertaVencimento" class="alert-banner hidden"></div>
-      <div id="dashboardAlertaReajuste" class="alert-banner alert-banner-accent hidden"></div>
+        <button id="btnThemeToggle" class="icon-btn" title="Alternar tema claro/escuro" aria-label="Alternar tema claro/escuro"></button>
 
-      <div class="panel-header">
-        <h3>Contratos recentes</h3>
-      </div>
-      <div id="dashboardRecentList" class="cards-list"></div>
-    </section>
-
-    <!-- ---------- IMÓVEIS ---------- -->
-    <section id="tab-imoveis" class="tab-panel">
-      <div class="panel-header">
-        <h2>Imóveis</h2>
-      </div>
-      <div class="card">
-        <h3>Novo imóvel</h3>
-        <p class="modal-subtitle">Cadastre aqui os imóveis para escolher pela lista ao criar um contrato, sem digitar o endereço toda vez.</p>
-        <form id="formImovel" class="config-form">
-          <label class="field">
-            <span>Descrição do imóvel *</span>
-            <input type="text" id="newImovelNome" placeholder="Ex: Apartamento 302 - Rua das Flores #123" required>
-          </label>
-          <button type="submit" class="btn btn-primary">Adicionar imóvel</button>
-        </form>
-      </div>
-      <div id="imoveisList" class="cards-list"></div>
-    </section>
-
-    <!-- ---------- CONTRATOS ---------- -->
-    <section id="tab-contratos" class="tab-panel">
-      <div class="panel-header">
-        <h2>Contratos</h2>
-        <button class="btn btn-primary" id="btnNovoContrato" title="Atalho: N">+ Novo contrato</button>
-      </div>
-
-      <div class="toolbar">
-        <div class="search-wrap">
-          <svg class="icon search-wrap-icon"><use href="#icon-search"></use></svg>
-          <input type="search" id="searchContratos" class="input" placeholder="Buscar por inquilino ou imóvel..." title="Atalho: /">
-        </div>
-        <select id="filterAno" class="input select"></select>
-        <select id="filterMes" class="input select">
-          <option value="">Todos os meses</option>
-          <option value="0">Janeiro</option>
-          <option value="1">Fevereiro</option>
-          <option value="2">Março</option>
-          <option value="3">Abril</option>
-          <option value="4">Maio</option>
-          <option value="5">Junho</option>
-          <option value="6">Julho</option>
-          <option value="7">Agosto</option>
-          <option value="8">Setembro</option>
-          <option value="9">Outubro</option>
-          <option value="10">Novembro</option>
-          <option value="11">Dezembro</option>
-        </select>
-        <select id="filterStatus" class="input select">
-          <option value="">Todos os status</option>
-          <option value="ativo">Ativo</option>
-          <option value="atrasado">Atrasado</option>
-          <option value="pago">Pago</option>
-        </select>
-        <button class="btn btn-ghost" id="btnExportCSV"><svg class="icon"><use href="#icon-download"></use></svg> CSV</button>
-        <button class="btn btn-ghost" id="btnExportPDF"><svg class="icon"><use href="#icon-download"></use></svg> PDF</button>
-        <button class="btn btn-ghost" id="btnImportCSV"><svg class="icon"><use href="#icon-upload"></use></svg> Importar CSV</button>
-        <input type="file" id="inputImportCSV" accept=".csv,text/csv" class="hidden">
-      </div>
-
-      <div id="contratosList" class="cards-list"></div>
-      <div id="contratosPagination" class="pagination"></div>
-    </section>
-
-    <!-- ---------- ATRASOS ---------- -->
-    <section id="tab-atrasos" class="tab-panel">
-      <div class="panel-header">
-        <h2>Contratos em Atraso</h2>
-      </div>
-      <div class="cards-grid">
-        <div class="card stat-card stat-danger">
-          <div class="stat-icon"><svg class="icon"><use href="#icon-alert-triangle"></use></svg></div>
-          <div class="stat-info">
-            <span class="stat-value" id="statTotalAtrasados">R$ 0,00</span>
-            <span class="stat-label">Total em atraso (aluguel + juros/multa)</span>
+        <div class="dropdown" id="uiUserMenu">
+          <button type="button" class="user-chip" id="uiUserButton" aria-haspopup="true" aria-expanded="false">
+            <span class="avatar" id="uiUserAvatar" aria-hidden="true">A</span>
+            <span class="user-chip-name" id="currentUserName">admin</span>
+            <svg class="icon"><use href="#icon-chevron-down"></use></svg>
+          </button>
+          <div class="dropdown-menu hidden" id="uiUserDropdown" role="menu">
+            <div class="dropdown-header">Conta</div>
+            <button type="button" class="dropdown-item" data-tab-link="config">
+              <svg class="icon"><use href="#icon-gear"></use></svg> Configurações
+            </button>
+            <button type="button" class="dropdown-item" data-tab-link="auditoria">
+              <svg class="icon"><use href="#icon-shield-check"></use></svg> Auditoria
+            </button>
+            <hr class="dropdown-sep">
+            <button id="btnLogout" class="dropdown-item dropdown-item-danger">
+              <svg class="icon"><use href="#icon-log-out"></use></svg> Sair
+            </button>
           </div>
         </div>
       </div>
-      <div id="atrasosList" class="cards-list"></div>
-    </section>
+    </header>
 
-    <!-- ---------- HISTÓRICO ---------- -->
-    <section id="tab-historico" class="tab-panel">
-      <div class="panel-header">
-        <h2>Histórico de Pagamentos</h2>
-      </div>
-      <div class="toolbar">
-        <select id="historicoFiltroContrato" class="input select">
-          <option value="">Todos os contratos</option>
-        </select>
-      </div>
-      <div id="historicoList" class="cards-list"></div>
-    </section>
+    <main class="content">
 
-    <!-- ---------- DESPESAS ---------- -->
-    <section id="tab-despesas" class="tab-panel">
-      <div class="panel-header">
-        <h2>Despesas</h2>
-      </div>
-
-      <div class="card">
-        <h3 id="formDespesaTitle">Nova despesa</h3>
-        <p class="modal-subtitle">Cadastro simples e rápido — pode ou não estar ligada a um contrato específico.</p>
-        <form id="formDespesa" class="config-form">
-          <input type="hidden" id="despesaId">
-          <label class="field">
-            <span>Data *</span>
-            <input type="date" id="despData" required>
-          </label>
-          <label class="field">
-            <span>Descrição *</span>
-            <input type="text" id="despDescricao" placeholder="Ex: Manutenção, reparo, taxa..." required>
-          </label>
-          <label class="field">
-            <span>Valor (R$) *</span>
-            <input type="number" id="despValor" step="0.01" min="0.01" required>
-          </label>
-          <label class="field">
-            <span>Contrato relacionado (opcional)</span>
-            <select id="despContrato">
-              <option value="">Nenhum (despesa geral)</option>
-            </select>
-          </label>
-          <button type="submit" class="btn btn-primary" id="btnSalvarDespesa">Adicionar despesa</button>
-          <button type="button" class="btn btn-ghost hidden" id="btnCancelarEdicaoDespesa">Cancelar edição</button>
-        </form>
-      </div>
-
-      <div class="toolbar">
-        <select id="despesaFiltroAno" class="input select"></select>
-        <select id="despesaFiltroMes" class="input select">
-          <option value="">Todos os meses</option>
-          <option value="0">Janeiro</option>
-          <option value="1">Fevereiro</option>
-          <option value="2">Março</option>
-          <option value="3">Abril</option>
-          <option value="4">Maio</option>
-          <option value="5">Junho</option>
-          <option value="6">Julho</option>
-          <option value="7">Agosto</option>
-          <option value="8">Setembro</option>
-          <option value="9">Outubro</option>
-          <option value="10">Novembro</option>
-          <option value="11">Dezembro</option>
-        </select>
-      </div>
-
-      <div class="cards-grid">
-        <div class="card stat-card stat-danger">
-          <div class="stat-icon"><svg class="icon"><use href="#icon-wallet"></use></svg></div>
-          <div class="stat-info">
-            <span class="stat-value" id="statDespesaFiltro">R$ 0,00</span>
-            <span class="stat-label">Total no período filtrado</span>
+      <!-- ---------- DASHBOARD ---------- -->
+      <section id="tab-dashboard" class="tab-panel active">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>Painel principal</h2>
+            <span class="panel-desc">Visão geral da sua carteira de aluguéis hoje.</span>
           </div>
         </div>
-        <div class="card stat-card stat-warn">
-          <div class="stat-icon"><svg class="icon"><use href="#icon-wallet"></use></svg></div>
-          <div class="stat-info">
-            <span class="stat-value" id="statDespesaAno">R$ 0,00</span>
-            <span class="stat-label">Total no ano selecionado</span>
+
+        <!-- Linha 1: indicadores -->
+        <div class="cards-grid">
+          <div class="card stat-card stat-accent">
+            <div class="stat-icon"><svg class="icon"><use href="#icon-file-text"></use></svg></div>
+            <div class="stat-info">
+              <span class="stat-value" id="statAtivos">0</span>
+              <span class="stat-label">Contratos ativos</span>
+            </div>
+          </div>
+          <div class="card stat-card stat-danger">
+            <div class="stat-icon"><svg class="icon"><use href="#icon-alert-triangle"></use></svg></div>
+            <div class="stat-info">
+              <span class="stat-value" id="statAtraso">R$ 0,00</span>
+              <span class="stat-label">Total em atraso</span>
+            </div>
+          </div>
+          <div class="card stat-card stat-warn">
+            <div class="stat-icon"><svg class="icon"><use href="#icon-calendar"></use></svg></div>
+            <div class="stat-info">
+              <span class="stat-value" id="statProximo">--</span>
+              <span class="stat-label">Próximo vencimento</span>
+            </div>
+          </div>
+          <div class="card stat-card stat-warn">
+            <div class="stat-icon"><svg class="icon"><use href="#icon-wallet"></use></svg></div>
+            <div class="stat-info">
+              <span class="stat-value" id="statDespesasMesDashboard">R$ 0,00</span>
+              <span class="stat-label">Despesas no mês</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div id="despesasList" class="cards-list"></div>
-    </section>
+        <!-- Linha 2: alertas -->
+        <div class="dash-alerts">
+          <div id="dashboardAlertaVencimento" class="alert-banner hidden"></div>
+          <div id="dashboardAlertaReajuste" class="alert-banner alert-banner-accent hidden"></div>
+        </div>
 
-    <!-- ---------- GRÁFICOS ---------- -->
-    <section id="tab-graficos" class="tab-panel">
-      <div class="panel-header">
-        <h2>Gráficos</h2>
-      </div>
-      <p class="modal-subtitle">Os valores recebidos aqui são líquidos: já descontam a comissão do corretor (quando houver) e o condomínio, mesma convenção usada em Relatórios.</p>
-      <div class="charts-grid">
-        <div class="card chart-card">
-          <h3>Contratos por status</h3>
-          <canvas id="chartStatus" height="220"></canvas>
-          <div class="chart-legend" id="legendStatus"></div>
-        </div>
-        <div class="card chart-card">
-          <h3>Pagamentos por forma (líquido)</h3>
-          <canvas id="chartFormaPagamento" height="220"></canvas>
-          <div class="chart-legend" id="legendFormaPagamento"></div>
-        </div>
-        <div class="card chart-card">
-          <h3>Evolução do total em atraso (últimos 6 meses)</h3>
-          <canvas id="chartAtrasoEvolucao" height="220"></canvas>
-        </div>
-        <div class="card chart-card">
-          <h3>Receita mensal líquida (últimos 6 meses)</h3>
-          <canvas id="chartReceitaMensal" height="220"></canvas>
-        </div>
-        <div class="card chart-card">
-          <h3>Despesas mensais (últimos 6 meses)</h3>
-          <canvas id="chartDespesasMensal" height="220"></canvas>
-        </div>
-        <div class="card chart-card">
-          <div class="panel-header panel-header-tight">
-            <h3>Inadimplência — quem mais atrasa</h3>
-            <select id="inadimplenciaAgrupador" class="input select">
-              <option value="inquilino">Por inquilino</option>
-              <option value="imovel">Por imóvel</option>
-            </select>
+        <!-- Linha 3: últimos contratos -->
+        <h3 class="section-title"><svg class="icon"><use href="#icon-file-text"></use></svg> Últimos contratos</h3>
+        <div id="dashboardRecentList" class="cards-list"></div>
+
+        <!-- Linha 4: resumo financeiro -->
+        <h3 class="section-title"><svg class="icon"><use href="#icon-dollar"></use></svg> Resumo financeiro</h3>
+        <div class="card resumo-card" id="uiResumoFinanceiro">
+          <div class="resumo-bar" aria-hidden="true">
+            <span class="bg-danger" id="uiResumoBarAtraso"></span>
+            <span class="bg-warn" id="uiResumoBarDespesa"></span>
           </div>
-          <canvas id="chartInadimplencia" height="220"></canvas>
-        </div>
-      </div>
-    </section>
-
-    <!-- ---------- RELATÓRIOS ---------- -->
-    <section id="tab-relatorios" class="tab-panel">
-      <div class="panel-header">
-        <h2>Relatórios</h2>
-        <select id="relatorioAno" class="input select"></select>
-      </div>
-      <p class="modal-subtitle">Os valores recebidos mostrados aqui são líquidos: já descontam a comissão do corretor (quando houver) e o condomínio, já que nenhum dos dois fica com o proprietário.</p>
-      <div class="cards-grid">
-        <div class="card stat-card stat-success">
-          <div class="stat-icon"><svg class="icon"><use href="#icon-dollar"></use></svg></div>
-          <div class="stat-info">
-            <span class="stat-value" id="relatorioTotalPagoAno">R$ 0,00</span>
-            <span class="stat-label">Total recebido no ano (líquido — já descontando corretor e condomínio)</span>
+          <div class="resumo-legend">
+            <div class="resumo-item resumo-item-atraso">
+              <span class="resumo-item-label">Em atraso</span>
+              <span class="resumo-item-value" id="uiResumoAtraso">R$ 0,00</span>
+            </div>
+            <div class="resumo-item resumo-item-despesa">
+              <span class="resumo-item-label">Despesas no mês</span>
+              <span class="resumo-item-value" id="uiResumoDespesas">R$ 0,00</span>
+            </div>
+            <div class="resumo-item resumo-item-ativos">
+              <span class="resumo-item-label">Contratos ativos</span>
+              <span class="resumo-item-value" id="uiResumoAtivos">0</span>
+            </div>
+            <div class="resumo-item resumo-item-proximo">
+              <span class="resumo-item-label">Próximo vencimento</span>
+              <span class="resumo-item-value" id="uiResumoProximo">--</span>
+            </div>
           </div>
         </div>
-        <div class="card stat-card stat-danger">
-          <div class="stat-icon"><svg class="icon"><use href="#icon-alert-triangle"></use></svg></div>
-          <div class="stat-info">
-            <span class="stat-value" id="relatorioTotalAtrasoAno">R$ 0,00</span>
-            <span class="stat-label">Total em atraso no ano (aluguel + juros/multa)</span>
+      </section>
+
+      <!-- ---------- IMÓVEIS ---------- -->
+      <section id="tab-imoveis" class="tab-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>Imóveis</h2>
+            <span class="panel-desc">Cadastro reutilizável — escolha o imóvel pela lista ao criar um contrato.</span>
           </div>
         </div>
-        <div class="card stat-card stat-warn">
-          <div class="stat-icon"><svg class="icon"><use href="#icon-tag"></use></svg></div>
-          <div class="stat-info">
-            <span class="stat-value" id="relatorioTotalDescontoAno">R$ 0,00</span>
-            <span class="stat-label">Total de descontos concedidos no ano</span>
+
+        <div class="split-layout">
+          <div>
+            <div class="list-tools">
+              <div class="search-wrap">
+                <svg class="icon search-wrap-icon"><use href="#icon-search"></use></svg>
+                <input type="search" id="uiImoveisSearch" class="input" placeholder="Buscar imóvel..." aria-label="Buscar imóvel">
+              </div>
+              <span class="list-count" id="uiImoveisCount"></span>
+            </div>
+            <div class="list-head" id="imoveisHead">
+              <span>Descrição do imóvel</span>
+              <span class="col-acoes">Ações</span>
+            </div>
+            <div id="imoveisList" class="cards-list"></div>
+            <div class="pagination" id="uiImoveisPagination"></div>
+          </div>
+
+          <aside class="split-aside">
+            <div class="card">
+              <h3><svg class="icon"><use href="#icon-plus"></use></svg> Novo imóvel</h3>
+              <p class="modal-subtitle">Cadastre aqui os imóveis para escolher pela lista ao criar um contrato, sem digitar o endereço toda vez.</p>
+              <form id="formImovel" class="config-form">
+                <label class="field">
+                  <span>Descrição do imóvel *</span>
+                  <input type="text" id="newImovelNome" placeholder="Ex: Apartamento 302 - Rua das Flores #123" required>
+                </label>
+                <button type="submit" class="btn btn-primary btn-block">Adicionar imóvel</button>
+              </form>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ---------- CONTRATOS ---------- -->
+      <section id="tab-contratos" class="tab-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>Contratos</h2>
+            <span class="panel-desc">Cada contrato reúne todas as dívidas mensais do mesmo imóvel e inquilino.</span>
+          </div>
+          <div class="panel-actions">
+            <button class="btn btn-primary" id="btnNovoContrato" title="Atalho: N">
+              <svg class="icon"><use href="#icon-plus"></use></svg> Novo contrato
+            </button>
           </div>
         </div>
-        <div class="card stat-card stat-warn">
-          <div class="stat-icon"><svg class="icon"><use href="#icon-wallet"></use></svg></div>
-          <div class="stat-info">
-            <span class="stat-value" id="relatorioTotalDespesasAno">R$ 0,00</span>
-            <span class="stat-label">Total de despesas no ano</span>
+
+        <div class="toolbar">
+          <div class="search-wrap">
+            <svg class="icon search-wrap-icon"><use href="#icon-search"></use></svg>
+            <input type="search" id="searchContratos" class="input" placeholder="Buscar por inquilino, imóvel ou #número..." title="Atalho: /">
+          </div>
+          <select id="filterAno" class="input select" aria-label="Filtrar por ano"></select>
+          <select id="filterMes" class="input select" aria-label="Filtrar por mês">
+            <option value="">Todos os meses</option>
+            <option value="0">Janeiro</option>
+            <option value="1">Fevereiro</option>
+            <option value="2">Março</option>
+            <option value="3">Abril</option>
+            <option value="4">Maio</option>
+            <option value="5">Junho</option>
+            <option value="6">Julho</option>
+            <option value="7">Agosto</option>
+            <option value="8">Setembro</option>
+            <option value="9">Outubro</option>
+            <option value="10">Novembro</option>
+            <option value="11">Dezembro</option>
+          </select>
+          <select id="filterStatus" class="input select" aria-label="Filtrar por status">
+            <option value="">Todos os status</option>
+            <option value="ativo">Ativo</option>
+            <option value="atrasado">Atrasado</option>
+            <option value="pago">Pago</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" id="btnExportCSV"><svg class="icon"><use href="#icon-download"></use></svg> CSV</button>
+          <button class="btn btn-ghost btn-sm" id="btnExportPDF"><svg class="icon"><use href="#icon-download"></use></svg> PDF</button>
+          <button class="btn btn-ghost btn-sm" id="btnImportCSV"><svg class="icon"><use href="#icon-upload"></use></svg> Importar</button>
+          <input type="file" id="inputImportCSV" accept=".csv,text/csv" class="hidden">
+        </div>
+
+        <div id="contratosList" class="cards-list"></div>
+        <div id="contratosPagination" class="pagination"></div>
+      </section>
+
+      <!-- ---------- ATRASOS ---------- -->
+      <section id="tab-atrasos" class="tab-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>Contratos em atraso</h2>
+            <span class="panel-desc">Dívidas vencidas e não pagas, da mais antiga para a mais recente.</span>
           </div>
         </div>
-        <div class="card stat-card stat-success">
-          <div class="stat-icon"><svg class="icon"><use href="#icon-dollar"></use></svg></div>
-          <div class="stat-info">
-            <span class="stat-value" id="relatorioLucroLiquidoAno">R$ 0,00</span>
-            <span class="stat-label">Lucro líquido no ano (pago − despesas)</span>
+
+        <div class="cards-grid">
+          <div class="card stat-card stat-danger">
+            <div class="stat-icon"><svg class="icon"><use href="#icon-alert-triangle"></use></svg></div>
+            <div class="stat-info">
+              <span class="stat-value" id="statTotalAtrasados">R$ 0,00</span>
+              <span class="stat-label">Total em atraso (aluguel + juros/multa)</span>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="card table-card">
-        <h3>Pagamentos por forma no ano</h3>
-        <table class="report-table">
-          <thead>
-            <tr><th>Forma</th><th>Quantidade</th><th>Total recebido (líquido)</th></tr>
-          </thead>
-          <tbody id="relatorioFormaPagamentoBody"></tbody>
-        </table>
-      </div>
-      <div class="card table-card">
-        <table class="report-table">
-          <thead>
-            <tr><th>Mês</th><th>Recebido (líquido)</th><th>Despesas</th><th>Total em atraso (aluguel + juros/multa)</th><th>Contratos no período</th></tr>
-          </thead>
-          <tbody id="relatorioTabelaBody"></tbody>
-        </table>
-      </div>
 
-      <div class="card table-card">
-        <h3>Comparativo anual</h3>
-        <p class="modal-subtitle">Totais de cada ano lado a lado, para comparar a evolução ano a ano.</p>
-        <table class="report-table">
-          <thead>
-            <tr><th>Ano</th><th>Recebido (líquido)</th><th>Despesas</th><th>Total em atraso (aluguel + juros/multa)</th><th>Contratos no ano</th></tr>
-          </thead>
-          <tbody id="comparativoAnualBody"></tbody>
-        </table>
-      </div>
-    </section>
+        <div id="atrasosList" class="cards-list"></div>
+      </section>
 
-    <!-- ---------- CALENDÁRIO ---------- -->
-    <section id="tab-calendario" class="tab-panel">
-      <div class="panel-header">
-        <h2>Calendário</h2>
-        <div class="contrato-actions">
-          <button type="button" class="btn btn-ghost btn-sm" id="btnCalendarioAnterior">‹</button>
-          <span id="calendarioMesAno" class="calendario-mes-label"></span>
-          <button type="button" class="btn btn-ghost btn-sm" id="btnCalendarioProximo">›</button>
-          <button type="button" class="btn btn-ghost btn-sm" id="btnCalendarioHoje">Hoje</button>
+      <!-- ---------- HISTÓRICO ---------- -->
+      <section id="tab-historico" class="tab-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>Histórico de pagamentos</h2>
+            <span class="panel-desc">Todos os pagamentos registrados, do mais recente para o mais antigo.</span>
+          </div>
         </div>
-      </div>
-      <div class="card">
-        <div class="calendar-legend">
-          <span class="chart-legend-item"><span class="chart-legend-dot bg-accent"></span> Vencimento ativo</span>
-          <span class="chart-legend-item"><span class="chart-legend-dot bg-danger"></span> Vencimento atrasado</span>
-          <span class="chart-legend-item"><span class="chart-legend-dot bg-success"></span> Pago / pagamento recebido</span>
+
+        <div class="toolbar">
+          <div class="search-wrap">
+            <svg class="icon search-wrap-icon"><use href="#icon-search"></use></svg>
+            <input type="search" id="uiHistoricoSearch" class="input" placeholder="Buscar no histórico..." aria-label="Buscar no histórico">
+          </div>
+          <select id="historicoFiltroContrato" class="input select" aria-label="Filtrar por contrato">
+            <option value="">Todos os contratos</option>
+          </select>
+          <span class="list-count" id="uiHistoricoCount"></span>
         </div>
-        <div class="calendar-weekdays">
-          <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+
+        <div id="historicoList" class="cards-list"></div>
+      </section>
+
+      <!-- ---------- DESPESAS ---------- -->
+      <section id="tab-despesas" class="tab-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>Despesas</h2>
+            <span class="panel-desc">Lançamentos avulsos ou ligados a um contrato específico.</span>
+          </div>
         </div>
-        <div class="calendar-grid" id="calendarioGrid"></div>
-      </div>
-      <div class="card hidden" id="calendarioDetalheCard">
-        <h3 id="calendarioDetalheTitulo"></h3>
-        <div id="calendarioDetalheLista" class="cards-list"></div>
-      </div>
-    </section>
 
-    <!-- ---------- AUDITORIA ---------- -->
-    <section id="tab-auditoria" class="tab-panel">
-      <div class="panel-header">
-        <h2>Auditoria</h2>
-      </div>
-      <p class="modal-subtitle">Registro dos últimos eventos importantes do sistema: contratos criados/editados/excluídos, pagamentos registrados e usuários adicionados/removidos.</p>
-      <div class="toolbar">
-        <select id="auditoriaFiltroAno" class="input select">
-          <option value="">Todos os anos</option>
-        </select>
-        <select id="auditoriaFiltroMes" class="input select">
-          <option value="">Todos os meses</option>
-          <option value="0">Janeiro</option>
-          <option value="1">Fevereiro</option>
-          <option value="2">Março</option>
-          <option value="3">Abril</option>
-          <option value="4">Maio</option>
-          <option value="5">Junho</option>
-          <option value="6">Julho</option>
-          <option value="7">Agosto</option>
-          <option value="8">Setembro</option>
-          <option value="9">Outubro</option>
-          <option value="10">Novembro</option>
-          <option value="11">Dezembro</option>
-        </select>
-        <select id="auditoriaFiltroUsuario" class="input select">
-          <option value="">Todos os usuários</option>
-        </select>
-      </div>
-      <div id="auditoriaList" class="cards-list"></div>
-    </section>
-
-    <!-- ---------- CONFIG ---------- -->
-    <section id="tab-config" class="tab-panel">
-      <div class="panel-header">
-        <h2>Configurações</h2>
-      </div>
-      <div class="card">
-        <h3>Taxa de juros por atraso</h3>
-        <p class="modal-subtitle">Usada para calcular o acréscimo automático sobre dívidas vencidas, e também como percentual padrão de Juros/Multa ao criar um novo contrato.</p>
-        <form id="configForm" class="config-form">
-          <label class="field">
-            <span>Taxa de juros mensal (%)</span>
-            <input type="number" id="configTaxaJuros" step="0.01" min="0" required>
-          </label>
-          <label class="field">
-            <span>Taxa de multa fixa por atraso (%)</span>
-            <input type="number" id="configTaxaMulta" step="0.01" min="0" required>
-          </label>
-          <button type="submit" class="btn btn-primary">Salvar configuração</button>
-          <p id="configSaved" class="success-msg hidden">Configuração salva!</p>
-        </form>
-      </div>
-
-      <div class="card">
-        <h3>Valores padrão para novos contratos</h3>
-        <p class="modal-subtitle">Preenchidos automaticamente ao criar um novo contrato, para evitar digitar sempre. Podem ser alterados individualmente em cada contrato.</p>
-        <form id="configPadraoForm" class="config-form">
-          <label class="field">
-            <span>Percentual padrão do corretor (%)</span>
-            <input type="number" id="configCorretorPercentualPadrao" step="0.01" min="0" max="100" required>
-          </label>
-          <button type="submit" class="btn btn-primary">Salvar valores padrão</button>
-          <p id="configPadraoSaved" class="success-msg hidden">Valores padrão salvos!</p>
-        </form>
-      </div>
-
-      <div class="card">
-        <h3>Reajuste sugerido</h3>
-        <p class="modal-subtitle">Um contrato "vence" para reajuste 1 ano depois do último reajuste (ou do início, se nunca foi reajustado). O Dashboard avisa quando isso acontece, sugerindo um novo valor com base no percentual abaixo — o sistema não consulta nenhum índice externo real (IGP-M/IPCA) automaticamente, já que não tem acesso à internet; ajuste esse percentual manualmente conforme o índice vigente.</p>
-        <form id="configReajusteForm" class="config-form">
-          <label class="field">
-            <span>Percentual de reajuste sugerido (%)</span>
-            <input type="number" id="configPercentualReajusteSugerido" step="0.01" min="0" required>
-          </label>
-          <button type="submit" class="btn btn-primary">Salvar</button>
-          <p id="configReajusteSaved" class="success-msg hidden">Percentual salvo!</p>
-        </form>
-      </div>
-
-      <div class="card">
-        <h3>Pessoas (recebedores / corretores)</h3>
-        <p class="modal-subtitle">Cadastre aqui quem pode receber pagamentos e/ou atuar como corretor, para escolher pela lista sem digitar o nome toda vez. A mesma lista alimenta os campos "Quem recebe" e "Corretor".</p>
-        <div id="pessoasList" class="cards-list"></div>
-        <form id="addPessoaForm" class="config-form mt-md">
-          <label class="field">
-            <span>Nome *</span>
-            <input type="text" id="newPessoaNome" required>
-          </label>
-          <button type="submit" class="btn btn-primary">Adicionar pessoa</button>
-        </form>
-      </div>
-
-      <div class="card">
-        <h3>Conta do administrador</h3>
-        <form id="accountForm" class="config-form">
-          <label class="field">
-            <span>Nome de usuário</span>
-            <input type="text" id="accUsername" required autocomplete="username">
-          </label>
-          <label class="field">
-            <span>Senha atual *</span>
-            <input type="password" id="accCurrentPassword" required autocomplete="current-password">
-          </label>
-          <label class="field">
-            <span>Nova senha, mínimo 8 caracteres (deixe em branco para manter a atual)</span>
-            <input type="password" id="accNewPassword" minlength="8" autocomplete="new-password">
-          </label>
-          <label class="field">
-            <span>Confirmar nova senha</span>
-            <input type="password" id="accConfirmPassword" autocomplete="new-password">
-          </label>
-          <p id="accountError" class="error-msg hidden"></p>
-          <button type="submit" class="btn btn-primary">Salvar alterações</button>
-          <p id="accountSaved" class="success-msg hidden">Dados de acesso atualizados!</p>
-        </form>
-      </div>
-
-      <div class="card">
-        <h3>Segurança</h3>
-        <p class="modal-subtitle">A chave <code>COOKIE_SECRET</code> (em <code>api/config.php</code>) assina o cookie de login. Gerar uma nova desconecta automaticamente todos os OUTROS usuários que estiverem logados agora (precisam entrar de novo) — a sua sessão continua ativa normalmente.</p>
-        <form id="regenerateSecretForm" class="config-form">
-          <label class="field">
-            <span>Confirme sua senha atual *</span>
-            <input type="password" id="secretCurrentPassword" required autocomplete="current-password">
-          </label>
-          <p id="regenerateSecretError" class="error-msg hidden"></p>
-          <button type="submit" class="btn btn-danger">Gerar novo COOKIE_SECRET</button>
-          <p id="regenerateSecretSaved" class="success-msg hidden">Nova chave gerada com sucesso!</p>
-        </form>
-      </div>
-
-      <div class="card">
-        <h3>Usuários administradores</h3>
-        <p class="modal-subtitle">Adicione outros usuários com acesso total ao sistema (ex: um sócio ou gerente). Todos têm as mesmas permissões.</p>
-        <div id="usersList" class="cards-list"></div>
-        <form id="addUserForm" class="config-form mt-md">
-          <label class="field">
-            <span>Novo usuário *</span>
-            <input type="text" id="newUserUsername" required autocomplete="off">
-          </label>
-          <label class="field">
-            <span>Senha (mínimo 8 caracteres) *</span>
-            <input type="password" id="newUserPassword" required minlength="8" autocomplete="new-password">
-          </label>
-          <label class="field">
-            <span>Confirmar senha *</span>
-            <input type="password" id="newUserConfirmPassword" required minlength="8" autocomplete="new-password">
-          </label>
-          <label class="field">
-            <span>Confirme sua própria senha atual *</span>
-            <input type="password" id="newUserCurrentPassword" required autocomplete="current-password">
-          </label>
-          <p class="modal-subtitle">Adicionar um novo administrador exige confirmar sua senha, já que dá acesso total ao sistema para outra pessoa.</p>
-          <p id="addUserError" class="error-msg hidden"></p>
-          <button type="submit" class="btn btn-primary">Adicionar usuário</button>
-        </form>
-      </div>
-
-      <div class="card">
-        <h3>Backup do banco de dados</h3>
-        <p class="modal-subtitle">Baixe um arquivo com todos os contratos, pagamentos e configurações, ou restaure a partir de um backup salvo anteriormente. Restaurar substitui todos os dados atuais.</p>
-        <div class="contrato-actions mt-sm">
-          <button type="button" class="btn btn-ghost" id="btnExportBackup"><svg class="icon"><use href="#icon-download"></use></svg> Exportar backup (JSON)</button>
-          <button type="button" class="btn btn-ghost" id="btnImportBackup"><svg class="icon"><use href="#icon-upload"></use></svg> Restaurar backup (JSON)</button>
-          <input type="file" id="inputImportBackup" accept=".json,application/json" class="hidden">
+        <div class="cards-grid">
+          <div class="card stat-card stat-danger">
+            <div class="stat-icon"><svg class="icon"><use href="#icon-wallet"></use></svg></div>
+            <div class="stat-info">
+              <span class="stat-value" id="statDespesaFiltro">R$ 0,00</span>
+              <span class="stat-label">Total no período filtrado</span>
+            </div>
+          </div>
+          <div class="card stat-card stat-warn">
+            <div class="stat-icon"><svg class="icon"><use href="#icon-bar-chart"></use></svg></div>
+            <div class="stat-info">
+              <span class="stat-value" id="statDespesaAno">R$ 0,00</span>
+              <span class="stat-label">Total no ano selecionado</span>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div class="card">
-        <h3><svg class="icon"><use href="#icon-alert-triangle"></use></svg> Zona de perigo</h3>
-        <p class="modal-subtitle">Apaga permanentemente todos os contratos, pagamentos e configurações salvos no servidor. Esta ação não pode ser desfeita — exporte um backup antes, se quiser manter os dados.</p>
-        <div class="contrato-actions mt-sm">
-          <button type="button" class="btn btn-danger" id="btnDeleteDatabase"><svg class="icon"><use href="#icon-trash"></use></svg> Excluir todos os dados</button>
+        <div class="split-layout">
+          <div>
+            <div class="toolbar">
+              <select id="despesaFiltroAno" class="input select" aria-label="Filtrar despesas por ano"></select>
+              <select id="despesaFiltroMes" class="input select" aria-label="Filtrar despesas por mês">
+                <option value="">Todos os meses</option>
+                <option value="0">Janeiro</option>
+                <option value="1">Fevereiro</option>
+                <option value="2">Março</option>
+                <option value="3">Abril</option>
+                <option value="4">Maio</option>
+                <option value="5">Junho</option>
+                <option value="6">Julho</option>
+                <option value="7">Agosto</option>
+                <option value="8">Setembro</option>
+                <option value="9">Outubro</option>
+                <option value="10">Novembro</option>
+                <option value="11">Dezembro</option>
+              </select>
+            </div>
+            <div id="despesasList" class="cards-list"></div>
+          </div>
+
+          <aside class="split-aside">
+            <div class="card">
+              <h3 id="formDespesaTitle">Nova despesa</h3>
+              <p class="modal-subtitle">Cadastro simples e rápido — pode ou não estar ligada a um contrato específico.</p>
+              <form id="formDespesa" class="config-form">
+                <input type="hidden" id="despesaId">
+                <label class="field">
+                  <span>Data *</span>
+                  <input type="date" id="despData" required>
+                </label>
+                <label class="field">
+                  <span>Descrição *</span>
+                  <input type="text" id="despDescricao" placeholder="Ex: Manutenção, reparo, taxa..." required>
+                </label>
+                <label class="field">
+                  <span>Valor (R$) *</span>
+                  <input type="number" id="despValor" step="0.01" min="0.01" required>
+                </label>
+                <label class="field">
+                  <span>Contrato relacionado (opcional)</span>
+                  <select id="despContrato">
+                    <option value="">Nenhum (despesa geral)</option>
+                  </select>
+                </label>
+                <button type="submit" class="btn btn-primary btn-block" id="btnSalvarDespesa">Adicionar despesa</button>
+                <button type="button" class="btn btn-ghost btn-block hidden" id="btnCancelarEdicaoDespesa">Cancelar edição</button>
+              </form>
+            </div>
+          </aside>
         </div>
-      </div>
-    </section>
+      </section>
 
-  </main>
+      <!-- ---------- GRÁFICOS ---------- -->
+      <section id="tab-graficos" class="tab-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>Gráficos</h2>
+            <span class="panel-desc">Valores recebidos são líquidos: já descontam a comissão do corretor (quando houver) e o condomínio, mesma convenção usada em Relatórios.</span>
+          </div>
+        </div>
+
+        <div class="charts-grid">
+          <div class="card chart-card">
+            <h3>Contratos por status</h3>
+            <canvas id="chartStatus" height="220"></canvas>
+            <div class="chart-legend" id="legendStatus"></div>
+          </div>
+          <div class="card chart-card">
+            <h3>Pagamentos por forma (líquido)</h3>
+            <canvas id="chartFormaPagamento" height="220"></canvas>
+            <div class="chart-legend" id="legendFormaPagamento"></div>
+          </div>
+          <div class="card chart-card">
+            <h3>Evolução do total em atraso (últimos 6 meses)</h3>
+            <canvas id="chartAtrasoEvolucao" height="220"></canvas>
+          </div>
+          <div class="card chart-card">
+            <h3>Receita mensal líquida (últimos 6 meses)</h3>
+            <canvas id="chartReceitaMensal" height="220"></canvas>
+          </div>
+          <div class="card chart-card">
+            <h3>Despesas mensais (últimos 6 meses)</h3>
+            <canvas id="chartDespesasMensal" height="220"></canvas>
+          </div>
+          <div class="card chart-card">
+            <div class="panel-header panel-header-tight">
+              <h3>Inadimplência — quem mais atrasa</h3>
+              <select id="inadimplenciaAgrupador" class="input select" aria-label="Agrupar inadimplência">
+                <option value="inquilino">Por inquilino</option>
+                <option value="imovel">Por imóvel</option>
+              </select>
+            </div>
+            <canvas id="chartInadimplencia" height="220"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- RELATÓRIOS ---------- -->
+      <section id="tab-relatorios" class="tab-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>Relatórios</h2>
+            <span class="panel-desc">Valores recebidos são líquidos: já descontam a comissão do corretor (quando houver) e o condomínio, já que nenhum dos dois fica com o proprietário.</span>
+          </div>
+          <div class="panel-actions">
+            <select id="relatorioAno" class="input select" aria-label="Ano do relatório"></select>
+          </div>
+        </div>
+
+        <div class="cards-grid">
+          <div class="card stat-card stat-success">
+            <div class="stat-icon"><svg class="icon"><use href="#icon-dollar"></use></svg></div>
+            <div class="stat-info">
+              <span class="stat-value" id="relatorioTotalPagoAno">R$ 0,00</span>
+              <span class="stat-label">Recebido no ano (líquido — já sem corretor e condomínio)</span>
+            </div>
+          </div>
+          <div class="card stat-card stat-danger">
+            <div class="stat-icon"><svg class="icon"><use href="#icon-alert-triangle"></use></svg></div>
+            <div class="stat-info">
+              <span class="stat-value" id="relatorioTotalAtrasoAno">R$ 0,00</span>
+              <span class="stat-label">Em atraso no ano (aluguel + juros/multa)</span>
+            </div>
+          </div>
+          <div class="card stat-card stat-warn">
+            <div class="stat-icon"><svg class="icon"><use href="#icon-tag"></use></svg></div>
+            <div class="stat-info">
+              <span class="stat-value" id="relatorioTotalDescontoAno">R$ 0,00</span>
+              <span class="stat-label">Descontos concedidos no ano</span>
+            </div>
+          </div>
+          <div class="card stat-card stat-warn">
+            <div class="stat-icon"><svg class="icon"><use href="#icon-wallet"></use></svg></div>
+            <div class="stat-info">
+              <span class="stat-value" id="relatorioTotalDespesasAno">R$ 0,00</span>
+              <span class="stat-label">Despesas no ano</span>
+            </div>
+          </div>
+          <div class="card stat-card stat-success">
+            <div class="stat-icon"><svg class="icon"><use href="#icon-trending-up"></use></svg></div>
+            <div class="stat-info">
+              <span class="stat-value" id="relatorioLucroLiquidoAno">R$ 0,00</span>
+              <span class="stat-label">Lucro líquido no ano (pago − despesas)</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card table-card">
+          <h3>Pagamentos por forma no ano</h3>
+          <table class="report-table">
+            <thead>
+              <tr><th>Forma</th><th>Quantidade</th><th>Total recebido (líquido)</th></tr>
+            </thead>
+            <tbody id="relatorioFormaPagamentoBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card table-card">
+          <h3>Mês a mês</h3>
+          <table class="report-table">
+            <thead>
+              <tr><th>Mês</th><th>Recebido (líquido)</th><th>Despesas</th><th>Total em atraso (aluguel + juros/multa)</th><th>Contratos no período</th></tr>
+            </thead>
+            <tbody id="relatorioTabelaBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card table-card">
+          <h3>Comparativo anual</h3>
+          <p class="modal-subtitle">Totais de cada ano lado a lado, para comparar a evolução ano a ano.</p>
+          <table class="report-table">
+            <thead>
+              <tr><th>Ano</th><th>Recebido (líquido)</th><th>Despesas</th><th>Total em atraso (aluguel + juros/multa)</th><th>Contratos no ano</th></tr>
+            </thead>
+            <tbody id="comparativoAnualBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ---------- CALENDÁRIO ---------- -->
+      <section id="tab-calendario" class="tab-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>Calendário</h2>
+            <span class="panel-desc">Vencimentos e pagamentos recebidos, dia a dia.</span>
+          </div>
+          <div class="panel-actions">
+            <button type="button" class="icon-btn" id="btnCalendarioAnterior" aria-label="Mês anterior">‹</button>
+            <span id="calendarioMesAno" class="calendario-mes-label"></span>
+            <button type="button" class="icon-btn" id="btnCalendarioProximo" aria-label="Próximo mês">›</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="btnCalendarioHoje">Hoje</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="calendar-legend">
+            <span class="chart-legend-item"><span class="chart-legend-dot bg-accent"></span> Vencimento ativo</span>
+            <span class="chart-legend-item"><span class="chart-legend-dot bg-danger"></span> Vencimento atrasado</span>
+            <span class="chart-legend-item"><span class="chart-legend-dot bg-success"></span> Pago / pagamento recebido</span>
+          </div>
+          <div class="calendar-weekdays">
+            <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+          </div>
+          <div class="calendar-grid" id="calendarioGrid"></div>
+        </div>
+
+        <div class="card hidden" id="calendarioDetalheCard">
+          <h3 id="calendarioDetalheTitulo"></h3>
+          <div id="calendarioDetalheLista" class="cards-list"></div>
+        </div>
+      </section>
+
+      <!-- ---------- AUDITORIA ---------- -->
+      <section id="tab-auditoria" class="tab-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>Auditoria</h2>
+            <span class="panel-desc">Últimos eventos importantes: contratos criados/editados/excluídos, pagamentos registrados e usuários adicionados/removidos.</span>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <select id="auditoriaFiltroAno" class="input select" aria-label="Filtrar auditoria por ano">
+            <option value="">Todos os anos</option>
+          </select>
+          <select id="auditoriaFiltroMes" class="input select" aria-label="Filtrar auditoria por mês">
+            <option value="">Todos os meses</option>
+            <option value="0">Janeiro</option>
+            <option value="1">Fevereiro</option>
+            <option value="2">Março</option>
+            <option value="3">Abril</option>
+            <option value="4">Maio</option>
+            <option value="5">Junho</option>
+            <option value="6">Julho</option>
+            <option value="7">Agosto</option>
+            <option value="8">Setembro</option>
+            <option value="9">Outubro</option>
+            <option value="10">Novembro</option>
+            <option value="11">Dezembro</option>
+          </select>
+          <select id="auditoriaFiltroUsuario" class="input select" aria-label="Filtrar auditoria por usuário">
+            <option value="">Todos os usuários</option>
+          </select>
+        </div>
+
+        <div id="auditoriaList" class="cards-list"></div>
+      </section>
+
+      <!-- ---------- CONFIGURAÇÕES ---------- -->
+      <section id="tab-config" class="tab-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>Configurações</h2>
+            <span class="panel-desc">Taxas, cadastros auxiliares, acesso e manutenção dos dados.</span>
+          </div>
+        </div>
+
+        <div class="seg-tabs" id="uiConfigTabs" role="tablist">
+          <button type="button" class="seg-tab is-active" data-config-tab="financeiro" role="tab" aria-selected="true">
+            <svg class="icon"><use href="#icon-percent"></use></svg> Financeiro
+          </button>
+          <button type="button" class="seg-tab" data-config-tab="acesso" role="tab" aria-selected="false">
+            <svg class="icon"><use href="#icon-lock"></use></svg> Conta e acesso
+          </button>
+          <button type="button" class="seg-tab" data-config-tab="dados" role="tab" aria-selected="false">
+            <svg class="icon"><use href="#icon-database"></use></svg> Dados
+          </button>
+          <button type="button" class="seg-tab" data-config-tab="perigo" role="tab" aria-selected="false">
+            <svg class="icon"><use href="#icon-alert-triangle"></use></svg> Zona de perigo
+          </button>
+        </div>
+
+        <!-- Financeiro -->
+        <div data-config-section="financeiro" class="is-active" role="tabpanel" aria-label="Financeiro">
+          <div class="config-grid">
+            <div class="card">
+              <h3><svg class="icon"><use href="#icon-percent"></use></svg> Taxa de juros por atraso</h3>
+              <p class="modal-subtitle">Usada para calcular o acréscimo automático sobre dívidas vencidas, e também como percentual padrão de Juros/Multa ao criar um novo contrato.</p>
+              <form id="configForm" class="config-form">
+                <label class="field">
+                  <span>Taxa de juros mensal (%)</span>
+                  <input type="number" id="configTaxaJuros" step="0.01" min="0" required>
+                </label>
+                <label class="field">
+                  <span>Taxa de multa fixa por atraso (%)</span>
+                  <input type="number" id="configTaxaMulta" step="0.01" min="0" required>
+                </label>
+                <button type="submit" class="btn btn-primary">Salvar configuração</button>
+                <p id="configSaved" class="success-msg hidden">Configuração salva!</p>
+              </form>
+            </div>
+
+            <div class="card">
+              <h3><svg class="icon"><use href="#icon-user"></use></svg> Valores padrão para novos contratos</h3>
+              <p class="modal-subtitle">Preenchidos automaticamente ao criar um novo contrato, para evitar digitar sempre. Podem ser alterados individualmente em cada contrato.</p>
+              <form id="configPadraoForm" class="config-form">
+                <label class="field">
+                  <span>Percentual padrão do corretor (%)</span>
+                  <input type="number" id="configCorretorPercentualPadrao" step="0.01" min="0" max="100" required>
+                </label>
+                <button type="submit" class="btn btn-primary">Salvar valores padrão</button>
+                <p id="configPadraoSaved" class="success-msg hidden">Valores padrão salvos!</p>
+              </form>
+            </div>
+
+            <div class="card config-span">
+              <h3><svg class="icon"><use href="#icon-trending-up"></use></svg> Reajuste sugerido</h3>
+              <p class="modal-subtitle">Um contrato "vence" para reajuste 1 ano depois do último reajuste (ou do início, se nunca foi reajustado). O Dashboard avisa quando isso acontece, sugerindo um novo valor com base no percentual abaixo — o sistema não consulta nenhum índice externo real (IGP-M/IPCA) automaticamente, já que não tem acesso à internet; ajuste esse percentual manualmente conforme o índice vigente.</p>
+              <form id="configReajusteForm" class="config-form">
+                <label class="field">
+                  <span>Percentual de reajuste sugerido (%)</span>
+                  <input type="number" id="configPercentualReajusteSugerido" step="0.01" min="0" required>
+                </label>
+                <button type="submit" class="btn btn-primary">Salvar</button>
+                <p id="configReajusteSaved" class="success-msg hidden">Percentual salvo!</p>
+              </form>
+            </div>
+
+            <div class="card config-span">
+              <h3><svg class="icon"><use href="#icon-users"></use></svg> Pessoas (recebedores / corretores)</h3>
+              <p class="modal-subtitle">Cadastre aqui quem pode receber pagamentos e/ou atuar como corretor, para escolher pela lista sem digitar o nome toda vez. A mesma lista alimenta os campos "Quem recebe" e "Corretor".</p>
+              <div id="pessoasList" class="cards-list"></div>
+              <form id="addPessoaForm" class="config-form mt-md">
+                <label class="field">
+                  <span>Nome *</span>
+                  <input type="text" id="newPessoaNome" required>
+                </label>
+                <button type="submit" class="btn btn-primary">Adicionar pessoa</button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Conta e acesso -->
+        <div data-config-section="acesso" role="tabpanel" aria-label="Conta e acesso">
+          <div class="config-grid">
+            <div class="card">
+              <h3><svg class="icon"><use href="#icon-user"></use></svg> Conta do administrador</h3>
+              <form id="accountForm" class="config-form">
+                <label class="field">
+                  <span>Nome de usuário</span>
+                  <input type="text" id="accUsername" required autocomplete="username">
+                </label>
+                <label class="field">
+                  <span>Senha atual *</span>
+                  <input type="password" id="accCurrentPassword" required autocomplete="current-password">
+                </label>
+                <label class="field">
+                  <span>Nova senha, mínimo 8 caracteres (deixe em branco para manter a atual)</span>
+                  <input type="password" id="accNewPassword" minlength="8" autocomplete="new-password">
+                </label>
+                <label class="field">
+                  <span>Confirmar nova senha</span>
+                  <input type="password" id="accConfirmPassword" autocomplete="new-password">
+                </label>
+                <p id="accountError" class="error-msg hidden"></p>
+                <button type="submit" class="btn btn-primary">Salvar alterações</button>
+                <p id="accountSaved" class="success-msg hidden">Dados de acesso atualizados!</p>
+              </form>
+            </div>
+
+            <div class="card">
+              <h3><svg class="icon"><use href="#icon-lock"></use></svg> Segurança</h3>
+              <p class="modal-subtitle">A chave <code>COOKIE_SECRET</code> (em <code>api/config.php</code>) assina o cookie de login. Gerar uma nova desconecta automaticamente todos os OUTROS usuários que estiverem logados agora (precisam entrar de novo) — a sua sessão continua ativa normalmente.</p>
+              <form id="regenerateSecretForm" class="config-form">
+                <label class="field">
+                  <span>Confirme sua senha atual *</span>
+                  <input type="password" id="secretCurrentPassword" required autocomplete="current-password">
+                </label>
+                <p id="regenerateSecretError" class="error-msg hidden"></p>
+                <button type="submit" class="btn btn-danger">Gerar novo COOKIE_SECRET</button>
+                <p id="regenerateSecretSaved" class="success-msg hidden">Nova chave gerada com sucesso!</p>
+              </form>
+            </div>
+
+            <div class="card config-span">
+              <h3><svg class="icon"><use href="#icon-users"></use></svg> Usuários administradores</h3>
+              <p class="modal-subtitle">Adicione outros usuários com acesso total ao sistema (ex: um sócio ou gerente). Todos têm as mesmas permissões.</p>
+              <div id="usersList" class="cards-list"></div>
+              <form id="addUserForm" class="config-form mt-md">
+                <label class="field">
+                  <span>Novo usuário *</span>
+                  <input type="text" id="newUserUsername" required autocomplete="off">
+                </label>
+                <label class="field">
+                  <span>Senha (mínimo 8 caracteres) *</span>
+                  <input type="password" id="newUserPassword" required minlength="8" autocomplete="new-password">
+                </label>
+                <label class="field">
+                  <span>Confirmar senha *</span>
+                  <input type="password" id="newUserConfirmPassword" required minlength="8" autocomplete="new-password">
+                </label>
+                <label class="field">
+                  <span>Confirme sua própria senha atual *</span>
+                  <input type="password" id="newUserCurrentPassword" required autocomplete="current-password">
+                </label>
+                <p class="modal-subtitle">Adicionar um novo administrador exige confirmar sua senha, já que dá acesso total ao sistema para outra pessoa.</p>
+                <p id="addUserError" class="error-msg hidden"></p>
+                <button type="submit" class="btn btn-primary">Adicionar usuário</button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dados -->
+        <div data-config-section="dados" role="tabpanel" aria-label="Dados">
+          <div class="card">
+            <h3><svg class="icon"><use href="#icon-database"></use></svg> Backup do banco de dados</h3>
+            <p class="modal-subtitle">Baixe um arquivo com todos os contratos, pagamentos e configurações, ou restaure a partir de um backup salvo anteriormente. Restaurar substitui todos os dados atuais.</p>
+            <div class="contrato-actions mt-sm">
+              <button type="button" class="btn btn-ghost" id="btnExportBackup"><svg class="icon"><use href="#icon-download"></use></svg> Exportar backup (JSON)</button>
+              <button type="button" class="btn btn-ghost" id="btnImportBackup"><svg class="icon"><use href="#icon-upload"></use></svg> Restaurar backup (JSON)</button>
+              <input type="file" id="inputImportBackup" accept=".json,application/json" class="hidden">
+            </div>
+          </div>
+        </div>
+
+        <!-- Zona de perigo -->
+        <div data-config-section="perigo" role="tabpanel" aria-label="Zona de perigo">
+          <div class="card danger-zone">
+            <h3><svg class="icon"><use href="#icon-alert-triangle"></use></svg> Zona de perigo</h3>
+            <p class="modal-subtitle">Apaga permanentemente todos os contratos, pagamentos e configurações salvos no servidor. Esta ação não pode ser desfeita — exporte um backup antes, se quiser manter os dados.</p>
+            <div class="contrato-actions mt-sm">
+              <button type="button" class="btn btn-danger" id="btnDeleteDatabase"><svg class="icon"><use href="#icon-trash"></use></svg> Excluir todos os dados</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
 </div>
 
 <!-- ===================== MODAL: CONTRATO ===================== -->
-<div id="modalContrato" class="modal-overlay hidden">
+<div id="modalContrato" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalContratoTitle">
   <div class="modal">
     <div class="modal-header">
       <h3 id="modalContratoTitle">Novo contrato</h3>
-      <button class="modal-close" data-close>&times;</button>
+      <button class="modal-close" data-close aria-label="Fechar">&times;</button>
     </div>
     <form id="formContrato" class="modal-body">
       <input type="hidden" id="contratoId">
@@ -739,11 +998,11 @@
 </div>
 
 <!-- ===================== MODAL: EDITAR CONTRATO (dados compartilhados) ===================== -->
-<div id="modalContratoInfo" class="modal-overlay hidden">
+<div id="modalContratoInfo" class="modal-overlay hidden" role="dialog" aria-modal="true">
   <div class="modal modal-sm">
     <div class="modal-header">
       <h3>Editar contrato</h3>
-      <button class="modal-close" data-close>&times;</button>
+      <button class="modal-close" data-close aria-label="Fechar">&times;</button>
     </div>
     <form id="formContratoInfo" class="modal-body">
       <input type="hidden" id="infoContratoId">
@@ -808,11 +1067,11 @@
 </div>
 
 <!-- ===================== MODAL: PAGAMENTO ===================== -->
-<div id="modalPagamento" class="modal-overlay hidden">
+<div id="modalPagamento" class="modal-overlay hidden" role="dialog" aria-modal="true">
   <div class="modal modal-sm">
     <div class="modal-header">
       <h3>Registrar pagamento</h3>
-      <button class="modal-close" data-close>&times;</button>
+      <button class="modal-close" data-close aria-label="Fechar">&times;</button>
     </div>
     <form id="formPagamento" class="modal-body">
       <input type="hidden" id="pagDividaId">
@@ -860,11 +1119,11 @@
 </div>
 
 <!-- ===================== MODAL: REAJUSTE DE VALOR ===================== -->
-<div id="modalReajuste" class="modal-overlay hidden">
+<div id="modalReajuste" class="modal-overlay hidden" role="dialog" aria-modal="true">
   <div class="modal modal-sm">
     <div class="modal-header">
       <h3>Reajustar valor do aluguel</h3>
-      <button class="modal-close" data-close>&times;</button>
+      <button class="modal-close" data-close aria-label="Fechar">&times;</button>
     </div>
     <form id="formReajuste" class="modal-body">
       <input type="hidden" id="reajusteContratoId">
@@ -888,11 +1147,11 @@
 </div>
 
 <!-- ===================== MODAL: DEVOLUÇÃO DE CAUÇÃO ===================== -->
-<div id="modalDevolucaoCaucao" class="modal-overlay hidden">
+<div id="modalDevolucaoCaucao" class="modal-overlay hidden" role="dialog" aria-modal="true">
   <div class="modal modal-sm">
     <div class="modal-header">
       <h3>Devolver caução</h3>
-      <button class="modal-close" data-close>&times;</button>
+      <button class="modal-close" data-close aria-label="Fechar">&times;</button>
     </div>
     <form id="formDevolucaoCaucao" class="modal-body">
       <input type="hidden" id="devCaucaoContratoId">
@@ -919,11 +1178,11 @@
 </div>
 
 <!-- ===================== MODAL: HISTÓRICO DO CONTRATO ===================== -->
-<div id="modalHistoricoContrato" class="modal-overlay hidden">
+<div id="modalHistoricoContrato" class="modal-overlay hidden" role="dialog" aria-modal="true">
   <div class="modal">
     <div class="modal-header">
       <h3>Histórico do contrato</h3>
-      <button class="modal-close" data-close>&times;</button>
+      <button class="modal-close" data-close aria-label="Fechar">&times;</button>
     </div>
     <div class="modal-body">
       <p class="modal-subtitle" id="histContratoInfo"></p>
@@ -939,5 +1198,6 @@
 <canvas id="hiddenReportCanvas" width="900" height="1100" class="hidden"></canvas>
 
 <script src="index.js"></script>
+<script src="ui.js"></script>
 </body>
 </html>

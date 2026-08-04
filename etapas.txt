@@ -3,17 +3,21 @@
 Este arquivo reflete o estado ATUAL do projeto (não é um histórico de fases nem um changelog
 por data). Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
 
-## Mapa das abas do sistema
+## Mapa das telas do sistema
 
-A barra de navegação tem 11 abas, agrupadas visualmente (divisores sutis) em 5 blocos:
+A navegação fica numa sidebar vertical fixa (280px, recolhível para 76px, vira gaveta no
+celular) com as 11 telas agrupadas em 5 blocos rotulados:
 
-  Visão Geral │ Cadastros          │ Financeiro                  │ Análises                   │ Sistema
-  Dashboard   │ Imóveis, Contratos │ Atrasos, Histórico, Despesas│ Gráficos, Relatórios,       │ Auditoria,
-              │                    │                             │ Calendário                  │ Config.
+  Dashboard
+  GESTÃO      │ Imóveis, Contratos, Atrasos, Histórico
+  FINANCEIRO  │ Despesas, Gráficos, Relatórios
+  AGENDA      │ Calendário
+  SISTEMA     │ Auditoria, Configurações
 
-As seções abaixo seguem essa mesma ordem. "Pagamentos" não é uma aba — é o modal de registrar
-pagamento, acessado de dentro de Contratos ou Atrasos — por isso aparece logo depois de
-Contratos.
+As seções abaixo seguem a ordem antiga de leitura (Dashboard, cadastros, financeiro,
+análises, sistema), que continua útil para navegar este documento. "Pagamentos" não é uma
+tela — é o modal de registrar pagamento, acessado de dentro de Contratos ou Atrasos — por
+isso aparece logo depois de Contratos.
 
 ## ✅ IMPLEMENTADO E FUNCIONANDO
 
@@ -328,15 +332,27 @@ Contratos.
       digitar "EXCLUIR"), pois não pode ser desfeito. Não afeta o usuário/senha de login
 
 ### Navegação e visual
-- [x] Barra de abas em linha única com divisores visuais sutis entre os 5 grupos lógicos
-      (Visão Geral | Cadastros | Financeiro | Análises | Sistema) — organiza a leitura
-      das 11 abas sem mudar a interação (tudo continua a 1 clique, rolagem horizontal
-      quando não cabe na tela)
-- [x] Redesign completo do CSS (`index.css`) em estilo inspirado na Apple: paleta de
-      cores do sistema (SF blue, verde, vermelho, laranja), cantos arredondados,
-      sombras em camadas, barra superior e barra de abas com efeito de vidro fosco
-      (`backdrop-filter: blur`), abas em estilo "segmented control", cards com leve
-      elevação ao passar o mouse, transições com curva de easing suave (`cubic-bezier`)
+- [x] Sidebar vertical fixa de 280px substituindo a barra de abas horizontal: menu
+      agrupado em blocos rotulados (Dashboard | Gestão | Financeiro | Agenda | Sistema),
+      botão de recolher para 76px (só ícones, com tooltip) e estado salvo no navegador
+      (`aluguelApp_sidebar`); no celular vira gaveta sobreposta com fundo escurecido
+- [x] Header próprio com busca global (delega para a busca de Contratos já existente),
+      botão "Atualizar dívidas", painel de notificações (espelha os alertas de vencimento
+      e reajuste do Dashboard), alternância de tema e menu do usuário com atalhos e Sair
+- [x] Interface reconstruída (`index.html` + `css/`) com identidade própria de SaaS:
+      paleta índigo/violeta, cantos de 14px, sombras em camadas, header com efeito de
+      vidro fosco (`backdrop-filter: blur`), cards com destaque ao passar o mouse,
+      transições curtas com curva de easing suave (`cubic-bezier`). Nenhum framework:
+      HTML, CSS e JS puros, como no resto do projeto
+- [x] CSS separado por responsabilidade em `css/`: `tokens.css` (variáveis de cor,
+      tipografia, espaçamento, raios, sombras e animações + tema claro/escuro),
+      `components.css` (Button, Card, Input, Table, Badge, Alert, Dropdown, Modal, Tabs,
+      Tooltip, Pagination, Toast, Skeleton, Loading, Empty state), `layout.css` (casca:
+      sidebar, header, conteúdo, responsividade, impressão) e `screens.css` (cada tela)
+- [x] `ui.js` separado do `index.js`: só comportamento visual (sidebar, gaveta, menus,
+      busca do header, notificações, abas de Configurações, expandir dívidas de um
+      contrato, busca/paginação em listas já renderizadas). Não tem regra de negócio,
+      cálculo nem chamada de API — tudo isso continua exclusivamente no `index.js`
 - [x] Sistema de ícones em SVG (sprite `<symbol>` inline em `index.html`, sem depender de
       biblioteca externa) — logo, abas de navegação, cards de estatística, botões de
       ação (pagar, editar, excluir, reajustar, anexo, exportar/importar), alternância de
@@ -345,14 +361,16 @@ Contratos.
 - [x] Alternância dark/light, preferência salva no navegador; detecção automática do
       tema do sistema operacional na primeira visita (antes de qualquer escolha manual),
       acompanhando mudanças em tempo real enquanto não houver preferência salva
-- [x] Sistema de design consolidado (`index.css`): antes o site tinha ~15 tamanhos de
-      fonte soltos (de 10px a 23px) e dezenas de valores de espaçamento (padding/
-      margin/gap) diferentes espalhados sem critério — normalizado para 8 tamanhos de
-      fonte (`--text-2xs` a `--text-2xl`, piso de 11px — nada no site fica menor que
-      isso) e 8 valores de espaçamento em múltiplos de 4 (`--space-1` a `--space-10`),
-      todos como variáveis CSS reutilizadas em cada regra. Números importantes (valores
-      em R$ nos cards do Dashboard, valores dentro dos cards de contrato/dívida) ficaram
-      maiores e mais legíveis nessa normalização
+- [x] Sistema de design consolidado (`css/tokens.css`): escala tipográfica única
+      (`--text-2xs` a `--text-3xl`, piso de 11px — nada no site fica menor que isso, fonte
+      Inter com fallback para a fonte do sistema) e escala de espaçamento em múltiplos de
+      8 (`--space-1` a `--space-9`), além de raios (padrão 14px), sombras, durações e
+      curvas de animação — todos como variáveis CSS reutilizadas em cada regra, nenhum
+      valor solto digitado num componente. Números importantes usam `tabular-nums` para
+      alinhar coluna a coluna. ATENÇÃO: `--accent`, `--success`, `--danger`, `--warn`,
+      `--border`, `--text`, `--text-dim` e `--text-faint` são lidos pelo JS dos gráficos
+      (`cssVar()`); os três primeiros precisam ser hex de 6 dígitos (o canvas concatena
+      transparência no fim da cor)
 - [x] Corrigido um bug de espaçamento "duplicado": `.card` tinha `margin-bottom` próprio
       E os containers que o envolvem (`.cards-grid`, `.charts-grid`, `.cards-list`) já
       tinham `gap` — as duas coisas juntas faziam o espaço entre linhas de cards ficar
@@ -394,7 +412,7 @@ Contratos.
 - [x] `README.md` com foco em iniciantes: credenciais padrão em destaque, passo a passo
       de instalação/hospedagem, FAQ, e detalhes técnicos organizados no final
 - [x] `etapas.txt` reorganizado seguindo os 5 grupos de navegação do sistema, com mapa
-      de abas no topo para orientação rápida
+      das telas no topo para orientação rápida
 
 ## ⚠️ PENDENTE / ATENÇÃO ANTES DE PRODUÇÃO
 - [x] Trocar `COOKIE_SECRET` em `api/config.php` por um valor aleatório próprio — não

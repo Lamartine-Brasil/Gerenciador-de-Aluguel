@@ -64,8 +64,8 @@ o projeto não tem dependências.
 Este sistema foi feito para hospedagem compartilhada comum com **PHP + Apache** (cPanel,
 Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servidor.
 
-1. **Envie os arquivos**: copie a pasta inteira do projeto (`index.html`, `index.css`,
-   `index.js`, `api/`, `data/`, `contratos/`) para a hospedagem, mantendo a mesma
+1. **Envie os arquivos**: copie a pasta inteira do projeto (`index.html`, `index.js`,
+   `ui.js`, `css/`, `api/`, `data/`, `contratos/`) para a hospedagem, mantendo a mesma
    organização de pastas
 2. **Acesse pelo navegador** e faça login com `admin` / `12345678`
 3. **Troque a senha na hora**, como explicado na seção acima
@@ -216,9 +216,21 @@ acompanha, e o sistema calcula o valor sugerido a partir dele.
 ### Estrutura de arquivos
 
 ```
-index.html          Estrutura da página (login + app com abas + modais)
-index.css            Estilos (dark mode padrão + tema claro)
-index.js              Toda a lógica do front-end
+index.html           Estrutura da página (login + sidebar + header + telas + modais)
+index.js             Toda a lógica do front-end (dados, regras, renderização)
+ui.js                Camada de interface: sidebar recolhível, drawer no celular,
+                      menus suspensos, busca do header, notificações, abas de
+                      Configurações. Não contém regra de negócio nem chamada de API.
+
+css/tokens.css       Variáveis do design system (cores, tipografia, espaçamento,
+                      raios, sombras, animações) + tema claro/escuro + utilitários
+css/components.css   Componentes reutilizáveis: Button, Card, Input, Table, Badge,
+                      Alert, Dropdown, Modal, Tabs, Tooltip, Pagination, Toast,
+                      Skeleton, Loading, Empty state, Toolbar
+css/layout.css       Casca da aplicação: sidebar fixa, header, área de conteúdo,
+                      drawer no celular, responsividade e impressão
+css/screens.css      Estilos específicos de cada tela (login, dashboard, contratos,
+                      atrasos, timelines, despesas, gráficos, calendário, config)
 
 api/config.php       Constantes (usuário/senha padrão, chave do cookie) e funções de
                       leitura/gravação dos arquivos data/dados.json e data/auth.json
@@ -282,23 +294,54 @@ geração de nova chave — são todas ações de alto impacto.
 
 ### Arquitetura geral
 
-- **Front-end**: `index.html` + `index.css` + `index.js`. Aplicação de página única (SPA):
-  as 11 abas (Dashboard, Imóveis, Contratos, Atrasos, Histórico, Despesas, Gráficos,
-  Relatórios, Calendário, Auditoria, Configurações) são seções que aparecem/somem no mesmo
-  HTML, sem recarregar a página. A barra de navegação agrupa essas abas visualmente em 5
-  blocos (Visão Geral, Cadastros, Financeiro, Análises, Sistema) usando divisores simples.
+- **Front-end**: `index.html` + `css/` + `index.js` + `ui.js`. Aplicação de página única
+  (SPA): as 11 telas (Dashboard, Imóveis, Contratos, Atrasos, Histórico, Despesas,
+  Gráficos, Relatórios, Calendário, Auditoria, Configurações) são seções que aparecem/somem
+  no mesmo HTML, sem recarregar a página. A navegação fica numa **sidebar vertical fixa**
+  (280px, recolhível para 76px com o estado salvo no navegador; vira gaveta no celular),
+  agrupada em 5 blocos: Dashboard, Gestão, Financeiro, Agenda e Sistema. O header traz
+  busca global, atualização de dívidas, notificações, tema claro/escuro e menu do usuário.
+- **Separação de responsabilidades no JS**: `index.js` continua dono de tudo que envolve
+  dados, cálculo e API. `ui.js` só cuida de comportamento visual — ele lê o que o
+  `index.js` já colocou na tela (por exemplo, os alertas do Dashboard viram o painel de
+  notificações do header) e nunca calcula nada por conta própria.
 - **Backend**: PHP puro em `api/`, sem framework. Cada endpoint é um arquivo `.php`
   independente. Toda a comunicação front-end ↔ backend é via `fetch()` com JSON.
 - **Dados**: um único arquivo `data/dados.json` com tudo (imóveis, pessoas, contratos,
   despesas, configuração, auditoria) + `data/auth.json` separado para login, ambos
   protegidos contra acesso direto via `.htaccess`.
-- **Sistema de design**: `index.css` define uma escala tipográfica única (8 tamanhos,
-  `--text-2xs` a `--text-2xl`, piso de 11px) e uma escala de espaçamento única (8
-  valores em múltiplos de 4, `--space-1` a `--space-10`) como variáveis CSS — toda
-  regra do arquivo usa uma dessas variáveis em vez de números soltos, pra manter a
-  aparência coerente em todo o site. Um pequeno conjunto de classes utilitárias
+- **Sistema de design**: `css/tokens.css` concentra toda a identidade visual — escala
+  tipográfica única (`--text-2xs` a `--text-3xl`, piso de 11px, fonte Inter com fallback
+  para a fonte do sistema), escala de espaçamento em múltiplos de 8 (`--space-1` a
+  `--space-9`), raio padrão de 14px, sombras, durações e curvas de animação. Nenhum
+  componente digita cor, tamanho ou espaçamento direto: tudo sai de uma variável, então
+  mudar a aparência do sistema inteiro é mudar esse arquivo. `css/components.css` traz a
+  biblioteca de componentes reutilizáveis, e um pequeno conjunto de utilitários
   (`.text-danger`, `.is-current`, `.mt-sm`/`.mt-md`, `.bg-accent`/`.bg-danger`/
   `.bg-success`) substitui estilos inline nos templates gerados via JS.
+
+  > **Atenção ao mexer nas cores**: `--accent`, `--success`, `--danger`, `--warn`,
+  > `--border`, `--text`, `--text-dim` e `--text-faint` são lidos pelo JavaScript dos
+  > gráficos (`cssVar()` em `index.js`). Precisam continuar existindo nos dois temas, e
+  > `--success`/`--danger`/`--warn` precisam ser **hex de 6 dígitos** — o desenho dos
+  > gráficos de linha concatena transparência no fim da cor (`cor + '26'`).
+
+### Pontos conhecidos para corrigir no `index.js`
+
+Dois detalhes antigos do `index.js` aparecem na interface e **não dá para resolver só no
+CSS** — ficam registrados aqui porque exigem uma alteração pequena na lógica:
+
+1. **Numeração dos dias fora do mês no Calendário.** Em `renderCalendario()`, as células
+   de preenchimento no fim da grade recebem `dia: celulas.length` (o índice do array), o
+   que exibia "37, 38, 39..." depois do dia 31. Como paliativo, o CSS esconde o número
+   dessas células (`.calendar-day.is-outside .calendar-day-number`), para não mostrar
+   informação errada. A correção de verdade é numerar essas células com os primeiros dias
+   do mês seguinte (1, 2, 3...), aí basta remover essa regra do CSS.
+2. **Rótulos dos meses cortados nos gráficos de linha.** Em `renderTrendChart()`, o
+   primeiro e o último ponto ficam a 8px da borda do canvas e o rótulo é desenhado
+   centralizado neles, então metade do texto sai da área visível ("Mar/26" vira "ar/26").
+   Resolve-se aumentando `paddingLeft`/`paddingRight` para ~28px, ou alinhando o primeiro
+   rótulo à esquerda e o último à direita (`ctx.textAlign`).
 
 ### Modelo de dados
 
