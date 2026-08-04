@@ -1916,12 +1916,12 @@ function celulaDivida(c, d, col) {
   const status = getStatus(d);
   switch (col.key) {
     case 'vencimento':
-      return `<td class="col-txt">
+      return `<td class="col-txt col-cabecalho">
         <span class="divida-venc">${formatDate(d.vencimento)}</span>
         ${d.observacao ? `<span class="divida-obs" title="${escapeHtml(d.observacao)}">${icon('file-text')} ${escapeHtml(d.observacao)}</span>` : ''}
       </td>`;
     case 'status':
-      return `<td class="col-txt"><span class="status-badge status-${status}">${statusLabel(status)}</span></td>`;
+      return `<td class="col-txt col-cabecalho"><span class="status-badge status-${status}">${statusLabel(status)}</span></td>`;
     case 'aluguel':    return celulaMoeda(d.aluguel);
     case 'condominio': return celulaMoeda(condominioCobrado(d));
     case 'juros':      return celulaMoeda(d.juros);
@@ -1933,9 +1933,13 @@ function celulaDivida(c, d, col) {
     case 'condDireto': return celulaMoeda(d.condominioDireto ? d.condominio : 0, 'is-fora');
     case 'atraso':     return celulaMoeda(status === 'atrasado' ? calcAtrasoAtual(d) : 0, 'is-deducao');
     case 'dias':
-      return `<td class="${status === 'atrasado' ? 'is-deducao' : 'is-zero'}">${status === 'atrasado' ? diasAtraso(d) : '—'}</td>`;
+      return status === 'atrasado'
+        ? `<td class="is-deducao">${diasAtraso(d)}</td>`
+        : '<td class="is-zero col-vazio">—</td>';
     case 'pagoEm':
-      return `<td class="col-txt${d.dataPagamento ? '' : ' is-zero'}">${d.dataPagamento ? formatDate(d.dataPagamento) : '—'}</td>`;
+      return d.dataPagamento
+        ? `<td class="col-txt">${formatDate(d.dataPagamento)}</td>`
+        : '<td class="col-txt is-zero col-vazio">—</td>';
     case 'acoes':
       return `<td class="col-acoes">
         <div class="divida-acoes">
@@ -2077,12 +2081,12 @@ function colunasDividasFlat(itens) {
 
 function celulaDividaFlat(item, col) {
   if (col.key === 'contrato') {
-    return `<td class="col-txt">
+    return `<td class="col-txt col-cabecalho">
       <span class="divida-venc">#${item.numero || '--'}</span>
       <span class="divida-obs" title="${escapeHtml(item.imovel)}">${escapeHtml(item.imovel)}</span>
     </td>`;
   }
-  if (col.key === 'inquilino') return `<td class="col-txt">${escapeHtml(item.inquilino)}</td>`;
+  if (col.key === 'inquilino') return `<td class="col-txt col-cabecalho">${escapeHtml(item.inquilino)}</td>`;
   if (col.key === 'acoesFlat') {
     const status = getStatus(item);
     return `<td class="col-acoes">

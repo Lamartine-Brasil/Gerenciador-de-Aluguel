@@ -174,10 +174,17 @@ dentro de Contratos, Atrasos ou Histórico.
 - [x] As colunas são decididas por contrato: só entra a coluna que tem valor em alguma
       dívida dele. Um contrato sem condomínio nem corretor fica com quatro colunas de
       dinheiro; o mais completo, com todas
-- [x] Em tela estreita (até 1180px, o que inclui todo celular) a tabela vira **lista**: o
-      cabeçalho some, cada dívida vira um bloco e os valores se acomodam em duas ou três
-      linhas, cada um com o nome do campo na frente. Não há rolagem horizontal — o rótulo
-      vem do `data-rotulo` que o JS grava em cada célula
+- [x] Em tela estreita (até 1180px, o que inclui tablet e celular) a tabela vira uma
+      **grade**, não uma linha corrida: o cabeçalho some, cada dívida vira um bloco e os
+      valores mantêm a mesma leitura da versão larga — rótulo pequeno em cima, valor em
+      destaque embaixo — em 4 colunas fixas (2 abaixo de 620px). Colunas fixas em vez de
+      quebra livre é o que faz os valores alinharem entre si de uma dívida para outra;
+      com os itens embrulhando soltos a lista virava uma bagunça. Não há rolagem
+      horizontal — o rótulo vem do `data-rotulo` que o JS grava em cada célula
+- [x] Nesse modo, o vencimento e o status (mais contrato e inquilino, em Dashboard e
+      Atrasos) abrem o bloco na primeira linha (`.col-cabecalho`), as células vazias sem
+      valor somem em vez de ocupar um espaço da grade só para mostrar um travessão
+      (`.col-vazio`), e os botões fecham o bloco alinhados à direita
 - [x] As células não repetem "R$" (uma legenda abaixo da tabela diz que os valores são em
       R$, e o que cada total significa) — era isso que fazia a tabela não caber na tela.
       Zeros ficam apagados, para a vista cair no que tem valor
