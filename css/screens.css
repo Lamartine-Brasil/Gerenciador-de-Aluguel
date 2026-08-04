@@ -356,102 +356,109 @@
 .divida-obs .icon { width: 12px; height: 12px; vertical-align: -2px; }
 
 /* -----------------------------------------------------------------------------
-   A MESMA TABELA EM TELA ESTREITA — vira uma grade, não uma linha corrida
-   Cada dívida passa a ser um bloco. Os valores mantêm a mesma leitura da versão
-   larga (rótulo pequeno em cima, valor em destaque embaixo) e ficam numa grade
-   de colunas fixas, então alinham entre si em vez de embrulhar de qualquer
-   jeito. Sem cabeçalho e sem rolagem lateral, que é o que atrapalha no celular.
+   A MESMA TABELA QUANDO NÃO CABE — vira uma grade, não uma linha corrida
+   A classe `modo-lista` é posta pelo JS quando a largura natural da tabela passa
+   do espaço disponível (ver ajustarModoDaTabela em index.js). Um breakpoint fixo
+   não serviria: o número de colunas muda de um contrato para outro, a lista
+   achatada do Dashboard tem duas colunas a mais, e a sidebar pode estar
+   recolhida. Medindo, a promessa de "sem rolagem horizontal" vale sempre.
+
+   Neste modo cada dívida vira um bloco e os valores mantêm a mesma leitura da
+   versão larga — rótulo pequeno em cima, valor em destaque embaixo — numa grade
+   de colunas fixas, para alinharem entre si de uma dívida para outra.
 ----------------------------------------------------------------------------- */
-@media (max-width: 1180px) {
-  .dividas-scroll { overflow-x: visible; border: 0; background: none; border-radius: 0; }
-  .dividas-tabela,
-  .dividas-tabela tbody { display: block; }
-  .dividas-tabela thead { display: none; }
-
-  .dividas-tabela tr.divida-row {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: var(--space-4) var(--space-3);
-    padding: var(--space-4);
-    margin-bottom: var(--space-3);
-    background: var(--surface-2);
-    border: 1px solid var(--border-subtle);
-    border-left: 3px solid var(--text-faint);
-    border-radius: var(--radius-sm);
-  }
-  .divida-row.status-ativo    { border-left-color: var(--accent); }
-  .divida-row.status-atrasado { border-left-color: var(--danger); }
-  .divida-row.status-pago     { border-left-color: var(--success); }
-  .divida-row:hover > td { background: none; }
-
-  /* rótulo em cima, valor embaixo — a mesma hierarquia da tabela larga */
-  .dividas-tabela td {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: flex-start;
-    gap: 3px;
-    min-width: 0;
-    padding: 0;
-    border: 0;
-    text-align: left;
-    white-space: normal;
-  }
-  .dividas-tabela td[data-rotulo]::before {
-    content: attr(data-rotulo);
-    color: var(--text-faint);
-    font-size: var(--text-2xs);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    line-height: 1.2;
-    white-space: nowrap;
-  }
-  .dividas-tabela tbody td { font-size: var(--text-base); font-weight: 650; }
-  .dividas-tabela .is-zero { font-weight: 550; }
-
-  /* As células que identificam a dívida abrem o bloco, na primeira linha:
-     na tabela de um contrato são duas (vencimento e status) e ocupam metade
-     cada; na lista achatada são quatro (contrato, inquilino, vencimento,
-     status) e ocupam um quarto cada. */
-  .dividas-tabela .col-cabecalho { grid-column: span 2; }
-  .dividas-tabela tr:has(> .col-cabecalho:nth-of-type(4)) .col-cabecalho { grid-column: span 1; }
-  .divida-row > td:first-child { border-left: 0; }
-  .divida-venc { font-size: var(--text-md); }
-  .divida-obs { max-width: none; white-space: normal; }
-
-  /* Uma célula vazia ("—") não merece um espaço da grade: no modo tabela ela
-     precisa existir para a coluna não desalinhar, aqui só atrapalha. */
-  .dividas-tabela .col-vazio { display: none; }
-
-  /* os botões fecham o bloco, alinhados à direita */
-  .dividas-tabela .col-acoes {
-    position: static;
-    grid-column: 1 / -1;
-    /* a versão em tabela encolhe esta coluna com width: 1%; aqui ela precisa
-       ocupar a linha inteira, senão os botões ficam espremidos num canto */
-    width: auto;
-    align-items: stretch;
-    margin-top: calc(var(--space-1) * -1);
-    padding-top: var(--space-3);
-    padding-left: 0;
-    border-top: 1px solid var(--border-subtle);
-    background: none;
-    box-shadow: none;
-  }
-  .dividas-tabela .col-acoes .divida-acoes { width: 100%; justify-content: flex-end; }
+.dividas-scroll.modo-lista {
+  overflow-x: visible;
+  border: 0;
+  background: none;
+  border-radius: 0;
 }
+.modo-lista .dividas-tabela,
+.modo-lista .dividas-tabela tbody { display: block; }
+.modo-lista .dividas-tabela thead { display: none; }
+
+.modo-lista .dividas-tabela tr.divida-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4) var(--space-3);
+  padding: var(--space-4);
+  margin-bottom: var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--text-faint);
+  border-radius: var(--radius-sm);
+}
+.modo-lista .divida-row.status-ativo    { border-left-color: var(--accent); }
+.modo-lista .divida-row.status-atrasado { border-left-color: var(--danger); }
+.modo-lista .divida-row.status-pago     { border-left-color: var(--success); }
+.modo-lista .divida-row:hover > td { background: none; }
+
+/* rótulo em cima, valor embaixo — a mesma hierarquia da tabela larga */
+.modo-lista .dividas-tabela td {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 3px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  text-align: left;
+  white-space: normal;
+}
+.modo-lista .dividas-tabela td[data-rotulo]::before {
+  content: attr(data-rotulo);
+  color: var(--text-faint);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.modo-lista .dividas-tabela tbody td { font-size: var(--text-base); font-weight: 650; }
+.modo-lista .dividas-tabela .is-zero { font-weight: 550; }
+
+/* As células que identificam a dívida abrem o bloco, na primeira linha: na
+   tabela de um contrato são duas (vencimento e status) e ocupam metade cada; na
+   lista achatada são quatro (contrato, inquilino, vencimento, status). */
+.modo-lista .dividas-tabela .col-cabecalho { grid-column: span 2; }
+.modo-lista .dividas-tabela tr:has(> .col-cabecalho:nth-of-type(4)) .col-cabecalho { grid-column: span 1; }
+.modo-lista .divida-row > td:first-child { border-left: 0; }
+.modo-lista .divida-venc { font-size: var(--text-md); }
+.modo-lista .divida-obs { max-width: none; white-space: normal; }
+
+/* Uma célula vazia ("—") não merece um espaço da grade: no modo tabela ela
+   precisa existir para a coluna não desalinhar, aqui só atrapalha. */
+.modo-lista .dividas-tabela .col-vazio { display: none; }
+
+/* os botões fecham o bloco, alinhados à direita */
+.modo-lista .dividas-tabela .col-acoes {
+  position: static;
+  grid-column: 1 / -1;
+  /* a versão em tabela encolhe esta coluna com width: 1%; aqui ela precisa
+     ocupar a linha inteira, senão os botões ficam espremidos num canto */
+  width: auto;
+  align-items: stretch;
+  margin-top: calc(var(--space-1) * -1);
+  padding-top: var(--space-3);
+  padding-left: 0;
+  border-top: 1px solid var(--border-subtle);
+  background: none;
+  box-shadow: none;
+}
+.modo-lista .dividas-tabela .col-acoes .divida-acoes { width: 100%; justify-content: flex-end; }
 
 /* No celular a grade cai para duas colunas — três valores por linha ficariam
    espremidos demais para um número como "2.472,00". */
 @media (max-width: 620px) {
-  .dividas-tabela tr.divida-row {
+  .modo-lista .dividas-tabela tr.divida-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-3);
   }
-  .dividas-tabela .col-cabecalho,
-  .dividas-tabela tr:has(> .col-cabecalho:nth-of-type(4)) .col-cabecalho { grid-column: span 1; }
-  .dividas-tabela tbody td { font-size: var(--text-sm); }
+  .modo-lista .dividas-tabela .col-cabecalho,
+  .modo-lista .dividas-tabela tr:has(> .col-cabecalho:nth-of-type(4)) .col-cabecalho { grid-column: span 1; }
+  .modo-lista .dividas-tabela tbody td { font-size: var(--text-sm); }
 }
 
 /* Legenda curta abaixo da tabela: onde ficou dito que os números são em R$

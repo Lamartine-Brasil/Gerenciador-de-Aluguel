@@ -26,8 +26,10 @@ cPanel, etc.) e acessar de qualquer lugar pela internet.
 
 > As imagens abaixo usam dados fictícios, só para demonstração.
 
-**Contratos** — cada contrato reúne todas as dívidas mensais do mesmo imóvel e inquilino,
-com as ações (pagar, editar, reajustar, anexar, encerrar) à mão em cada linha.
+**Contratos** — cada contrato reúne todas as dívidas mensais do mesmo imóvel e inquilino
+numa tabela: as colunas acompanham a conta (aluguel → acréscimos → total a cobrar →
+comissão do corretor → total líquido) e só entra a coluna que aquele contrato usa. As ações
+de cada dívida — pagar, gerar recibo, editar, excluir — ficam à mão na própria linha.
 
 ![Contratos](imagens/contratos.png)
 
@@ -37,12 +39,14 @@ escolhido no seletor. Passar o mouse mostra os valores de cada mês.
 ![Gráficos](imagens/graficos.png)
 
 **Calendário** — vencimentos e pagamentos dia a dia, com o fundo da célula colorido pelo
-status, para dar para escanear o mês inteiro de relance.
+status, para dar para escanear o mês inteiro de relance. Três indicadores resumem o mês, e
+clicar num dia abre o detalhe com os mesmos botões de ação das outras telas.
 
 ![Calendário](imagens/calendario.png)
 
-**Relatórios** — totais do ano, mês a mês e comparativo entre anos, com exportação em CSV.
-Aqui no tema claro, que o sistema inteiro acompanha.
+**Relatórios** — fecha o ano ou um mês: a conta aberta de como se chega ao recebido líquido,
+quebra por proprietário, por forma de pagamento e por corretor, mês a mês e comparativo
+entre anos, com exportação em CSV e PDF. Aqui no tema claro, que o sistema inteiro acompanha.
 
 ![Relatórios](imagens/relatorios.png)
 

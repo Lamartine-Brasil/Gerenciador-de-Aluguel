@@ -775,6 +775,8 @@ document.getElementById('tabsNav').addEventListener('click', (e) => {
   if (btn.dataset.tab === 'despesas') renderDespesas();
   if (btn.dataset.tab === 'imoveis') renderImoveis();
   if (btn.dataset.tab === 'usuarios') renderUsuarios();
+  // uma tabela desenhada com a aba escondida foi medida com largura zero
+  ajustarTabelasVisiveis();
 });
 
 /* ===================== MODALS ===================== */
@@ -1894,6 +1896,34 @@ function colunasDividas(c, dividas) {
   if (alguma(d => d.dataPagamento)) cols.push({ key: 'pagoEm', rotulo: 'Pago em', txt: true });
   cols.push({ key: 'acoes', rotulo: '', txt: true, acoes: true });
   return cols;
+}
+
+/* ---- Tabela ou lista? A tabela decide medindo, não por breakpoint ----
+ * O número de colunas muda de um contrato para outro (só entra a coluna que tem
+ * valor), a lista "achatada" do Dashboard e de Atrasos tem duas colunas a mais,
+ * e a sidebar pode estar recolhida — então não existe uma largura de tela que
+ * sirva para todos os casos. Aqui a própria tabela é medida: se não couber no
+ * espaço disponível, vira lista. É o que garante a promessa de "sem rolagem
+ * horizontal" em qualquer combinação.
+ */
+function ajustarModoDaTabela(caixa) {
+  const tabela = caixa.querySelector('table');
+  if (!tabela) return;
+  caixa.classList.remove('modo-lista');          // mede sempre no modo tabela
+  if (tabela.scrollWidth > caixa.clientWidth + 1) caixa.classList.add('modo-lista');
+}
+
+function ajustarTabelasVisiveis() {
+  document.querySelectorAll('.dividas-scroll').forEach(ajustarModoDaTabela);
+}
+
+// Uma observação só, no container de conteúdo: cobre o redimensionar da janela e
+// o recolher da sidebar (que muda a largura sem disparar `resize`).
+if (typeof ResizeObserver === 'function') {
+  const alvo = document.querySelector('.content');
+  if (alvo) new ResizeObserver(ajustarTabelasVisiveis).observe(alvo);
+} else {
+  window.addEventListener('resize', ajustarTabelasVisiveis);
 }
 
 // Injeta o rótulo da coluna na própria célula. Em tela estreita a tabela vira
@@ -5931,6 +5961,7 @@ function renderAll() {
   if (calendarioTab.classList.contains('active')) renderCalendario();
   const despesasTab = document.getElementById('tab-despesas');
   if (despesasTab.classList.contains('active')) renderDespesas();
+  ajustarTabelasVisiveis();
 }
 
 /* ===================== INIT ===================== */
