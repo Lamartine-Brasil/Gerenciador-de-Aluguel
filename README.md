@@ -280,6 +280,13 @@ logados no momento (a assinatura antiga deixa de bater com a chave nova).
 - **Dados**: um único arquivo `data/dados.json` com tudo (imóveis, pessoas, contratos,
   despesas, configuração, auditoria) + `data/auth.json` separado para login, ambos
   protegidos contra acesso direto via `.htaccess`.
+- **Sistema de design**: `index.css` define uma escala tipográfica única (8 tamanhos,
+  `--text-2xs` a `--text-2xl`, piso de 11px) e uma escala de espaçamento única (8
+  valores em múltiplos de 4, `--space-1` a `--space-10`) como variáveis CSS — toda
+  regra do arquivo usa uma dessas variáveis em vez de números soltos, pra manter a
+  aparência coerente em todo o site. Um pequeno conjunto de classes utilitárias
+  (`.text-danger`, `.is-current`, `.mt-sm`/`.mt-md`, `.bg-accent`/`.bg-danger`/
+  `.bg-success`) substitui estilos inline nos templates gerados via JS.
 
 ### Modelo de dados
 

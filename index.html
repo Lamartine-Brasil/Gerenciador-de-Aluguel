@@ -337,7 +337,7 @@
           <canvas id="chartDespesasMensal" height="220"></canvas>
         </div>
         <div class="card chart-card">
-          <div class="panel-header" style="margin:0 0 8px;">
+          <div class="panel-header panel-header-tight">
             <h3>Inadimplência — quem mais atrasa</h3>
             <select id="inadimplenciaAgrupador" class="input select">
               <option value="inquilino">Por inquilino</option>
@@ -436,9 +436,9 @@
       </div>
       <div class="card">
         <div class="calendar-legend">
-          <span class="chart-legend-item"><span class="chart-legend-dot" style="background:var(--accent)"></span> Vencimento ativo</span>
-          <span class="chart-legend-item"><span class="chart-legend-dot" style="background:var(--danger)"></span> Vencimento atrasado</span>
-          <span class="chart-legend-item"><span class="chart-legend-dot" style="background:var(--success)"></span> Pago / pagamento recebido</span>
+          <span class="chart-legend-item"><span class="chart-legend-dot bg-accent"></span> Vencimento ativo</span>
+          <span class="chart-legend-item"><span class="chart-legend-dot bg-danger"></span> Vencimento atrasado</span>
+          <span class="chart-legend-item"><span class="chart-legend-dot bg-success"></span> Pago / pagamento recebido</span>
         </div>
         <div class="calendar-weekdays">
           <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
@@ -535,7 +535,7 @@
         <h3>Pessoas (recebedores / corretores)</h3>
         <p class="modal-subtitle">Cadastre aqui quem pode receber pagamentos e/ou atuar como corretor, para escolher pela lista sem digitar o nome toda vez. A mesma lista alimenta os campos "Quem recebe" e "Corretor".</p>
         <div id="pessoasList" class="cards-list"></div>
-        <form id="addPessoaForm" class="config-form" style="margin-top:14px;">
+        <form id="addPessoaForm" class="config-form mt-md">
           <label class="field">
             <span>Nome *</span>
             <input type="text" id="newPessoaNome" required>
@@ -587,7 +587,7 @@
         <h3>Usuários administradores</h3>
         <p class="modal-subtitle">Adicione outros usuários com acesso total ao sistema (ex: um sócio ou gerente). Todos têm as mesmas permissões.</p>
         <div id="usersList" class="cards-list"></div>
-        <form id="addUserForm" class="config-form" style="margin-top:14px;">
+        <form id="addUserForm" class="config-form mt-md">
           <label class="field">
             <span>Novo usuário *</span>
             <input type="text" id="newUserUsername" required autocomplete="off">
@@ -608,7 +608,7 @@
       <div class="card">
         <h3>Backup do banco de dados</h3>
         <p class="modal-subtitle">Baixe um arquivo com todos os contratos, pagamentos e configurações, ou restaure a partir de um backup salvo anteriormente. Restaurar substitui todos os dados atuais.</p>
-        <div class="contrato-actions" style="margin-top:10px;">
+        <div class="contrato-actions mt-sm">
           <button type="button" class="btn btn-ghost" id="btnExportBackup"><svg class="icon"><use href="#icon-download"></use></svg> Exportar backup (JSON)</button>
           <button type="button" class="btn btn-ghost" id="btnImportBackup"><svg class="icon"><use href="#icon-upload"></use></svg> Restaurar backup (JSON)</button>
           <input type="file" id="inputImportBackup" accept=".json,application/json" class="hidden">
@@ -618,7 +618,7 @@
       <div class="card">
         <h3><svg class="icon"><use href="#icon-alert-triangle"></use></svg> Zona de perigo</h3>
         <p class="modal-subtitle">Apaga permanentemente todos os contratos, pagamentos e configurações salvos no servidor. Esta ação não pode ser desfeita — exporte um backup antes, se quiser manter os dados.</p>
-        <div class="contrato-actions" style="margin-top:10px;">
+        <div class="contrato-actions mt-sm">
           <button type="button" class="btn btn-danger" id="btnDeleteDatabase"><svg class="icon"><use href="#icon-trash"></use></svg> Excluir todos os dados</button>
         </div>
       </div>

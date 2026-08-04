@@ -1360,7 +1360,7 @@ function dividaRowHtml(c, d) {
       </div>
       <div class="divida-row-valores">
         <div><span>Total</span><strong>${formatCurrency(d.total)}</strong></div>
-        ${status === 'atrasado' ? `<div><span>Em atraso</span><strong style="color:var(--danger)">${formatCurrency(atrasoAtual)}</strong></div>` : ''}
+        ${status === 'atrasado' ? `<div><span>Em atraso</span><strong class="text-danger">${formatCurrency(atrasoAtual)}</strong></div>` : ''}
         ${d.juros ? `<div><span>Juros</span><strong>${formatCurrency(d.juros)}</strong></div>` : ''}
         ${d.multa ? `<div><span>Multa</span><strong>${formatCurrency(d.multa)}</strong></div>` : ''}
         ${c.corretorNome ? `<div><span>Corretor (${c.corretorPercentual}%)</span><strong>${formatCurrency(d.aluguel * c.corretorPercentual / 100)}</strong></div>` : ''}
@@ -1460,7 +1460,7 @@ function dividaCardHtml(item) {
       </div>
       <div class="contrato-grid">
         <div><span>Total</span><strong>${formatCurrency(item.total)}</strong></div>
-        ${status === 'atrasado' ? `<div><span>Em atraso</span><strong style="color:var(--danger)">${formatCurrency(atrasoAtual)}</strong></div>` : ''}
+        ${status === 'atrasado' ? `<div><span>Em atraso</span><strong class="text-danger">${formatCurrency(atrasoAtual)}</strong></div>` : ''}
         ${item.quemRecebeu ? `<div><span>Quem recebe</span><strong>${escapeHtml(item.quemRecebeu)}</strong></div>` : ''}
       </div>
       ${item.observacao ? `<div class="contrato-sub">${icon('file-text')} ${escapeHtml(item.observacao)}</div>` : ''}
@@ -1745,7 +1745,7 @@ function renderDespesas() {
           <div class="contrato-title">${escapeHtml(d.descricao)}</div>
           <div class="contrato-sub">${icon('calendar')} ${formatDate(d.data)}${d.contratoId ? ` · ${icon('user')} ${escapeHtml(despesaContratoLabel(d.contratoId))}` : ' · Despesa geral'}</div>
         </div>
-        <strong style="color:var(--danger)">${formatCurrency(d.valor)}</strong>
+        <strong class="text-danger">${formatCurrency(d.valor)}</strong>
       </div>
       <div class="contrato-actions">
         <button type="button" class="btn btn-ghost btn-sm" data-edit-despesa="${d.id}">${icon('pencil')} Editar</button>
@@ -2291,6 +2291,13 @@ document.getElementById('btnDeleteDatabase').addEventListener('click', async () 
 });
 
 /* ===================== CHARTS (canvas nativo) ===================== */
+// O canvas não lê as variáveis de font-size do CSS — por isso os tamanhos de
+// fonte dos gráficos ficam centralizados aqui (mesma escala usada no resto do
+// site: 13px = --text-sm, o piso de legibilidade adotado nos gráficos).
+const CHART_FONT = '13px sans-serif';
+const CHART_FONT_BOLD = 'bold 13px sans-serif';
+const CHART_FONT_LG_BOLD = 'bold 22px sans-serif';
+
 function cssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
@@ -2316,7 +2323,7 @@ function setupCanvas(canvas) {
 
 function drawChartEmptyState(ctx, w, h, texto) {
   ctx.fillStyle = cssVar('--text-faint');
-  ctx.font = '13px sans-serif';
+  ctx.font = CHART_FONT;
   ctx.textAlign = 'center';
   ctx.fillText(texto, w / 2, h / 2);
 }
@@ -2367,12 +2374,12 @@ function renderDonutChart(canvasId, legendId, data, centerValue, centerLabel) {
   ctx.globalCompositeOperation = 'source-over';
 
   ctx.fillStyle = cssVar('--text');
-  ctx.font = 'bold 20px sans-serif';
+  ctx.font = CHART_FONT_LG_BOLD;
   ctx.textAlign = 'center';
   ctx.fillText(centerValue, cx, cy - 2);
   ctx.fillStyle = cssVar('--text-dim');
-  ctx.font = '11px sans-serif';
-  ctx.fillText(centerLabel, cx, cy + 16);
+  ctx.font = CHART_FONT;
+  ctx.fillText(centerLabel, cx, cy + 18);
 
   legendEl.innerHTML = data.map(d => `
     <div class="chart-legend-item">
@@ -2471,7 +2478,7 @@ function renderTrendChart(canvasId, months, values, colorVarName) {
     ctx.fillStyle = color;
     ctx.fill();
 
-    ctx.font = '11px sans-serif';
+    ctx.font = CHART_FONT;
     ctx.textAlign = 'center';
     if (p.v > 0) {
       ctx.fillStyle = textColor;
@@ -2540,7 +2547,7 @@ function renderHorizontalBarChart(canvasId, entries, colorVarName) {
   const labelWidth = 110;
   const barHeight = Math.max(10, Math.min(26, (h - paddingTop) / entries.length - barGap));
 
-  ctx.font = '12px sans-serif';
+  ctx.font = CHART_FONT;
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
 
@@ -2557,9 +2564,9 @@ function renderHorizontalBarChart(canvasId, entries, colorVarName) {
     ctx.fillRect(barX, y, Math.max(barWidth, 2), barHeight);
 
     ctx.fillStyle = valueColor;
-    ctx.font = 'bold 12px sans-serif';
+    ctx.font = CHART_FONT_BOLD;
     ctx.fillText(formatCurrency(entry.value).replace('R$', '').trim(), barX + barWidth + 8, y + barHeight / 2);
-    ctx.font = '12px sans-serif';
+    ctx.font = CHART_FONT;
   });
 }
 
@@ -2650,7 +2657,7 @@ function renderRelatorios() {
       <td>${l.nomeMes}</td>
       <td>${formatCurrency(l.totalPago)}</td>
       <td>${formatCurrency(l.totalDespesas)}</td>
-      <td style="${l.totalAtraso > 0 ? 'color:var(--danger)' : ''}">${formatCurrency(l.totalAtraso)}</td>
+      <td class="${l.totalAtraso > 0 ? 'text-danger' : ''}">${formatCurrency(l.totalAtraso)}</td>
       <td>${l.count}</td>
     </tr>
   `).join('');
@@ -2716,11 +2723,11 @@ function renderComparativoAnual(anoSelecionado) {
   });
 
   document.getElementById('comparativoAnualBody').innerHTML = linhas.map(l => `
-    <tr style="${l.ano === anoSelecionado ? 'font-weight:600;' : ''}">
+    <tr class="${l.ano === anoSelecionado ? 'is-current' : ''}">
       <td>${l.ano}</td>
       <td>${formatCurrency(l.totalPago)}</td>
       <td>${formatCurrency(l.totalDespesas)}</td>
-      <td style="${l.totalAtraso > 0 ? 'color:var(--danger)' : ''}">${formatCurrency(l.totalAtraso)}</td>
+      <td class="${l.totalAtraso > 0 ? 'text-danger' : ''}">${formatCurrency(l.totalAtraso)}</td>
       <td>${l.count}</td>
     </tr>
   `).join('');
@@ -2850,7 +2857,7 @@ function renderCalendario() {
       const cor = st === 'atrasado' ? 'var(--danger)' : st === 'pago' ? 'var(--success)' : 'var(--accent)';
       dots.push(`<span class="calendar-dot" style="background:${cor}"></span>`);
     });
-    pagamentosNoDia.forEach(() => dots.push('<span class="calendar-dot" style="background:var(--success)"></span>'));
+    pagamentosNoDia.forEach(() => dots.push('<span class="calendar-dot bg-success"></span>'));
 
     const totalVencimentos = vencimentos.reduce((sum, d) => sum + d.total, 0);
     const valorLabel = totalVencimentos > 0

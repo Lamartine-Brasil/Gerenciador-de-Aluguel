@@ -338,6 +338,25 @@ Contratos.
 - [x] Alternância dark/light, preferência salva no navegador; detecção automática do
       tema do sistema operacional na primeira visita (antes de qualquer escolha manual),
       acompanhando mudanças em tempo real enquanto não houver preferência salva
+- [x] Sistema de design consolidado (`index.css`): antes o site tinha ~15 tamanhos de
+      fonte soltos (de 10px a 23px) e dezenas de valores de espaçamento (padding/
+      margin/gap) diferentes espalhados sem critério — normalizado para 8 tamanhos de
+      fonte (`--text-2xs` a `--text-2xl`, piso de 11px — nada no site fica menor que
+      isso) e 8 valores de espaçamento em múltiplos de 4 (`--space-1` a `--space-10`),
+      todos como variáveis CSS reutilizadas em cada regra. Números importantes (valores
+      em R$ nos cards do Dashboard, valores dentro dos cards de contrato/dívida) ficaram
+      maiores e mais legíveis nessa normalização
+- [x] Corrigido um bug de espaçamento "duplicado": `.card` tinha `margin-bottom` próprio
+      E os containers que o envolvem (`.cards-grid`, `.charts-grid`, `.cards-list`) já
+      tinham `gap` — as duas coisas juntas faziam o espaço entre linhas de cards ficar
+      maior (e diferente) do espaço entre colunas, na mesma tela. Agora só o container
+      define o espaçamento quando existe um; cards "soltos" (não dentro de grid/lista,
+      como os cards de Configurações) continuam com seu próprio espaçamento
+- [x] Estilos inline soltos (`style="..."`) nos templates de contrato/relatório/
+      histórico/calendário foram substituídos por classes utilitárias reaproveitáveis
+      (`.text-danger`, `.is-current`, `.bg-accent/.bg-danger/.bg-success`, `.mt-sm`,
+      `.mt-md`, `.panel-header-tight`) — mesma aparência, mas agora nenhuma cor ou
+      espaçamento é digitado direto num elemento por fora do sistema de design
 
 ### Usabilidade
 - [x] Atalhos de teclado: `N` abre "Novo contrato", `/` foca a busca de contratos,
