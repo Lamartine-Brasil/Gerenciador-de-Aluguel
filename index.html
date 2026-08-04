@@ -183,6 +183,16 @@
       </div>
 
       <div class="topbar-actions">
+        <!-- Só aparece quando existe pelo menos uma carteira cadastrada (Configurações >
+             Carteiras). Escolher uma carteira aqui filtra o sistema INTEIRO. -->
+        <div class="topbar-carteira hidden" id="carteiraSeletorWrap">
+          <svg class="icon" aria-hidden="true"><use href="#icon-tag"></use></svg>
+          <select id="carteiraSeletor" class="input select select-sm" aria-label="Carteira ativa"
+                  title="Filtra todo o sistema pela carteira escolhida">
+            <option value="">Todas as carteiras</option>
+          </select>
+        </div>
+
         <button id="btnAtualizarTodasDividas" class="btn btn-ghost btn-sm" title="Gerar as dívidas em atraso de todos os contratos até hoje">
           <svg class="icon"><use href="#icon-refresh"></use></svg><span class="btn-label-full">Atualizar dívidas</span>
         </button>
@@ -238,13 +248,6 @@
 
         <!-- Linha 1: indicadores -->
         <div class="cards-grid">
-          <div class="card stat-card stat-accent">
-            <div class="stat-icon"><svg class="icon"><use href="#icon-file-text"></use></svg></div>
-            <div class="stat-info">
-              <span class="stat-value" id="statAtivos">0</span>
-              <span class="stat-label">Contratos ativos</span>
-            </div>
-          </div>
           <div class="card stat-card stat-danger">
             <div class="stat-icon"><svg class="icon"><use href="#icon-alert-triangle"></use></svg></div>
             <div class="stat-info">
@@ -264,6 +267,15 @@
             <div class="stat-info">
               <span class="stat-value" id="statDespesasMesDashboard">R$ 0,00</span>
               <span class="stat-label">Despesas no mês</span>
+            </div>
+          </div>
+          <!-- Só aparece quando existe algum contrato com corretor -->
+          <div class="card stat-card stat-accent hidden" id="statCardCorretor">
+            <div class="stat-icon"><svg class="icon"><use href="#icon-user"></use></svg></div>
+            <div class="stat-info">
+              <span class="stat-value" id="statCorretorMes">R$ 0,00</span>
+              <span class="stat-label">Corretor a pagar no mês</span>
+              <span class="stat-hint" id="statCorretorHint"></span>
             </div>
           </div>
         </div>
@@ -334,14 +346,22 @@
 
           <aside class="split-aside">
             <div class="card">
-              <h3><svg class="icon"><use href="#icon-plus"></use></svg> Novo imóvel</h3>
+              <h3 id="formImovelTitle"><svg class="icon"><use href="#icon-plus"></use></svg> Novo imóvel</h3>
               <p class="modal-subtitle">Cadastre aqui os imóveis para escolher pela lista ao criar um contrato, sem digitar o endereço toda vez.</p>
               <form id="formImovel" class="config-form">
+                <input type="hidden" id="imovelId">
                 <label class="field">
                   <span>Descrição do imóvel *</span>
                   <input type="text" id="newImovelNome" placeholder="Ex: Apartamento 302 - Rua das Flores #123" required>
                 </label>
-                <button type="submit" class="btn btn-primary btn-block">Adicionar imóvel</button>
+                <label class="field hidden" id="campoNewImovelCarteira">
+                  <span>Carteira / proprietário</span>
+                  <select id="newImovelCarteira">
+                    <option value="">Nenhuma (imóvel próprio)</option>
+                  </select>
+                </label>
+                <button type="submit" class="btn btn-primary btn-block" id="btnSalvarImovel">Adicionar imóvel</button>
+                <button type="button" class="btn btn-ghost btn-block hidden" id="btnCancelarEdicaoImovel">Cancelar edição</button>
               </form>
             </div>
           </aside>
@@ -532,6 +552,14 @@
                     <option value="">Nenhum (despesa geral)</option>
                   </select>
                 </label>
+                <!-- Despesa ligada a um contrato herda a carteira dele; só a despesa
+                     geral precisa dizer de qual carteira é. -->
+                <label class="field hidden" id="campoDespCarteira">
+                  <span>Carteira / proprietário</span>
+                  <select id="despCarteira">
+                    <option value="">Nenhuma (imóvel próprio)</option>
+                  </select>
+                </label>
                 <button type="submit" class="btn btn-primary btn-block" id="btnSalvarDespesa">Adicionar despesa</button>
                 <button type="button" class="btn btn-ghost btn-block hidden" id="btnCancelarEdicaoDespesa">Cancelar edição</button>
               </form>
@@ -652,6 +680,17 @@
           </table>
         </div>
 
+        <div class="card table-card hidden" id="relatorioCorretorCard">
+          <h3>Comissão de corretores no ano</h3>
+          <p class="modal-subtitle">Quanto precisa ser pago a cada corretor, somando as dívidas que vencem no ano selecionado. A base de cálculo é <strong>só o valor do aluguel</strong> de cada dívida — condomínio, juros, multa e valores em atraso não entram.</p>
+          <table class="report-table">
+            <thead>
+              <tr><th>Corretor</th><th>Contratos</th><th>Dívidas</th><th>Comissão no ano</th></tr>
+            </thead>
+            <tbody id="relatorioCorretorBody"></tbody>
+          </table>
+        </div>
+
         <div class="card table-card">
           <h3>Mês a mês</h3>
           <table class="report-table">
@@ -756,6 +795,12 @@
           <button type="button" class="seg-tab is-active" data-config-tab="financeiro" role="tab" aria-selected="true">
             <svg class="icon"><use href="#icon-percent"></use></svg> Financeiro
           </button>
+          <button type="button" class="seg-tab" data-config-tab="carteiras" role="tab" aria-selected="false">
+            <svg class="icon"><use href="#icon-tag"></use></svg> Carteiras
+          </button>
+          <button type="button" class="seg-tab" data-config-tab="recibo" role="tab" aria-selected="false">
+            <svg class="icon"><use href="#icon-receipt"></use></svg> Recibo
+          </button>
           <button type="button" class="seg-tab" data-config-tab="acesso" role="tab" aria-selected="false">
             <svg class="icon"><use href="#icon-lock"></use></svg> Conta e acesso
           </button>
@@ -824,6 +869,80 @@
                 </label>
                 <button type="submit" class="btn btn-primary">Adicionar pessoa</button>
               </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Carteiras -->
+        <div data-config-section="carteiras" role="tabpanel" aria-label="Carteiras">
+          <div class="config-grid">
+            <div class="card config-span">
+              <h3><svg class="icon"><use href="#icon-tag"></use></svg> Carteiras (proprietários)</h3>
+              <p class="modal-subtitle">Use carteiras se você administra imóveis de mais de um dono. Cada carteira representa um proprietário (ou um grupo de imóveis), e cada imóvel/contrato pode ser vinculado a uma delas. Com pelo menos uma carteira cadastrada, aparece um seletor no topo do sistema que filtra <strong>tudo</strong> (Dashboard, Contratos, Atrasos, Histórico, Despesas, Gráficos, Relatórios, Calendário) pela carteira escolhida. Se você só administra os próprios imóveis, é só não cadastrar nenhuma — o sistema continua funcionando exatamente como antes.</p>
+              <div id="carteirasList" class="cards-list"></div>
+              <form id="formCarteira" class="config-form mt-md">
+                <input type="hidden" id="carteiraId">
+                <label class="field">
+                  <span>Nome da carteira *</span>
+                  <input type="text" id="carteiraNome" placeholder="Ex: Imóveis do Sr. João" required>
+                </label>
+                <label class="field">
+                  <span>Proprietário</span>
+                  <input type="text" id="carteiraProprietario" placeholder="Ex: João da Silva">
+                </label>
+                <label class="field">
+                  <span>CPF / CNPJ do proprietário</span>
+                  <input type="text" id="carteiraDocumento" placeholder="Ex: 123.456.789-00">
+                </label>
+                <label class="field">
+                  <span>Observação</span>
+                  <input type="text" id="carteiraObservacao" placeholder="Ex: repasse todo dia 10">
+                </label>
+                <p class="modal-subtitle">O proprietário e o CPF/CNPJ podem ser usados no texto do recibo pelos códigos <code>{{proprietario}}</code> e <code>{{proprietario_documento}}</code>.</p>
+                <button type="submit" class="btn btn-primary" id="btnSalvarCarteira">Adicionar carteira</button>
+                <button type="button" class="btn btn-ghost hidden" id="btnCancelarEdicaoCarteira">Cancelar edição</button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recibo -->
+        <div data-config-section="recibo" role="tabpanel" aria-label="Recibo">
+          <div class="config-grid">
+            <div class="card config-span">
+              <h3><svg class="icon"><use href="#icon-receipt"></use></svg> Texto do recibo</h3>
+              <p class="modal-subtitle">Aqui você edita <strong>só o texto</strong> do recibo. Todos os dados (inquilino, imóvel, valores, datas...) são preenchidos automaticamente pelo sistema no momento em que o recibo é gerado — para isso, escreva os <strong>códigos</strong> listados ao lado no meio do texto. Onde estiver <code>{{inquilino}}</code>, por exemplo, sai o nome do inquilino daquele pagamento.</p>
+              <form id="formRecibo" class="config-form">
+                <label class="field">
+                  <span>Título do recibo</span>
+                  <input type="text" id="reciboTitulo" placeholder="Ex: RECIBO DE ALUGUEL">
+                </label>
+                <label class="field">
+                  <span>Cidade (usada nos códigos <code>{{cidade}}</code> e <code>{{cidade_data}}</code>)</span>
+                  <input type="text" id="reciboCidade" placeholder="Ex: Belo Horizonte">
+                </label>
+                <label class="field">
+                  <span>Corpo do recibo</span>
+                  <textarea id="reciboCorpo" rows="12" spellcheck="true"></textarea>
+                </label>
+                <label class="field">
+                  <span>Rodapé (data, assinatura...)</span>
+                  <textarea id="reciboRodape" rows="6" spellcheck="true"></textarea>
+                </label>
+                <p class="modal-subtitle">As quebras de linha são respeitadas exatamente como digitadas. Um código que não existir é apagado do texto final (não sai escrito no recibo).</p>
+                <div class="contrato-actions">
+                  <button type="submit" class="btn btn-primary">Salvar texto do recibo</button>
+                  <button type="button" class="btn btn-ghost" id="btnPreviaRecibo"><svg class="icon"><use href="#icon-eye"></use></svg> Ver prévia</button>
+                  <button type="button" class="btn btn-ghost" id="btnRestaurarRecibo"><svg class="icon"><use href="#icon-refresh"></use></svg> Restaurar texto padrão</button>
+                </div>
+                <p id="reciboSaved" class="success-msg hidden">Texto do recibo salvo!</p>
+              </form>
+            </div>
+
+            <div class="card config-span">
+              <h3><svg class="icon"><use href="#icon-code"></use></svg> Códigos disponíveis</h3>
+              <p class="modal-subtitle">Clique em qualquer código para inseri-lo no ponto onde estava o cursor (no último campo em que você clicou). A coluna da direita mostra um exemplo de como aquele código sai no recibo pronto.</p>
+              <div id="reciboCodigos" class="codigo-grupos"></div>
             </div>
           </div>
         </div>
@@ -957,6 +1076,12 @@
             <option value="" disabled selected>Selecione um imóvel...</option>
           </select>
         </label>
+        <label class="field hidden" id="fCampoCarteira">
+          <span>Carteira / proprietário</span>
+          <select id="fCarteira">
+            <option value="">Nenhuma (imóvel próprio)</option>
+          </select>
+        </label>
         <label class="field" id="fCampoInquilino">
           <span>Inquilino *</span>
           <input type="text" id="fInquilino" placeholder="Ex: Maria Silva" required>
@@ -1006,6 +1131,13 @@
           <input type="number" id="fCondominio" step="0.01" min="0" placeholder="0,00">
         </label>
         <label class="field">
+          <span>Quem paga o condomínio?</span>
+          <select id="fCondominioDireto">
+            <option value="0">Eu cobro junto com o aluguel e repasso</option>
+            <option value="1">O inquilino paga direto (não passa por mim)</option>
+          </select>
+        </label>
+        <label class="field">
           <span>Valor em atraso já existente (R$)</span>
           <input type="number" id="fValorAtraso" step="0.01" min="0" placeholder="0,00">
         </label>
@@ -1016,15 +1148,19 @@
       </div>
       <p class="modal-subtitle hidden" id="fSemImovelHint">Nenhum imóvel cadastrado ainda. Cadastre um na aba <strong>Imóveis</strong> antes de criar um contrato.</p>
       <p class="modal-subtitle" id="fRetroativoHint">Contrato antigo? Se a data de início já passou, o sistema gera automaticamente uma dívida para cada mês, do mês de início até o mês atual (útil para lançar de uma vez o histórico de um contrato antigo).</p>
-      <p class="modal-subtitle" id="fCorretorHint">Se houver corretor, o percentual informado não é somado ao total cobrado do inquilino — é só um cálculo informativo de quanto do aluguel recebido não é receita sua (mesma lógica do condomínio).</p>
+      <p class="modal-subtitle" id="fCorretorHint">A comissão do corretor <strong>não é cobrada do inquilino</strong> (não entra no total a cobrar), mas <strong>é deduzida do total líquido</strong> — é dinheiro que vai ser pago a ele, então não fica com o proprietário. O condomínio funciona parecido: é cobrado do inquilino e depois deduzido, porque também é repassado.</p>
       <p class="modal-subtitle" id="fCaucaoHint">O valor da caução não é somado a nenhum total — é só uma anotação informativa no contrato (o valor é, em teoria, devolvido no final).</p>
       <label class="field">
         <span>Observação</span>
         <textarea id="fObservacao" rows="2" placeholder="Observações adicionais (opcional)"></textarea>
       </label>
       <div class="total-preview">
-        <span>Total calculado:</span>
+        <span>Total a cobrar do inquilino:</span>
         <strong id="fTotalPreview">R$ 0,00</strong>
+      </div>
+      <div class="total-preview total-preview-liquido hidden" id="fLiquidoPreviewWrap">
+        <span>Total líquido (menos corretor e condomínio):</span>
+        <strong id="fLiquidoPreview">R$ 0,00</strong>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
@@ -1050,6 +1186,12 @@
           <option value="" disabled>Selecione um imóvel...</option>
         </select>
       </label>
+      <label class="field hidden" id="infoCampoCarteira">
+        <span>Carteira / proprietário</span>
+        <select id="infoCarteira">
+          <option value="">Nenhuma (imóvel próprio)</option>
+        </select>
+      </label>
       <label class="field">
         <span>Inquilino *</span>
         <input type="text" id="infoInquilino" required>
@@ -1067,7 +1209,7 @@
       </label>
       <div class="field">
         <span>Corretor (opcional)</span>
-        <p class="modal-subtitle">O percentual do corretor não é somado ao total cobrado do inquilino — é só um cálculo informativo de quanto do aluguel recebido não é receita do proprietário (mesma lógica do condomínio: passa pela sua mão, mas não é seu).</p>
+        <p class="modal-subtitle">A comissão do corretor <strong>não é cobrada do inquilino</strong> (não entra no total a cobrar), mas <strong>é deduzida do total líquido</strong> — é dinheiro que vai ser pago a ele, então não fica com o proprietário.</p>
         <label class="field">
           <span>Nome do corretor</span>
           <select id="infoCorretorNome">
@@ -1113,6 +1255,20 @@
     <form id="formPagamento" class="modal-body">
       <input type="hidden" id="pagDividaId">
       <p class="modal-subtitle" id="pagContratoInfo"></p>
+
+      <!-- Composição do valor sugerido, para deixar claro de onde ele sai -->
+      <div id="pagExtrato"></div>
+
+      <!-- Só aparece quando a dívida está vencida: o acréscimo por atraso NÃO
+           entra no valor sugerido, fica como um botão para somar se quiser -->
+      <div class="alert-banner alert-banner-inline hidden" id="pagAtrasoAviso">
+        <div>
+          <strong>Esta parcela está vencida.</strong>
+          <span id="pagAtrasoTexto"></span>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="btnSomarAtraso">Somar ao valor</button>
+      </div>
+
       <label class="field">
         <span>Data do pagamento *</span>
         <input type="date" id="pagData" required>
@@ -1129,6 +1285,7 @@
         <span>Valor pago (R$) *</span>
         <input type="number" id="pagValor" step="0.01" min="0" required>
       </label>
+      <p class="modal-subtitle">Você pode receber um valor <strong>menor</strong> que o sugerido (abrindo mão dos juros/multa, por exemplo) — a parcela é quitada por inteiro do mesmo jeito, já que a quitação é sempre da parcela toda. O valor digitado aqui é o que fica registrado no histórico e no recibo.</p>
       <label class="field">
         <span>Forma de pagamento *</span>
         <select id="pagForma" required>
@@ -1231,8 +1388,6 @@
 
 <!-- toast -->
 <div id="toast" class="toast hidden"></div>
-
-<canvas id="hiddenReportCanvas" width="900" height="1100" class="hidden"></canvas>
 
 <script src="index.js"></script>
 <script src="ui.js"></script>

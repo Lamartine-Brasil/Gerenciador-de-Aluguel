@@ -240,6 +240,23 @@
   margin: 0 var(--space-1);
 }
 
+/* Seletor de carteira: só existe quando há carteiras cadastradas (multi-proprietário) */
+.topbar-carteira {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-dim);
+  min-width: 0;
+}
+.topbar-carteira .icon { flex-shrink: 0; }
+.topbar-carteira select {
+  max-width: 190px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  background-color: var(--surface-2);
+  font-size: var(--text-sm);
+}
+
 .user-chip {
   display: inline-flex;
   align-items: center;
@@ -400,6 +417,8 @@
   .user-chip { padding: 4px; }
   .btn-label-full { display: none; }
   .topbar-divider { display: none; }
+  .topbar-carteira .icon { display: none; }
+  .topbar-carteira select { max-width: 130px; }
 }
 
 @media (max-width: 560px) {
@@ -423,7 +442,7 @@
   .topbar,
   .toolbar,
   .contrato-actions,
-  .divida-row-actions,
+  .dividas-tabela .col-acoes,
   .panel-actions,
   .pagination,
   .seg-tabs,

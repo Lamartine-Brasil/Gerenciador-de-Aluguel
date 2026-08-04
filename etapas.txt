@@ -1,12 +1,103 @@
-# STATUS DO PROJETO - Sistema de Gerenciamento de Aluguéis
+# STATUS DO PROJETO — Sistema de Gerenciamento de Aluguéis
 
-Este arquivo reflete o estado ATUAL do projeto (não é um histórico de fases nem um changelog
-por data). Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
+Este arquivo descreve o estado ATUAL do sistema. Não é changelog nem histórico de fases:
+cada item é algo que existe e funciona hoje. Ao implementar algo novo, atualize a seção
+correspondente aqui e em README.md, em vez de acrescentar uma seção nova no fim.
 
-## Mapa das telas do sistema
+Organização deste documento:
 
-A navegação fica numa sidebar vertical fixa (280px, recolhível para 76px, vira gaveta no
-celular) com as 11 telas agrupadas em 5 blocos rotulados:
+  1. Conceitos que valem para o sistema inteiro   (leia primeiro — o resto depende disso)
+  2. Telas, na ordem da navegação
+  3. Fundações: dados, backend, interface, segurança
+  4. Pendências, decisões conscientes e ideias
+
+--------------------------------------------------------------------------------
+1. CONCEITOS QUE VALEM PARA O SISTEMA INTEIRO
+--------------------------------------------------------------------------------
+
+1.1 Contrato e dívida
+- Um **contrato** é o acordo (imóvel + inquilino) e guarda dentro de si uma lista de
+  **dívidas**: uma por mês/ciclo de cobrança, cada uma com vencimento, valores próprios,
+  status e pagamentos. Um contrato antigo lançado retroativamente vira 1 contrato com N
+  dívidas em aberto — não N contratos separados.
+- Cada dívida guarda os próprios valores. Reajustar o contrato muda o padrão e as dívidas
+  em aberto; dívidas já pagas mantêm o valor histórico.
+- Status de uma dívida: **ativo** (a vencer), **atrasado** (venceu, não pago), **pago**.
+
+1.2 Os dois totais (a regra financeira central)
+    Total a cobrar = aluguel − desconto + juros + multa + condomínio cobrado
+    Total líquido  = total a cobrar − comissão do corretor − condomínio cobrado
+
+- **Total a cobrar** é o que o inquilino deve. É a base dos juros/multa por atraso, do
+  valor sugerido no pagamento e do recibo.
+- **Total líquido** é o que de fato sobra para o proprietário.
+- Comissão do corretor e condomínio **subtraem**, porque são repassados: o dinheiro passa
+  pela mão do proprietário mas não fica com ele. A diferença entre os dois é que o
+  condomínio (quando cobrado junto) entra no total a cobrar e sai de novo no líquido,
+  enquanto a comissão nunca é cobrada do inquilino — sai só do lado do proprietário.
+- Quando não há corretor nem condomínio não existe dedução nenhuma: a tela mostra um
+  "Total" só, sem os dois rótulos, para não complicar quem não usa isso.
+- Onde isso aparece: na tabela de dívidas de cada contrato, nos cards de dívida
+  (Dashboard, Atrasos, Calendário), na prévia do formulário, no modal de pagamento, no PDF
+  e nas exportações.
+  Uma função só concentra cada conta: `calcTotal()`, `comissaoCorretor()`,
+  `deducoesDivida()`, `totalLiquidoDivida()`, `valorLiquidoPagamento()`.
+
+1.3 Comissão do corretor
+- Sempre um percentual do **aluguel** da dívida, e só dele. Não entram condomínio, juros,
+  multa nem valor em atraso. Garantido em um lugar só: `comissaoCorretor()`.
+- Corretor é opcional por contrato: nome escolhido da lista de Pessoas + percentual
+  (padrão configurável, 5% de fábrica). Com "Nenhum" selecionado a comissão não existe.
+- Quanto pagar a cada corretor aparece em dois lugares: card "Corretor a pagar no mês" no
+  Dashboard (com a quebra por corretor) e tabela "Comissão de corretores no ano" em
+  Relatórios (também no CSV do relatório).
+
+1.4 Condomínio: cobrado junto ou pago direto
+- Escolha por dívida, no campo "Quem paga o condomínio?" (herdada do contrato ao gerar as
+  dívidas mensais):
+  - **Cobro junto e repasso** — entra no total a cobrar e sai de novo no total líquido.
+  - **O inquilino paga direto** — não entra no total a cobrar nem sai do líquido; o
+    dinheiro nunca passa pelo proprietário. Fica só como anotação do valor, exibida
+    apagada e fora da conta.
+- Vale para telas, recibo, PDF e CSVs: `condominioCobrado()` é quem decide.
+
+1.5 Caução
+- Valor opcional por contrato. É só anotação: nunca soma em nenhum total, dívida, atraso
+  ou relatório, já que em teoria é devolvida no fim. "Devolver caução" registra data,
+  valor e observação (e vira "Editar devolução" depois), também sem afetar total nenhum.
+
+1.6 Carteiras (multi-imóvel / multi-proprietário)
+- Uma **carteira** agrupa os contratos de um mesmo proprietário — para quem administra
+  imóveis de terceiros. Cadastro em Configurações > Carteiras (nome, proprietário,
+  CPF/CNPJ, observação).
+- Totalmente opcional: sem nenhuma carteira cadastrada o seletor do topo não aparece, os
+  campos "Carteira" ficam escondidos e o sistema se comporta como um proprietário só.
+- Com pelo menos uma carteira, um seletor no header filtra o sistema INTEIRO (Dashboard,
+  Contratos, Atrasos, Histórico, Despesas, Gráficos, Relatórios, Calendário e as
+  exportações). A escolha fica salva no navegador (`aluguelApp_carteira`).
+- O filtro é aplicado num ponto só, em três funções que substituem `state.*` em tudo que
+  é **leitura para exibir ou somar**: `contratosVisiveis()`, `despesasVisiveis()`,
+  `imoveisVisiveis()`. Escrita continua indo direto no `state`, sempre por id — por isso
+  "Atualizar dívidas" segue rodando para todos os contratos, independente do filtro: é
+  manutenção de dados, e pular contratos por causa de um filtro de tela seria pior.
+- Carteira do contrato é preenchida sozinha ao escolher um imóvel que já tem carteira.
+  Despesa ligada a contrato herda a carteira dele; só a despesa geral escolhe a própria.
+- Remover uma carteira não apaga nada: contratos, imóveis e despesas dela voltam a contar
+  como "sem carteira" (imóvel próprio), com aviso de quantos itens serão afetados.
+
+1.7 Convenções de valores nas telas
+- "Recebido" em Relatórios, Gráficos e Histórico é sempre **líquido**.
+- "Total em atraso" em Atrasos, Relatórios e Gráficos é o **valor cheio devido**
+  (total a cobrar + juros/multa) — é dívida em aberto, não receita.
+- Exceção consciente: o card "Total em atraso" do Dashboard soma só o componente de
+  juros/multa, como resumo rápido.
+
+--------------------------------------------------------------------------------
+2. TELAS
+--------------------------------------------------------------------------------
+
+Sidebar vertical fixa (280px, recolhível para 76px, gaveta no celular) com 11 telas em 5
+blocos:
 
   Dashboard
   GESTÃO      │ Imóveis, Contratos, Atrasos, Histórico
@@ -14,492 +105,437 @@ celular) com as 11 telas agrupadas em 5 blocos rotulados:
   AGENDA      │ Calendário
   SISTEMA     │ Auditoria, Configurações
 
-As seções abaixo seguem a ordem antiga de leitura (Dashboard, cadastros, financeiro,
-análises, sistema), que continua útil para navegar este documento. "Pagamentos" não é uma
-tela — é o modal de registrar pagamento, acessado de dentro de Contratos ou Atrasos — por
-isso aparece logo depois de Contratos.
+"Pagamento" e "Recibo" não são telas: são um modal e uma janela de impressão, acessados de
+dentro de Contratos, Atrasos ou Histórico.
 
-## ✅ IMPLEMENTADO E FUNCIONANDO
+2.1 Login e conta
+- [x] Tela de login (usuário + senha), validada no servidor (`api/login.php`)
+- [x] Sessão por cookie assinado (HMAC-SHA256), 30 dias, HttpOnly + SameSite=Lax — sem
+      `session_start()`, sem estado de sessão no servidor. Permanece logado ao trocar de
+      aba ou reabrir o navegador; "Sair" limpa a sessão
+- [x] Senha sempre com `password_hash`, mínimo 8 caracteres em qualquer senha nova
+- [x] Bloqueio por tentativas: 5 erros seguidos do mesmo IP bloqueiam por 15 minutos
+      (`data/login_attempts.json`, fora do controle de versão)
+- [x] Múltiplos administradores, todos com acesso total. Listar/adicionar/remover em
+      Configurações, sempre confirmando a própria senha (é ação de alto impacto). Não dá
+      para remover a si mesmo nem o último usuário
+- [x] Usuário/senha padrão `admin` / `12345678`, só na primeira execução
+- [x] `data/auth.json` de usuário único é migrado sozinho para o formato com lista
 
-### Login e conta
-- [x] Tela de login (usuário + senha)
-- [x] Autenticação validada no servidor (`api/login.php`)
-- [x] Sessão via cookie assinado (HMAC-SHA256), 30 dias, HttpOnly + SameSite=Lax — não usa
-      `session_start()` do PHP, não guarda nada de sessão no servidor
-- [x] Permanece logado ao trocar de aba/página ou reabrir o navegador
-- [x] Botão "Sair" limpa a sessão
-- [x] Troca de usuário/senha pela tela de Configurações (exige senha atual)
-- [x] Usuário/senha padrão: `admin` / `12345678` (só na primeira execução)
-- [x] Senha sempre salva com `password_hash` (nunca texto puro), mínimo 8 caracteres em
-      qualquer senha nova (própria ou de outro usuário) — antes era só 4
-- [x] Bloqueio por tentativas de login (`api/login.php`): 5 tentativas erradas seguidas
-      do mesmo IP bloqueiam novas tentativas (mesmo com a senha certa) por 15 minutos.
-      Guardado em `data/login_attempts.json` (protegido pelo mesmo `.htaccess` de
-      `data/`, e fora do controle de versão — é só um contador temporário)
-- [x] Múltiplos usuários administradores, todos com as mesmas permissões (acesso total).
-      Em Configurações: listar, adicionar e remover outros usuários — as duas ações
-      exigem confirmar a própria senha atual (é uma ação de alto impacto: dá acesso
-      total a alguém novo, ou tira o acesso de alguém). Não é possível remover a si
-      mesmo nem remover o último usuário restante. `data/auth.json` antigo
-      (usuário único) é migrado automaticamente para o novo formato com lista de
-      usuários no primeiro acesso, sem exigir nenhuma ação manual
+2.2 Dashboard
+- [x] Cards: total em atraso, próximo vencimento, despesas do mês. "Contratos ativos" não
+      tem card próprio — a lista logo abaixo já mostra isso, e o número continua no
+      "Resumo financeiro" no fim da tela
+- [x] Card "Corretor a pagar no mês", com a quebra por corretor logo abaixo do valor —
+      só aparece quando algum contrato tem corretor
+- [x] Alerta de dívidas vencendo em até 5 dias (laranja) e de contratos no aniversário de
+      reajuste (azul), com cores diferentes para não se confundirem. Cada item é clicável:
+      o de vencimento leva ao contrato em Contratos (busca por "#número"); o de reajuste
+      abre o modal "Reajustar" já com o valor sugerido
+- [x] Lista das dívidas mais recentes, com a mesma linha de valores usada em Contratos
 
-### Visão Geral — Dashboard
-- [x] Card: total de dívidas ativas (não pagas e dentro do prazo)
-- [x] Card: total em atraso (R$) — soma só o componente de juros/multa (resumo rápido,
-      diferente da convenção "valor cheio" usada em Atrasos/Relatórios — decisão consciente)
-- [x] Card: próximo vencimento
-- [x] Card: total de despesas lançadas no mês atual
-- [x] Alerta de dívidas vencendo nos próximos 5 dias e alerta de contratos no "aniversário"
-      de reajuste (1 ano desde o último reajuste, ou desde o início se nunca reajustado, com
-      o valor sugerido) — os dois alertas têm cores diferentes (vencimento em laranja,
-      reajuste em azul) para não se confundirem visualmente, e cada item dentro deles é
-      clicável: no de vencimento, leva direto para o contrato na aba Contratos (busca
-      automaticamente por "#número"); no de reajuste, abre direto o modal "Reajustar" já
-      com o valor sugerido preenchido
-- [x] Lista das dívidas mais recentes
+2.3 Imóveis
+- [x] Cadastro reutilizável (descrição livre, ex: "Apartamento 302 - Rua das Flores #123"),
+      com busca e paginação
+- [x] Cada imóvel pode ser vinculado a uma carteira. O seletor de imóvel dos contratos
+      mostra só os imóveis da carteira ativa
+- [x] Editar carrega o imóvel no formulário ao lado (que vira "Editar imóvel"), em vez do
+      `prompt` antigo — a carteira é um seletor, não dava para editar por prompt
+- [x] Renomear um imóvel atualiza também os contratos que usavam a descrição antiga
+      (pensado para corrigir digitação); remover não afeta contratos existentes
+- [x] Ao criar/editar um contrato o imóvel vem desse cadastro, nunca digitado. Sem nenhum
+      imóvel cadastrado, um aviso no formulário manda cadastrar um primeiro
 
-### Cadastros — Imóveis
-- [x] Aba dedicada de cadastro de imóveis (descrição livre, ex: "Apartamento 302 - Rua
-      das Flores #123"), gerenciada como uma lista simples (adicionar/editar/remover)
-- [x] Editar o nome/descrição de um imóvel já cadastrado atualiza também todos os
-      contratos que já usavam a descrição antiga (diferente de remover, que não afeta
-      contratos existentes) — pensado para corrigir erros de digitação sem deixar
-      contratos antigos "órfãos" com um nome que não existe mais na lista
-- [x] Ao criar ou editar um contrato, o imóvel é escolhido de um seletor alimentado por
-      essa lista, em vez de digitado como texto livre — evita erros de digitação e
-      duplicidade. Se não houver nenhum imóvel cadastrado ainda, um aviso no formulário
-      de novo contrato indica para cadastrar um na aba Imóveis primeiro
-- [x] Remover um imóvel da lista não afeta contratos que já usam aquela descrição
-
-### Cadastros — Contratos
-- [x] Modelo de dados: um **contrato** (imóvel + inquilino, dados compartilhados) guarda
-      dentro de si uma lista de **dívidas** (uma por mês/ciclo de cobrança: vencimento,
-      valores, se foi paga, pagamentos) — em vez de um contrato = um vencimento só. Um
-      contrato antigo lançado retroativamente vira 1 contrato com N dívidas em aberto,
-      não N contratos separados (bug real relatado e corrigido nessa reestruturação).
-      Migração automática e transparente do formato antigo, sem perder nenhum dado,
-      testada com dados reais de produção antes de entrar no ar
-- [x] Listar, criar, editar, excluir — 1 card por contrato, com a lista de dívidas
-      daquele contrato dentro do card (cada dívida com seu próprio status, valores e
-      ações de pagar/editar/excluir)
-- [x] Número sequencial único gerado automaticamente na criação (`#1`, `#2`...), exibido
-      no card do contrato e nos modais de pagamento/histórico, usado só para identificar
-      o contrato (não tem relação com o `id` interno). Nunca se repete, mesmo depois de
-      excluir contratos. Também entra na busca (buscar por "#12" encontra o contrato 12).
-      Contratos de instalações antigas (sem número) recebem um automaticamente na
-      primeira vez que os dados são carregados, na ordem de criação
-- [x] Campos do contrato (compartilhados entre as dívidas): imóvel, inquilino, quem
-      recebe (padrão), data de início, dia de pagamento, anexo do contrato assinado,
-      caução (opcional)
+2.4 Contratos
+- [x] Um card por contrato, com as dívidas dentro em forma de **tabela**: os rótulos
+      aparecem uma vez só, no cabeçalho, e as colunas ficam alinhadas entre todos os meses
+      — dá para comparar a mesma coluna de doze dívidas correndo o olho para baixo.
+      As colunas seguem a ordem do extrato (Venc. → Status → Aluguel → acréscimos →
+      desconto → = A cobrar → − Corretor → = Líquido → Atraso → Dias → Pago em → ações)
+- [x] As colunas são decididas por contrato: só entra a coluna que tem valor em alguma
+      dívida dele. Um contrato sem condomínio nem corretor fica com quatro colunas de
+      dinheiro; o mais completo, com todas
+- [x] As células não repetem "R$" (uma legenda abaixo da tabela diz que os valores são em
+      R$, e o que cada total significa) — era isso que fazia a tabela não caber na tela.
+      Zeros ficam apagados, para a vista cair no que tem valor
+- [x] Ações da dívida (pagar, recibo, editar, excluir) são botões só de ícone, com `title`
+      e `aria-label`; a coluna delas fica grudada na direita, então continua alcançável
+      quando a tabela precisa rolar na horizontal em tela estreita
+- [x] Número sequencial único por contrato (`#1`, `#2`...), gerado na criação, nunca
+      repetido mesmo depois de exclusões, e pesquisável ("#12"). Contratos de instalações
+      antigas recebem um automaticamente no primeiro carregamento
+- [x] Campos do contrato: imóvel, carteira, inquilino, quem recebe (padrão), data de
+      início, dia de pagamento, corretor + percentual, caução, anexo do contrato assinado
 - [x] Campos de cada dívida: vencimento, aluguel, desconto, juros, multa, condomínio,
-      valor em atraso, observação — total calculado automaticamente
-- [x] Busca por inquilino, imóvel ou número do contrato (`#12`); filtro por ano, mês e
-      status (um contrato aparece se pelo menos uma das suas dívidas bater com o filtro)
-- [x] Ao criar um contrato novo, os campos Juros e Multa são digitados em percentual
-      (%) do aluguel, não mais em R$ — vêm pré-preenchidos com a taxa de juros/multa
-      configurada em Configurações (a mesma usada no cálculo automático de atraso) e
-      são convertidos para R$ ao salvar a dívida. Na edição de uma dívida já existente,
-      continuam sendo digitados direto em R$ (valor fixo daquele mês, sem recalcular)
-- [x] Criação de contrato pede "Data de início do contrato" e "Dia de pagamento" (1-31)
-      — o primeiro vencimento é calculado a partir desses dois campos (com ajuste
-      automático se o dia não existir naquele mês, ex: dia 31 em fevereiro vira o
-      último dia do mês)
-- [x] Lançamento retroativo de contratos antigos: se a data de início informada já
-      passou, o sistema gera automaticamente uma dívida para cada mês seguinte (mesmo
-      dia de pagamento, com ajuste automático em meses menores) até o mês atual, todas
-      dentro do MESMO contrato — evita ter que cadastrar manualmente cada mês em atraso.
-      Pede confirmação antes, mostrando quantas dívidas serão criadas. O "valor em
-      atraso já existente" só é aplicado na dívida mais recente gerada, não em todas
-- [x] Botão "Atualizar dívidas" em cada contrato: gera as dívidas que faltam entre a
-      última já existente e o mês atual, usando os valores padrão atuais do contrato —
-      é assim que um contrato "cresce" mês a mês conforme o tempo passa. Botão global no
-      topo do sistema faz isso de uma vez para todos os contratos, e a mesma checagem
-      roda sozinha, silenciosamente, toda vez que o sistema é aberto (login) — garante
-      que as dívidas ficam sempre em dia sem depender de cron no servidor nem de o
-      usuário lembrar de clicar em nada
-- [x] Editar contrato (dados compartilhados: imóvel, inquilino, quem recebe, caução,
-      corretor, anexo) é uma tela separada de editar uma dívida específica (vencimento e
-      valores daquele mês)
-- [x] Lista paginada (20 contratos por página), com botões Anterior/Próxima e indicador
-      de página. A página volta para 1 automaticamente ao mudar busca ou filtros
-- [x] Anexar o contrato assinado (PDF, JPG ou PNG, até 15MB) — um por contrato (não por
-      dívida), pela tela "Editar contrato". Arquivos ficam em `contratos/` (pasta
-      protegida por `.htaccess`, como `data/`), renomeados automaticamente no servidor
-      para `nomedoinquilino-imovel-idcurto.ext` (removendo acentos e caracteres
-      especiais). Só é possível anexar em um contrato já existente
-- [x] Reajustar valor: botão "Reajustar" no contrato lança um novo valor de aluguel —
-      atualiza o valor padrão do contrato (usado em dívidas futuras) e também todas as
-      dívidas ainda não pagas; dívidas já pagas mantêm o valor histórico. Fica
-      registrado na Auditoria com o valor antigo, o novo e quantas dívidas foram
-      atualizadas. Qualquer usuário administrador pode reajustar (decisão consciente:
-      sem restrição de usuário específico)
-- [x] Excluir contrato apaga o contrato inteiro e todas as suas dívidas (com aviso
-      mostrando quantas); excluir uma dívida específica remove só aquele mês, mantendo
-      o resto do contrato
-- [x] Corretor (opcional, por contrato): nome (escolhido da lista de "Pessoas"
-      cadastrada em Configurações, para não digitar toda vez) + percentual (padrão
-      configurável em Configurações, ex: 5%). O valor do corretor é só um cálculo
-      informativo mostrado em cada dívida (aluguel da dívida × percentual) — mesma
-      lógica do condomínio: faz parte do que passa pela mão do proprietário, mas não
-      conta como receita dele. Não é somado ao total cobrado do inquilino, não muda
-      nenhum vencimento, e não tem rastreio de pagamento separado. O campo de percentual
-      só aparece quando um corretor é de fato escolhido (com "Nenhum" selecionado, a
-      comissão simplesmente não existe); ao trocar de "Nenhum" para um corretor, o
-      percentual volta ao padrão configurado
-- [x] Caução (opcional, por contrato): valor digitado na criação ou em "Editar
-      contrato". É só uma anotação informativa exibida no card do contrato — nunca
-      soma em nenhum total, dívida, atraso ou relatório, já que em teoria é devolvida
-      ao inquilino no final
-- [x] Devolução de caução: botão "Devolver caução" (visível quando o contrato tem
-      caução) abre um modal para registrar data, valor devolvido e observação — só um
-      registro informativo, não soma nem subtrai de nenhum total. Depois de registrada,
-      o botão vira "Editar devolução da caução" para corrigir data/valor se necessário.
-      Fica registrado na Auditoria (`caucao_devolvida`)
-- [x] Reajuste sugerido: cada contrato tem um "aniversário" de reajuste — 1 ano após o
-      último reajuste aplicado (`dataUltimoReajuste`, atualizado toda vez que "Reajustar"
-      é usado), ou após a data de início se nunca foi reajustado. Contratos ativos que já
-      passaram do aniversário mostram um aviso no card e no Dashboard, com um valor de
-      aluguel sugerido calculado a partir do "Percentual de reajuste sugerido" configurável
-      em Configurações (não há consulta a nenhum índice externo real como IGP-M/IPCA — o
-      sistema não tem acesso à internet; o percentual é só uma estimativa ajustada
-      manualmente). Ao abrir "Reajustar" num contrato nessa situação, o valor sugerido já
-      vem pré-preenchido, com uma explicação do cálculo
-- [x] Encerrar contrato: botão "Encerrar contrato" marca o contrato como encerrado (com
-      confirmação) — diferente de excluir, NÃO apaga nada: todas as dívidas e o
-      histórico de pagamentos continuam existindo e visíveis normalmente, só faz o
-      sistema parar de gerar novas dívidas mensais automaticamente (nem pelo botão
-      "Atualizar dívidas" nem pela atualização automática de login). Pensado para
-      quando um inquilino deixa o imóvel, mantendo o histórico do contrato. Mostra um
-      badge "Encerrado" e a data no card; pode ser revertido a qualquer momento pelo
-      botão "Reabrir contrato"
+      quem paga o condomínio, valor em atraso, observação — totais calculados na hora,
+      com prévia de "total a cobrar" e "total líquido" no próprio formulário
+- [x] Criação pede data de início + dia de pagamento (1-31); o primeiro vencimento é
+      calculado a partir dos dois, com ajuste automático em meses menores (dia 31 em
+      fevereiro vira o último dia)
+- [x] Lançamento retroativo: se a data de início já passou, gera uma dívida por mês até o
+      mês atual, todas no MESMO contrato, pedindo confirmação com a contagem. O "valor em
+      atraso já existente" só entra na dívida mais recente
+- [x] Juros e Multa são digitados em **percentual** do aluguel na criação (pré-preenchidos
+      com as taxas de Configurações) e convertidos para R$ ao salvar; na edição de uma
+      dívida existente são digitados direto em R$ (valor fixo daquele mês)
+- [x] "Atualizar dívidas" por contrato gera os meses que faltam com os valores padrão
+      atuais; o botão global do topo faz isso para todos, e a mesma checagem roda sozinha
+      a cada login — as dívidas ficam em dia sem cron no servidor e sem depender de clique
+- [x] Editar contrato (dados compartilhados) é uma tela separada de editar uma dívida
+      (vencimento e valores daquele mês)
+- [x] Reajustar: lança um novo aluguel, atualiza o padrão e as dívidas não pagas; as pagas
+      mantêm o valor histórico. Fica na Auditoria com valor antigo, novo e quantas dívidas
+      mudaram. Qualquer administrador pode reajustar
+- [x] Reajuste sugerido: cada contrato tem um "aniversário" 1 ano após o último reajuste
+      (ou após o início, se nunca reajustado). Passou disso, o card e o Dashboard avisam,
+      com valor calculado pelo "percentual de reajuste sugerido" de Configurações — não há
+      consulta a IGP-M/IPCA reais (o sistema não acessa a internet); o percentual é uma
+      estimativa ajustada à mão
+- [x] Encerrar contrato: marca como encerrado e para de gerar novas dívidas — NÃO apaga
+      nada, todo o histórico continua visível. Badge "Encerrado" e data no card, reversível
+      por "Reabrir contrato"
+- [x] Excluir contrato apaga o contrato e todas as dívidas (com aviso da quantidade);
+      excluir uma dívida remove só aquele mês
+- [x] Anexo do contrato assinado (PDF/JPG/PNG, até 15MB), um por contrato, pela tela
+      "Editar contrato". Arquivos ficam em `contratos/` (protegida por `.htaccess`),
+      renomeados no servidor para `inquilino-imovel-idcurto.ext` sem acentos
+- [x] Busca por inquilino, imóvel, número do contrato ou carteira; filtros de ano, mês e
+      status (o contrato aparece se pelo menos uma dívida bater)
+- [x] Lista paginada (20 contratos por página); a página volta para 1 ao mudar filtro ou
+      busca. Dentro de cada contrato, as dívidas além das 3 mais recentes ficam recolhidas
+      atrás de "Mostrar mais N dívida(s)"
 
-### Cadastros — Pagamentos (modal, acessado de Contratos/Atrasos)
-- [x] Modal "Registrar pagamento" (por dívida) com: data, valor pago, desconto, forma
-      de pagamento, quem recebeu, observação
-- [x] Valor sugerido automaticamente = total da dívida + atraso atual (juros/multa)
-- [x] Campo "Desconto (R$)": ao digitar, recalcula o valor pago automaticamente
-      (total + atraso - desconto); o campo valor pago continua editável manualmente depois
-- [x] Campo "Motivo do desconto": aparece só quando o desconto é maior que zero — campo
-      dedicado para registrar o porquê do desconto, separado da "Observação" genérica.
-      Exibido no Histórico (aba geral, modal por contrato e exportação CSV) junto do
-      valor do desconto
-- [x] Campo "Forma de pagamento": seleção obrigatória entre Dinheiro e Pix
-- [x] Campo "Quem recebeu": seletor da lista de "Pessoas" cadastrada em Configurações
-      (a mesma lista usada para corretor), pré-selecionado com o recebedor padrão do
-      contrato — evita digitar toda vez. Não é mais obrigatório
-- [x] Ao confirmar, marca a dívida como paga, registra a data do pagamento e zera o
-      atraso base daquela dívida (as outras dívidas do mesmo contrato não são afetadas)
+2.5 Pagamento (modal)
+- [x] Aberto por dívida em Contratos ou Atrasos. Mostra o extrato da dívida em coluna
+      (aluguel → acréscimos → total), e pede data, desconto, valor pago, forma
+      (Dinheiro/Pix), quem recebeu e observação
+- [x] **Valor sugerido = total a cobrar da parcela**, e nada além disso. O acréscimo por
+      atraso NÃO entra sozinho: aparece num aviso à parte ("vencida há N dias, juros/multa
+      somam R$ X") com um botão "Somar ao valor", porque cobrar ou não esse acréscimo é
+      decisão de quem recebe
+- [x] Receber menos que o sugerido é permitido e **quita a parcela inteira** do mesmo
+      jeito — a quitação é sempre da parcela toda. O texto do modal diz isso
+- [x] Campo "Desconto (R$)" recalcula o valor pago; "Motivo do desconto" só aparece quando
+      há desconto, e é exibido no Histórico e nas exportações
+- [x] "Quem recebeu" vem da lista de Pessoas, pré-selecionado com o recebedor padrão do
+      contrato. Não é obrigatório
+- [x] Ao confirmar: marca a dívida como paga, registra a data e zera o atraso base daquela
+      dívida (as outras dívidas do contrato não são afetadas)
 
-### Financeiro — Atrasos
-- [x] Aba dedicada listando só as dívidas com status "atrasado" (de todos os contratos)
-- [x] Card com o total em atraso (aluguel + juros/multa) somando todas as dívidas
-      atrasadas — valor cheio devido, diferente do card do Dashboard que soma só o
-      componente de juros/multa
-- [x] Cálculo automático de juros/multa conforme a taxa configurada
-- [x] "Dias em atraso" exibido em cada dívida vencida (usa `diasAtraso()`), tanto nos
-      cards de Atrasos e do Dashboard quanto nas linhas de dívida dentro de Contratos
+2.6 Recibo (janela de impressão)
+- [x] Botão "Recibo" gera o recibo de **um pagamento** — é o pagamento que tem data, valor
+      e forma, que é o que um recibo declara. Aparece na linha da dívida em Contratos
+      (quando já tem pagamento; usa o mais recente, com aviso no tooltip quando há mais de
+      um), em cada pagamento da aba Histórico e no modal de histórico do contrato
+- [x] Sai como HTML impresso pelo navegador em A4 ("Salvar como PDF"), não imagem: texto
+      nítido, selecionável e pesquisável
+- [x] Número gerado pelo sistema: nº do contrato + competência da dívida (ex: `001/202608`),
+      com sufixo de sequência quando a mesma dívida tem mais de um pagamento. É sempre o
+      mesmo para o mesmo pagamento — reimprimir não gera número novo
+- [x] Nenhum dado do recibo é guardado: os valores entram na hora, lidos do
+      contrato/dívida/pagamento reais, então o texto salvo continua valendo depois de
+      reajuste, troca de inquilino etc.
+- [x] Valor por extenso calculado aqui mesmo, sem biblioteca, com as regras do português
+      (cem/cento, "mil" e não "um mil", "um milhão DE reais" mas "dois milhões e quinhentos
+      mil reais")
+- [x] `{{dias_atraso}}` é calculado na DATA DO PAGAMENTO, não em "hoje" — um recibo
+      reimpresso meses depois continua dizendo o que valia na época
+- [x] O texto é editável em Configurações > Recibo (ver 2.12)
 
-### Financeiro — Histórico de pagamentos
-- [x] Aba geral com todos os pagamentos de todas as dívidas de todos os contratos,
-      filtrável por contrato, por ano e por busca de texto (imóvel, inquilino, forma de
-      pagamento, quem recebeu, observação e número do contrato), com contador de
-      quantos pagamentos e o total somado
-- [x] Exportação CSV do histórico completo, respeitando exatamente os filtros da tela —
-      tela e arquivo saem da mesma função (`historicoFiltrado()`), então nunca divergem
-- [x] Modal de histórico por contrato (acessível pelo botão "Histórico"), somando os
-      pagamentos de todas as dívidas daquele contrato, mostrando de qual dívida
-      (vencimento) veio cada pagamento
-- [x] Exibição de desconto e forma de pagamento em cada registro do histórico
-- [x] Exportação CSV do histórico de um contrato específico (inclui desconto, forma de
-      pagamento e valor líquido)
-- [x] "Valor líquido" exibido ao lado do "Valor pago" (na aba geral e no modal por
-      contrato) sempre que houver corretor e/ou condomínio na dívida — desconta a
-      comissão do corretor (% sobre o aluguel) e o valor do condomínio do pagamento,
-      já que nenhum dos dois fica com o proprietário (mesma lógica usada nas dívidas:
-      "passa pela mão, mas não é receita")
+2.7 Atrasos
+- [x] Só as dívidas com status "atrasado", de todos os contratos, com a mesma linha de
+      valores de Contratos
+- [x] Card com o total em atraso (valor cheio devido) somando todas
+- [x] Juros/multa calculados conforme as taxas configuradas, e "dias em atraso" exibido em
+      cada dívida vencida (`diasAtraso()`), aqui, no Dashboard e nas linhas de Contratos
 
-### Financeiro — Despesas
-- [x] Aba dedicada para lançar despesas simples (data, descrição, valor), com
-      formulário sempre visível ao lado da lista (cadastro rápido, pensado para lançar
-      várias despesas seguidas)
-- [x] Gráfico de barras com o total de cada mês do ano selecionado no filtro da própria
-      aba (o ano vale para o gráfico e para a lista; o mês filtra só a lista)
-- [x] Cada despesa pode opcionalmente ser vinculada a um contrato (seletor "Contrato
-      relacionado") ou ficar como despesa geral (não afeta cálculo de dívida/receita —
-      é só um registro de controle à parte)
-- [x] Filtro por ano e por mês; card com total do período filtrado e card com total do
-      ano inteiro (independente do mês filtrado), para consultar tanto mensal quanto
-      anualmente
-- [x] Lista das despesas do período filtrado, mais recente primeiro, com botão editar
-      (reaproveita o mesmo formulário do topo, trocando para modo "Editar despesa" com
-      botão "Cancelar edição") e botão excluir por item
-- [x] Despesas também aparecem fora da própria aba: card "Despesas no mês" no Dashboard,
-      coluna "Despesas" e card "Total de despesas no ano"/"Lucro líquido no ano" em
-      Relatórios, e gráfico "Despesas mensais" em Gráficos (ver abaixo)
+2.8 Histórico de pagamentos
+- [x] Todos os pagamentos de todas as dívidas, com filtro por contrato, por ano e busca de
+      texto (imóvel, inquilino, forma, quem recebeu, observação, motivo do desconto e
+      número do contrato), contador e total somado
+- [x] "Valor líquido" ao lado do "Valor pago" sempre que houver corretor e/ou condomínio
+- [x] Botão "Recibo" em cada pagamento
+- [x] Modal de histórico por contrato (botão "Histórico"), somando os pagamentos de todas
+      as dívidas e mostrando de qual vencimento veio cada um
+- [x] Exportação CSV da aba (respeitando exatamente os filtros da tela — tela e arquivo
+      saem da mesma função, `historicoFiltrado()`) e do modal por contrato
 
-### Análises — Gráficos
-- [x] Seletor de ano (`#graficoAno`) comandando a aba inteira, com o ano atual como
-      padrão — os seis gráficos mostram sempre o ano escolhido (mesma lógica de
-      Relatórios), em vez da janela fixa de "últimos 6 meses" de antes
+2.9 Despesas
+- [x] Lançamento simples (data, descrição, valor), com formulário sempre visível ao lado
+      da lista, pensado para lançar várias seguidas
+- [x] Opcionalmente ligada a um contrato; despesa geral escolhe a própria carteira (com
+      contrato escolhido, a carteira vem dele e o campo some)
+- [x] Filtro por ano e mês; card com o total do período e card com o total do ano inteiro
+- [x] Gráfico de barras com o total de cada mês do ano selecionado
+- [x] Lista do período, mais recente primeiro, com editar (reaproveita o formulário do
+      topo, virando "Editar despesa") e excluir por item
+- [x] Aparecem também fora da aba: card no Dashboard, coluna e cards em Relatórios, e
+      gráfico "Despesas mensais" em Gráficos
+
+2.10 Gráficos
+- [x] Seletor de ano comanda a aba inteira (padrão: ano atual), igual a Relatórios
 - [x] Donut "Dívidas por status" (ativas/atrasadas/pagas), com legenda e total no centro
-- [x] Donut "Pagamentos por forma (líquido)" (Dinheiro/Pix/Não informado), por valor
-      líquido recebido — já descontando corretor e condomínio, mesma convenção de
-      Relatórios (usa `valorLiquidoPagamento()`). Os dois donuts são desenhados como
-      arco grosso com respiro entre as fatias, sem o antigo recorte por `destination-out`
-- [x] Linha dupla "Receita líquida × despesas por mês": as duas séries no mesmo gráfico,
-      que é a comparação que interessa (quanto entrou x quanto saiu), com legenda e total
-      de cada série
-- [x] Linha "Total em atraso por mês" — continua com o valor cheio devido (não é receita,
-      é dívida em aberto)
-- [x] Linha "Despesas por mês"
-- [x] Barras horizontais "Inadimplência — quem mais atrasa": ranking (top 6) por total em
-      atraso (aluguel + juros/multa) no ano, com seletor para agrupar por inquilino ou por
-      imóvel, barras arredondadas sobre um trilho que mostra a escala
-- [x] Eixo Y com linhas de grade e valores redondos (`passoRedondo()`) em formato curto
-      ("12,5 mil", via `formatCompacto()`); rótulos dos meses das pontas alinhados para
-      dentro, para nunca serem cortados na borda do canvas
-- [x] Ao passar o mouse sobre um gráfico de linha ou de barras, aparece uma guia com os
-      valores daquele mês (`canvas.onmousemove`, por propriedade e não `addEventListener`,
-      para os handlers não se acumularem a cada re-render)
-- [x] Canvas em alta resolução: `setupCanvas()` multiplica a resolução pelo
-      `devicePixelRatio` e escala o contexto, para não ficar borrado em tela retina — a
-      altura lógica original fica memorizada em `dataset.alturaLogica`
-- [x] Fonte dos gráficos alinhada ao design system (Inter, com queda para a fonte do
-      sistema), em vez do `sans-serif` genérico
-- [x] Layout em grade de 2 colunas (`charts-grid`), responsivo, com os gráficos de 12
-      meses e o ranking ocupando a largura inteira (`.chart-card-wide`)
-- [x] Cores lidas das variáveis CSS do tema (`cssVar()`) — os gráficos se redesenham
-      automaticamente ao trocar entre tema claro/escuro, para nunca ficar com cores do
-      tema errado
+- [x] Donut "Pagamentos por forma (líquido)" (Dinheiro/Pix/Não informado)
+- [x] Linha dupla "Receita líquida × despesas por mês" — a comparação que interessa
+- [x] Linha "Total em atraso por mês" (valor cheio devido) e linha "Despesas por mês"
+- [x] Barras horizontais "Inadimplência — quem mais atrasa": top 6 por total em atraso no
+      ano, agrupável por inquilino ou por imóvel, sobre um trilho que mostra a escala
+- [x] Eixo Y com grade e valores redondos (`passoRedondo()`) em formato curto
+      ("12,5 mil", `formatCompacto()`); rótulos dos meses das pontas alinhados para dentro
+- [x] Guia com os valores do mês ao passar o mouse (`canvas.onmousemove`, por propriedade
+      e não `addEventListener`, para os handlers não se acumularem a cada render)
+- [x] Alta resolução: `setupCanvas()` multiplica pelo `devicePixelRatio` e escala o
+      contexto; a altura lógica fica em `dataset.alturaLogica`
+- [x] Cores lidas das variáveis CSS (`cssVar()`) — redesenham sozinhos ao trocar de tema
+- [x] Grade de 2 colunas responsiva, com os gráficos de 12 meses e o ranking ocupando a
+      largura inteira
 
-### Análises — Relatórios
-- [x] Aba "Relatórios" com seletor de ano
-- [x] Todos os valores "recebido"/"pago" desta aba (card do ano, tabela mensal,
-      comparativo anual e tabela por forma de pagamento) são **líquidos**: já descontam
-      a comissão do corretor (% sobre o aluguel, quando houver) e o condomínio de cada
-      pagamento, já que nenhum dos dois fica com o proprietário — mesma convenção e
-      mesma função (`valorLiquidoPagamento()`) usada no Histórico. Diferente do
-      Histórico, aqui só o valor líquido é mostrado (não lado a lado com o bruto), já
-      que o objetivo do relatório é refletir o que de fato sobra
-- [x] Tabela mensal: recebido (líquido), despesas, total em atraso, contratos no período
-- [x] Totais anuais somados
-- [x] Comparativo anual: tabela com todos os anos que têm dados lado a lado (recebido
-      líquido, despesas, total em atraso, contratos no ano), para comparar a evolução de
-      um ano para o outro sem precisar trocar o seletor repetidamente
-- [x] "Total em atraso" (card do ano, tabela mensal e comparativo anual) é o valor cheio
-      devido — aluguel + juros/multa — e não só o componente de juros/multa. Mesma
-      convenção usada na aba Atrasos. Só o card "Total em atraso" do Dashboard continua
-      somando apenas juros/multa (decisão consciente, mantido como resumo rápido)
-- [x] Card "Total de descontos concedidos no ano"
-- [x] Card "Total de despesas no ano" e card "Lucro líquido no ano" (recebido líquido
-      menos total de despesas do ano — já líquido de corretor/condomínio duas vezes,
-      então é o valor mais próximo do que efetivamente sobra)
-- [x] Tabela "Pagamentos por forma no ano": quantidade e total recebido líquido por
-      forma de pagamento (Dinheiro/Pix/Não informado), para o ano selecionado
-- [x] Exportação CSV do relatório do ano com todas as seções da tela (resumo anual,
-      pagamentos por forma, mês a mês e comparativo anual) num arquivo só. O cálculo fica
-      em `calcularRelatorioAnual()` / `calcularComparativoAnual()`, usadas tanto pela tela
-      quanto pela exportação — o arquivo nunca sai diferente do que está sendo exibido
+2.11 Relatórios
+- [x] Seletor de ano
+- [x] Cards do ano: recebido líquido, total em atraso, descontos concedidos, despesas e
+      lucro líquido (recebido líquido − despesas)
+- [x] Tabela "Pagamentos por forma no ano" (quantidade e total líquido)
+- [x] Tabela "Comissão de corretores no ano": por corretor, quantos contratos, quantas
+      dívidas e quanto pagar — base só o aluguel. O card some quando não há corretor
+- [x] Tabela mês a mês: recebido líquido, despesas, total em atraso, contratos no período
+- [x] Comparativo anual: todos os anos com dados lado a lado
+- [x] Exportação CSV com todas as seções da tela num arquivo só. O cálculo fica em
+      `calcularRelatorioAnual()` / `calcularComparativoAnual()`, usadas pela tela e pela
+      exportação — o arquivo nunca sai diferente do que está sendo exibido
 
-### Análises — Calendário
-- [x] Aba dedicada com grade mensal (estilo calendário), navegação entre meses
-      (anterior/próximo/hoje)
-- [x] A grade fecha semanas completas com os últimos dias do mês anterior e os primeiros
-      do mês seguinte, numerados corretamente (antes as células finais recebiam o índice
-      do array e apareciam como "37, 38, 39..." depois do dia 31). Esses dias de
-      preenchimento ficam esmaecidos, sem cor de status e sem clique
-- [x] Cada dia com vencimento ou pagamento tem o FUNDO da célula inteira colorido
-      (não só pontinhos pequenos) conforme o pior status do dia — vermelho se tem algo
-      atrasado, azul se tem vencimento ainda ativo, verde se só tem pago/pagamento
-      recebido — muito mais fácil de escanear o mês inteiro rapidamente
-- [x] Mostra também o valor total (R$) dos vencimentos daquele dia, direto na célula
-      (escondido em telas pequenas para não espremer o dia), além dos pontos coloridos
-      individuais (agora maiores) indicando vencimentos (azul=ativo, vermelho=atrasado,
-      verde=pago) e pagamentos recebidos
-- [x] Clicar em um dia mostra a lista detalhada de vencimentos e pagamentos daquela
-      data abaixo do calendário
+2.12 Calendário
+- [x] Grade mensal com navegação (anterior/próximo/hoje)
+- [x] Semanas completas: fecha com os últimos dias do mês anterior e os primeiros do
+      seguinte, numerados corretamente, esmaecidos, sem cor de status e sem clique
+- [x] Fundo da célula inteira colorido pelo pior status do dia (vermelho = algo atrasado,
+      azul = vencimento ativo, verde = só pago) — muito mais fácil de escanear que
+      pontinhos. Mostra também o total (R$) dos vencimentos do dia, além dos pontos
+- [x] Clicar num dia lista os vencimentos e pagamentos daquela data abaixo
 
-### Sistema — Auditoria
-- [x] Aba dedicada com o histórico dos eventos principais do sistema — cada entrada
-      mostra o quê, quem fez e quando. Tipos de evento registrados: contrato criado,
+2.13 Auditoria
+- [x] Histórico dos eventos principais: o quê, quem fez e quando. Contrato criado,
       editado, excluído, reajustado, encerrado ou reaberto; caução devolvida; dívida
       editada ou excluída; pagamento registrado; despesa criada, editada ou excluída;
-      imóvel editado; usuário administrador adicionado ou removido; chave
-      `COOKIE_SECRET` regenerada
-- [x] Diff campo a campo: edições de contrato (imóvel, inquilino, quem recebe, corretor,
-      caução), de dívida (vencimento, valores, observação), de despesa e de reajuste
-      (aluguel antigo → novo) mostram uma lista "campo: valor antigo → valor novo" logo
-      abaixo da descrição do evento, sempre que houver algo de fato alterado (campos
-      iguais não aparecem no diff)
-- [x] Filtros por ano, mês e usuário (quem fez a alteração) — os selects de ano e usuário
-      são montados dinamicamente a partir dos eventos existentes, sem precisar de
-      cadastro separado
-- [x] Lista ordenada do mais recente para o mais antigo, mantendo os últimos 300 eventos
+      imóvel editado; carteira criada, editada ou excluída; usuário adicionado ou
+      removido; `COOKIE_SECRET` regenerada
+- [x] Diff campo a campo nas edições ("campo: antes → depois"), só com o que realmente
+      mudou. Carteira aparece pelo nome, não pelo id interno; booleanos viram Sim/Não
+- [x] Filtros por ano, mês e usuário, montados a partir dos próprios eventos
+- [x] Do mais recente para o mais antigo, mantendo os últimos 300 eventos
 
-### Sistema — Configurações
-- [x] Taxa de juros mensal (%) e taxa de multa fixa por atraso (%) — usadas no cálculo
-      automático de atraso dos contratos vencidos, e também como percentual padrão dos
-      campos "Juros"/"Multa" ao criar um novo contrato
-- [x] Percentual padrão do corretor (%, padrão 5%) para pré-preencher novos contratos
-- [x] Percentual de reajuste sugerido (%) — usado para calcular o valor de aluguel
-      sugerido quando um contrato chega no aniversário de reajuste (ver seção Contratos)
-- [x] Cadastro de "Pessoas (recebedores/corretores)": lista reutilizável de nomes
-      (adicionar/remover), usada como seletor tanto no campo "Quem recebe" (contrato e
-      pagamento) quanto no campo "Corretor" — evita digitar o nome toda vez, e um
-      corretor cadastrado também pode ser escolhido como "quem recebeu" um pagamento
-- [x] Conta do administrador (usuário/senha)
-- [x] Segurança: botão "Gerar novo COOKIE_SECRET" (exige senha atual) — gera uma nova
-      chave aleatória e reescreve `api/config.php` no servidor automaticamente (sem
-      precisar editar o arquivo manualmente). Reemite a sessão do próprio administrador
-      na hora, então ele continua logado; TODOS os outros usuários logados no momento
-      são desconectados (precisam entrar de novo), já que a chave assina o cookie de
-      login de todo mundo. Substituição feita com escrita atômica (arquivo temporário +
-      `rename()`) e só acontece se o padrão exato de `COOKIE_SECRET` for encontrado no
-      arquivo — nunca deixa `api/config.php` num estado quebrado
-- [x] Usuários administradores: listar, adicionar, remover outros usuários com acesso
-      total (não existe usuário "só leitura")
-- [x] Backup do banco de dados: exportar tudo em JSON, ou restaurar a partir de um
-      backup salvo (com confirmação antes de substituir os dados atuais)
-- [x] Zona de perigo: excluir todos os dados (contratos, pagamentos e configuração)
-      permanentemente do servidor. Exige confirmação em duas etapas (diálogo de aviso +
-      digitar "EXCLUIR"), pois não pode ser desfeito. Não afeta o usuário/senha de login
+2.14 Configurações (6 abas)
+- Financeiro
+  - [x] Taxa de juros mensal (%) e multa fixa por atraso (%) — usadas no cálculo do atraso
+        e como percentual padrão de Juros/Multa em contratos novos
+  - [x] Percentual padrão do corretor (%) e percentual de reajuste sugerido (%)
+  - [x] Cadastro de Pessoas (recebedores/corretores): lista reutilizável usada em "Quem
+        recebe" (contrato e pagamento) e em "Corretor"
+- Carteiras
+  - [x] Cadastro das carteiras/proprietários, com a contagem de contratos e imóveis de
+        cada uma (ver 1.6)
+- Recibo
+  - [x] Edição do TEXTO do recibo: título, cidade, corpo e rodapé. Quebras de linha valem
+        como digitadas; um código inexistente é apagado do recibo final (não sai "{{xyz}}"
+        impresso)
+  - [x] Catálogo dos códigos ao lado, agrupado em Dados do recibo / Contrato / Dívida do
+        mês / Pagamento. Cada código é um botão: clicar insere `{{codigo}}` onde o cursor
+        estava, e a coluna da direita mostra um **exemplo real** de como sai no papel —
+        gerado pela mesma função que gera o recibo de verdade (`dadosRecibo()`), usando o
+        pagamento mais recente do sistema ou um exemplo fictício
+  - [x] Códigos: `recibo_numero`, `data_hoje`, `data_extenso`, `cidade`, `cidade_data`;
+        `contrato_numero`, `imovel`, `inquilino`, `proprietario`, `proprietario_documento`,
+        `carteira`, `corretor`, `corretor_percentual`, `corretor_valor`, `data_inicio`,
+        `dia_pagamento`; `vencimento`, `mes_referencia`, `aluguel`, `condominio`, `juros`,
+        `multa`, `desconto_divida`, `total_divida`, `dias_atraso`; `valor_pago`,
+        `valor_extenso`, `valor_liquido`, `data_pagamento`, `data_pagamento_extenso`,
+        `forma_pagamento`, `quem_recebeu`, `desconto`, `motivo_desconto`, `observacao`
+  - [x] "Ver prévia" abre um recibo com o texto que está NO FORMULÁRIO (mesmo sem salvar);
+        "Restaurar texto padrão" volta ao texto de fábrica mantendo a cidade, sem salvar
+  - [x] Texto não salvo sobrevive a um `renderAll()` disparado por outra tela
+- Conta e acesso
+  - [x] Trocar o próprio usuário/senha (exige a senha atual)
+  - [x] "Gerar novo COOKIE_SECRET" (exige senha atual): gera uma chave aleatória e
+        reescreve `api/config.php` sozinho. Reemite a própria sessão na hora, mas
+        desconecta todos os outros usuários logados (a chave assina o cookie de todos).
+        Escrita atômica (temporário + `rename()`) e só se o padrão exato for encontrado —
+        nunca deixa o arquivo quebrado
+  - [x] Usuários administradores: listar, adicionar e remover (todos com acesso total,
+        não existe "só leitura")
+- Dados
+  - [x] Backup completo em JSON: exportar tudo ou restaurar (com confirmação antes de
+        substituir)
+- Zona de perigo
+  - [x] Excluir todos os dados permanentemente, com confirmação em duas etapas (diálogo +
+        digitar "EXCLUIR"). Não afeta o usuário/senha de login
 
-### Navegação e visual
-- [x] Sidebar vertical fixa de 280px substituindo a barra de abas horizontal: menu
-      agrupado em blocos rotulados (Dashboard | Gestão | Financeiro | Agenda | Sistema),
-      botão de recolher para 76px (só ícones, com tooltip) e estado salvo no navegador
-      (`aluguelApp_sidebar`); no celular vira gaveta sobreposta com fundo escurecido
-- [x] Header próprio com busca global (delega para a busca de Contratos já existente),
-      botão "Atualizar dívidas", painel de notificações (espelha os alertas de vencimento
-      e reajuste do Dashboard), alternância de tema e menu do usuário com atalhos e Sair
-- [x] Interface reconstruída (`index.html` + `css/`) com identidade própria de SaaS:
-      paleta índigo/violeta, cantos de 14px, sombras em camadas, header com efeito de
-      vidro fosco (`backdrop-filter: blur`), cards com destaque ao passar o mouse,
-      transições curtas com curva de easing suave (`cubic-bezier`). Nenhum framework:
-      HTML, CSS e JS puros, como no resto do projeto
-- [x] CSS separado por responsabilidade em `css/`: `tokens.css` (variáveis de cor,
-      tipografia, espaçamento, raios, sombras e animações + tema claro/escuro),
-      `components.css` (Button, Card, Input, Table, Badge, Alert, Dropdown, Modal, Tabs,
-      Tooltip, Pagination, Toast, Skeleton, Loading, Empty state), `layout.css` (casca:
-      sidebar, header, conteúdo, responsividade, impressão) e `screens.css` (cada tela)
+--------------------------------------------------------------------------------
+3. FUNDAÇÕES
+--------------------------------------------------------------------------------
+
+3.1 Exportações
+Toda exportação sai do MESMO cálculo que a tela mostra, e respeita os filtros ativos —
+inclusive a carteira selecionada.
+
+- [x] **CSV de contratos** (uma linha por dívida): nº, vencimento, imóvel, inquilino,
+      aluguel, desconto, juros, multa, condomínio, total a cobrar, valor em atraso, status,
+      quem recebe, observação, carteira, proprietário, corretor, % do corretor, comissão,
+      total líquido, dias em atraso, já recebido, pago em, situação do contrato, início,
+      dia de pagamento, caução e se o condomínio é pago direto.
+      As 14 primeiras colunas nunca mudam de posição: a importação lê por posição, e mexer
+      nelas quebraria arquivos antigos. Tudo que é novo entra sempre no fim da linha
+- [x] **Importação de contratos por CSV** (mesmo formato): cada linha vira um contrato com
+      uma dívida. Reconhece a coluna "Carteira" quando existe e a carteira já está
+      cadastrada; ignora colunas que não conhece
+- [x] **PDF de contratos**: relatório impresso pelo navegador em A4 deitado, agrupado por
+      contrato — cabeçalho com data, filtros ativos e contagens; uma tabela de dívidas por
+      contrato com todas as colunas de dinheiro; subtotal por contrato; total geral em
+      forma de extrato (aluguel → acréscimos → total a cobrar → deduções → total líquido)
+      mais "já recebido" e "em atraso hoje". Quebra em páginas sem cortar um contrato ao
+      meio. Substituiu o relatório antigo desenhado em canvas, que saía como imagem
+      esticada e ilegível
+- [x] **CSV do histórico** (aba e por contrato): as colunas de dinheiro seguem a conta —
+      valor pago, comissão, condomínio, valor líquido — para conferir a subtração lendo a
+      linha. O do contrato traz um cabeçalho identificando o contrato e uma linha de totais
+- [x] **CSV do relatório anual**: todas as seções da tela num arquivo só, incluindo a
+      comissão por corretor
+- [x] **Backup completo em JSON**: contratos, configuração (com o texto do recibo),
+      pessoas, imóveis, carteiras e despesas. Restaurar migra formatos antigos sozinho
+- [x] Toda impressão passa por uma função só (`abrirJanelaImpressao()`), e nada mais no
+      sistema abre janela de impressão
+
+3.2 Modelo de dados e migrações
+- [x] Tudo em arquivos no servidor: `data/dados.json` (contratos, dívidas, pagamentos,
+      imóveis, carteiras, pessoas, despesas, configuração, auditoria) e `data/auth.json`
+      (usuários), ambos bloqueados por `.htaccess`
+- [x] Gravação protegida com `flock` e escrita atômica (temporário + `rename()`)
+- [x] Migrações automáticas e transparentes no carregamento, sem ação manual: contratos
+      "planos" viram contratos com dívidas; contratos sem número recebem um; `corretores`
+      vira `pessoas`; ausência de `pessoas`/`imoveis`/`carteiras`/`despesas` vira lista
+      vazia; `config.recibo` ausente ou incompleto é completado com o texto padrão
+
+3.3 Backend
+- [x] PHP puro em `api/`, sem framework, um arquivo por endpoint, comunicação por `fetch()`
+      com JSON
+- [x] Testado localmente com PHP 8.5 (`php -S`): login, troca de senha, geração de
+      COOKIE_SECRET, leitura/gravação e erros (400/401) conferidos via curl
+
+3.4 Interface e design
+- [x] HTML, CSS e JS puros — nenhum framework, nenhuma dependência de Node/npm/Composer
+- [x] Sidebar em blocos rotulados, recolhível (estado salvo em `aluguelApp_sidebar`),
+      gaveta no celular. Header com busca global, seletor de carteira, "Atualizar dívidas",
+      notificações (espelham os alertas do Dashboard), tema e menu do usuário
 - [x] `ui.js` separado do `index.js`: só comportamento visual (sidebar, gaveta, menus,
-      busca do header, notificações, abas de Configurações, expandir dívidas de um
-      contrato, busca/paginação em listas já renderizadas). Não tem regra de negócio,
-      cálculo nem chamada de API — tudo isso continua exclusivamente no `index.js`
-- [x] Crédito de autoria discreto e permanente: rodapé da barra lateral (o ícone continua
-      clicável mesmo com a sidebar recolhida) e rodapé do formulário de login, ambos
-      linkando para github.com/Lamartine-Brasil em nova aba (`rel="noopener noreferrer"`),
-      mais `<meta name="author">` e um comentário de crédito no topo do `index.html`
-- [x] Sistema de ícones em SVG (sprite `<symbol>` inline em `index.html`, sem depender de
-      biblioteca externa) — logo, abas de navegação, cards de estatística, botões de
-      ação (pagar, editar, excluir, reajustar, anexo, exportar/importar), alternância de
-      tema (sol/lua) e campo de busca. Ícones usam `stroke="currentColor"`, herdando
-      automaticamente a cor do tema/contexto sem CSS extra por ícone
-- [x] Alternância dark/light, preferência salva no navegador; detecção automática do
-      tema do sistema operacional na primeira visita (antes de qualquer escolha manual),
-      acompanhando mudanças em tempo real enquanto não houver preferência salva
-- [x] Sistema de design consolidado (`css/tokens.css`): escala tipográfica única
-      (`--text-2xs` a `--text-3xl`, piso de 11px — nada no site fica menor que isso, fonte
-      Inter com fallback para a fonte do sistema) e escala de espaçamento em múltiplos de
-      8 (`--space-1` a `--space-9`), além de raios (padrão 14px), sombras, durações e
-      curvas de animação — todos como variáveis CSS reutilizadas em cada regra, nenhum
-      valor solto digitado num componente. Números importantes usam `tabular-nums` para
-      alinhar coluna a coluna. ATENÇÃO: `--accent`, `--success`, `--danger`, `--warn`,
-      `--border`, `--text`, `--text-dim` e `--text-faint` são lidos pelo JS dos gráficos
-      (`cssVar()`); os três primeiros precisam ser hex de 6 dígitos (o canvas concatena
-      transparência no fim da cor)
-- [x] Corrigido um bug de espaçamento "duplicado": `.card` tinha `margin-bottom` próprio
-      E os containers que o envolvem (`.cards-grid`, `.charts-grid`, `.cards-list`) já
-      tinham `gap` — as duas coisas juntas faziam o espaço entre linhas de cards ficar
-      maior (e diferente) do espaço entre colunas, na mesma tela. Agora só o container
-      define o espaçamento quando existe um; cards "soltos" (não dentro de grid/lista,
-      como os cards de Configurações) continuam com seu próprio espaçamento
-- [x] Estilos inline soltos (`style="..."`) nos templates de contrato/relatório/
-      histórico/calendário foram substituídos por classes utilitárias reaproveitáveis
-      (`.text-danger`, `.is-current`, `.bg-accent/.bg-danger/.bg-success`, `.mt-sm`,
-      `.mt-md`, `.panel-header-tight`) — mesma aparência, mas agora nenhuma cor ou
-      espaçamento é digitado direto num elemento por fora do sistema de design
+      busca do header, notificações, abas de Configurações, expandir dívidas, busca e
+      paginação em listas já renderizadas). Nenhuma regra de negócio, cálculo ou API
+- [x] CSS por responsabilidade: `tokens.css` (variáveis + temas), `components.css`
+      (Button, Card, Input, Table, Badge, Alert, Extrato, Dropdown, Modal, Tabs, Tooltip,
+      Pagination, Toast, Skeleton, Empty state), `layout.css` (casca e responsividade) e
+      `screens.css` (cada tela)
+- [x] Sistema de design consolidado: escala tipográfica única (`--text-2xs` a `--text-3xl`,
+      piso de 11px, fonte Inter com fallback do sistema), espaçamento em múltiplos de 8,
+      raio padrão de 14px, sombras, durações e curvas — nenhum valor solto digitado num
+      componente. Números com `tabular-nums`
+      ATENÇÃO: `--accent`, `--success`, `--danger`, `--warn`, `--border`, `--text`,
+      `--text-dim` e `--text-faint` são lidos pelo JS dos gráficos (`cssVar()`); os três
+      primeiros precisam ser hex de 6 dígitos (o canvas concatena transparência no fim)
+- [x] Espaçamento definido só pelo container (`gap`), nunca por `margin-bottom` do `.card`
+      junto — as duas coisas somadas deixavam o espaço entre linhas diferente do espaço
+      entre colunas na mesma tela
+- [x] Nenhum `style="..."` solto nos templates gerados por JS: classes utilitárias
+      (`.text-danger`, `.is-current`, `.bg-*`, `.mt-*`) cobrem os casos
+- [x] Ícones em SVG (sprite `<symbol>` inline), com `stroke="currentColor"` — herdam a cor
+      do tema sem CSS por ícone
+- [x] Tema claro/escuro com preferência salva; na primeira visita segue o sistema
+      operacional e acompanha mudanças em tempo real enquanto não houver escolha manual
+- [x] Responsivo de 360px a telas grandes
+- [x] Atalhos: `N` novo contrato, `/` foca a busca, `Esc` fecha modais — inativos enquanto
+      o foco está num campo
+- [x] Crédito de autoria no rodapé da sidebar e no login, linkando para
+      github.com/Lamartine-Brasil (`rel="noopener noreferrer"`), mais `<meta name="author">`
 
-### Usabilidade
-- [x] Atalhos de teclado: `N` abre "Novo contrato", `/` foca a busca de contratos,
-      `Esc` fecha qualquer modal aberto. Não interferem enquanto o foco está em um
-      campo de formulário
+3.5 Segurança
+- [x] Revisão completa de `api/`: cookies HMAC-assinados comparados com `hash_equals`
+      (à prova de timing attack); senhas sempre com `password_hash`/`password_verify`;
+      upload valida extensão E tipo MIME real do conteúdo; nomes de arquivo protegidos
+      contra path traversal; `data/` e `contratos/` bloqueados por `.htaccess`; escritas
+      sempre atômicas
+- [x] Corrigidos nessa revisão: login sem limite de tentativas, senha mínima de 4
+      caracteres e adicionar/remover administrador sem reconfirmar senha
+- [x] Texto vindo do usuário sempre escapado antes de virar HTML, inclusive no recibo e no
+      PDF (que são janelas novas montadas por string)
 
-### Exportação / Importação
-- [x] Exportar CSV — uma linha por dívida, incluindo número do contrato (respeita
-      filtros ativos)
-- [x] Exportar PDF (via canvas + impressão do navegador) — mesma granularidade do CSV
-- [x] Importar contratos via CSV (mesmo formato do exportado) — cada linha vira um
-      contrato novo com uma única dívida
-- [x] Exportar backup completo (JSON) com contratos (já no formato com dívidas) +
-      configuração + pessoas + imóveis + despesas
-- [x] Importar/restaurar backup completo (JSON), com confirmação antes de substituir —
-      se o backup estiver num formato antigo (contratos sem dívidas, sem número, sem
-      `pessoas`/`imoveis`/`despesas`), é migrado automaticamente também
+3.6 Documentação
+- [x] `README.md` com foco em iniciantes: credenciais em destaque, passo a passo de
+      instalação/hospedagem, FAQ, e os detalhes técnicos no fim
+- [x] Este arquivo, organizado por conceito e por tela, sem repetir a mesma informação em
+      dois lugares
 
-### Backend / infraestrutura
-- [x] Todos os dados gravados em arquivos no servidor (`data/dados.json`, `data/auth.json`)
-- [x] Gravação protegida com `flock` (evita corrupção em acessos simultâneos)
-- [x] Pasta `data/` bloqueada para acesso direto via `.htaccess`
-- [x] Testado localmente com PHP 8.5 (`php -S`) — login, troca de senha, geração de
-      COOKIE_SECRET, leitura/gravação de dados e validações de erro (400/401) todos
-      conferidos via curl
+--------------------------------------------------------------------------------
+4. PENDÊNCIAS, DECISÕES E IDEIAS
+--------------------------------------------------------------------------------
 
-### Documentação
-- [x] `README.md` com foco em iniciantes: credenciais padrão em destaque, passo a passo
-      de instalação/hospedagem, FAQ, e detalhes técnicos organizados no final
-- [x] `etapas.txt` reorganizado seguindo os 5 grupos de navegação do sistema, com mapa
-      das telas no topo para orientação rápida
+4.1 Pendente antes de produção
+- [ ] Testar em hospedagem real com Apache: confirmar que o `.htaccess` bloqueia `data/`
+      pela URL (o servidor embutido do PHP usado nos testes locais não valida isso)
+- [ ] Trocar a senha padrão (`admin`/`12345678`) logo depois do primeiro deploy
+- [ ] O rate limiting do login é só por IP, sem CAPTCHA e sem 2FA: pode falso-positivar
+      várias pessoas atrás do mesmo IP/NAT (um escritório, por exemplo) e não impede um
+      atacante com muitos IPs. Suficiente para o uso interno deste sistema, mas não é
+      proteção de nível enterprise
 
-## ⚠️ PENDENTE / ATENÇÃO ANTES DE PRODUÇÃO
-- [x] Trocar `COOKIE_SECRET` em `api/config.php` por um valor aleatório próprio — não
-      precisa mais editar o arquivo manualmente, tem um botão em Configurações >
-      Segurança ("Gerar novo COOKIE_SECRET") que faz isso pelo próprio site
-- [ ] Testar em hospedagem real com Apache (confirmar que `.htaccess` bloqueia `data/`
-      pela URL — isso não é validado pelo servidor embutido do PHP usado em testes locais)
-- [ ] Trocar a senha padrão (`admin`/`12345678`) assim que possível após o primeiro deploy
-- [x] Revisão de segurança de todos os arquivos em `api/`: confirmado que cookies são
-      HMAC-assinados e comparados com `hash_equals` (à prova de timing attack), senhas
-      sempre com `password_hash`/`password_verify`, upload de anexo valida extensão E
-      tipo MIME real do conteúdo (não só a extensão), nomes de arquivo protegidos contra
-      path traversal, `data/`/`contratos/` bloqueados por `.htaccess`, escritas em disco
-      sempre atômicas (arquivo temporário + `rename()`, ou `flock`). Corrigido nessa
-      revisão: login sem limite de tentativas (bruta força), senha mínima de 4
-      caracteres (fraca), e adicionar/remover outro administrador sem reconfirmar senha
-      — ver "Login e conta" acima
-- [ ] Rate limiting do login é só por IP (sem CAPTCHA, sem 2FA) — pode falso-positivar
-      várias pessoas atrás do mesmo IP/NAT (ex: escritório) se todas errarem a senha, e
-      não impede um atacante com muitos IPs diferentes. Suficiente para o caso de uso
-      deste sistema (uso interno, poucos usuários), mas não é proteção de nível
-      enterprise
+4.2 Não implementado (decisão consciente, não é pendência)
+- Notificações por e-mail de vencimento — exigiria SMTP configurado na hospedagem, sem
+  garantia de entrega. O alerta existe só dentro do site (Dashboard e notificações)
+- Consulta automática a IGP-M/IPCA — o sistema não acessa a internet; o percentual de
+  reajuste sugerido é ajustado à mão em Configurações
+- Papéis de permissão distintos — todo administrador tem acesso total
 
-## 🚫 NÃO IMPLEMENTADO (decisão consciente, não é pendência)
-- Notificações por e-mail de vencimentos — decidiu-se não implementar por exigir SMTP
-  configurado na hospedagem, sem garantia de entrega. O alerta de vencimentos existe
-  só dentro do site (Dashboard).
+4.3 Sugestões de melhoria (não solicitadas ainda)
+Cada item é uma melhoria em algo que JÁ existe, ou uma correção de uma lacuna conhecida.
 
-## IDEIAS PARA O FUTURO (não solicitadas ainda)
+ 1. **Pagamento parcial de uma dívida.** Hoje qualquer pagamento quita a parcela inteira
+    (decisão consciente e documentada). Falta o caso de quem recebe metade agora e metade
+    depois: a dívida ficaria "parcialmente paga", com saldo em aberto continuando a contar
+    juros só sobre o que falta. Mexe em `getStatus()` e em todos os totais — precisa ser
+    pensado com calma antes de sair codando.
 
-1. Anexar comprovantes de pagamento (um arquivo por pagamento registrado, além do
-   contrato assinado já anexável ao contrato)
-2. Campo de telefone/e-mail do inquilino, com atalho para WhatsApp direto na lista
-   de contratos
-3. Geração automática de recibo em PDF por pagamento individual (hoje o PDF é só o
-   relatório geral de contratos)
+ 2. **Registrar o pagamento da comissão do corretor.** O sistema já calcula quanto pagar a
+    cada corretor no mês, mas não guarda se foi pago. Faltaria marcar "comissão paga" por
+    dívida (ou por mês/corretor), com data e forma, e um card do que está pendente — hoje
+    o controle disso fica fora do sistema.
 
-7. Notificação dentro do navegador (Web Push) para avisos de vencimento, sem precisar
-   de e-mail/SMTP
+ 3. **Anexar comprovante por pagamento.** Já existe anexo de contrato assinado, com toda a
+    infraestrutura de upload validado (`api/anexo.php`). Faltaria reaproveitar isso para
+    anexar o comprovante de cada pagamento e oferecer o link junto do recibo.
 
-11. Modo multi-imóvel/multi-proprietário — separar contratos por carteira, útil para
-    quem administra imóveis de terceiros
-12. Backup automático agendado (ex: gerar e salvar um `.json` de backup toda semana
-    no próprio servidor, sem precisar acionar manualmente)
-13. Progressive Web App (PWA) — permitir "instalar" o sistema no celular com ícone
-    próprio e uso básico offline
-14. Papéis de permissão distintos entre usuários administradores (ex: um usuário só de
-    visualização/relatórios, sem poder excluir dados) — hoje todos os usuários têm
-    acesso total e igual
-18. Índice de reajuste (IGP-M/IPCA) consultado automaticamente — hoje o percentual
-    sugerido é digitado manualmente em Configurações, já que o sistema não tem acesso à
-    internet (nenhuma dependência externa é uma decisão de arquitetura deste projeto)
+ 4. **Telefone/e-mail do inquilino, com atalho de cobrança.** O contrato só guarda o nome.
+    Com o contato salvo, daria para abrir o WhatsApp com uma mensagem de cobrança já
+    montada a partir da dívida em atraso (link `wa.me`, sem integração nem API).
+
+ 5. **Exportar o recibo de vários pagamentos de uma vez.** Hoje é um recibo por clique.
+    Para quem recebe 20 aluguéis no mesmo dia, faltaria um "gerar recibos do mês" que
+    imprime todos em sequência, um por página, reaproveitando o mesmo template.
+
+ 6. **Reajuste em lote.** O aviso de aniversário de reajuste é por contrato e o reajuste é
+    aplicado um a um. Com vários contratos vencendo no mesmo mês, faltaria uma tela para
+    revisar e aplicar todos de uma vez, com o percentual configurado.
+
+ 7. **Filtro por carteira também nas telas de cadastro de Pessoas.** Carteiras já filtram
+    contratos, imóveis e despesas, mas a lista de Pessoas é global. Quem administra
+    carteiras de proprietários diferentes provavelmente quer recebedores/corretores
+    separados por carteira.
+
+ 8. **Undo do "excluir".** Excluir contrato, dívida ou despesa é imediato e definitivo (só
+    fica o registro na Auditoria). Como a Auditoria já guarda o que foi excluído, daria
+    para oferecer "desfazer" no toast por alguns segundos, ou restaurar a partir do
+    evento de auditoria.
+
+ 9. **Paginação de verdade no Histórico.** Contratos já pagina no `index.js` e Imóveis no
+    `ui.js`. O Histórico renderiza todos os pagamentos filtrados de uma vez — com anos de
+    uso e muitos contratos, essa lista fica grande e a tela pesa.
+
+10. **Testes automatizados no repositório.** As regras de dinheiro (os dois totais, a
+    comissão só sobre o aluguel, condomínio direto, valor sugerido no pagamento) foram
+    conferidas com scripts durante o desenvolvimento, mas eles não ficaram versionados.
+    Valeria um arquivo de teste simples rodando em Node, sem framework, para essas
+    funções não regredirem em silêncio numa mudança futura.

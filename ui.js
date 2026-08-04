@@ -289,11 +289,12 @@
      RESUMO FINANCEIRO (Dashboard)
      Reapresenta, num formato comparativo, os MESMOS números que os indicadores
      do topo já mostram. Nenhum cálculo novo: apenas leitura do que está na tela.
+     Exceção: "Contratos ativos" não tem mais card no topo (era repetição), então
+     quem escreve esse número é o index.js, direto em #uiResumoAtivos.
   =========================================================================== */
   const espelhos = [
     { de: 'statAtraso',               para: 'uiResumoAtraso' },
     { de: 'statDespesasMesDashboard', para: 'uiResumoDespesas' },
-    { de: 'statAtivos',               para: 'uiResumoAtivos' },
     { de: 'statProximo',              para: 'uiResumoProximo' },
   ];
 

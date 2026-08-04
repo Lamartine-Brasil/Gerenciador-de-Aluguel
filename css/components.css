@@ -335,6 +335,62 @@ select.input {
   border-color: var(--accent-ring);
   color: var(--accent);
 }
+/* Aviso curto com uma ação do lado (ex: "somar juros/multa do atraso") */
+.alert-banner-inline {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+}
+.alert-banner-inline strong { display: inline; font-size: inherit; }
+.alert-banner-inline .btn { flex-shrink: 0; }
+
+/* =============================================================================
+   EXTRATO — composição de um valor, lida de cima para baixo
+   Aluguel → acréscimos → desconto → total a cobrar → deduções → total líquido.
+============================================================================= */
+.extrato {
+  display: grid;
+  gap: 1px;
+  font-variant-numeric: tabular-nums;
+}
+.extrato-linha {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 2px 0;
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+}
+.extrato-sinal {
+  color: var(--text-faint);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+.extrato-label { overflow-wrap: anywhere; }
+.extrato-valor { font-weight: 600; color: var(--text); }
+.extrato-valor.is-deducao { color: var(--warn); }
+
+.extrato-linha.is-total {
+  margin-top: 2px;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 650;
+}
+.extrato-linha.is-total .extrato-sinal { color: var(--text-dim); }
+.extrato-linha.is-total .extrato-valor { font-size: var(--text-base); }
+.extrato-linha.is-liquido .extrato-label,
+.extrato-linha.is-liquido .extrato-valor { color: var(--success); }
+.extrato-linha.is-liquido .extrato-valor { font-weight: 700; }
+
+/* Linha que não entra na conta (ex: condomínio pago direto pelo inquilino) */
+.extrato-linha.is-fora { margin-top: var(--space-1); font-size: var(--text-xs); }
+.extrato-linha.is-fora .extrato-label,
+.extrato-linha.is-fora .extrato-valor { color: var(--text-faint); font-weight: 500; }
 
 .alert-banner-list { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .alert-banner-item {
@@ -506,6 +562,13 @@ select.input {
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
+/* Segunda linha, logo abaixo do total a cobrar: o que sobra depois das deduções */
+.total-preview-liquido {
+  border-color: var(--success-border);
+  background: var(--success-bg);
+  color: var(--success);
+}
+.total-preview-liquido strong { color: var(--success); font-size: var(--text-base); }
 
 /* Fica ancorada no rodapé do modal mesmo em formulários longos (Novo contrato).
    As margens negativas encostam a barra nas bordas do modal e cancelam o
