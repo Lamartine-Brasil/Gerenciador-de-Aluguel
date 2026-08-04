@@ -154,14 +154,18 @@ function todayStr() {
 }
 
 // Calcula o primeiro vencimento a partir da data de início do contrato e do
-// dia de pagamento escolhido (ex: início 03-06-2023 + dia 1 -> primeiro
-// vencimento 01-06-2023). Se o dia de pagamento não existir naquele mês
-// (ex: dia 31 em fevereiro), usa o último dia do mês.
+// dia de pagamento escolhido. O mês de entrada nunca gera cobrança automática
+// — o primeiro vencimento cai sempre no mês seguinte ao de início, no dia de
+// pagamento escolhido (ex: início 03-06-2023 + dia 1 -> primeiro vencimento
+// 01-07-2023). Se o dia de pagamento não existir naquele mês (ex: dia 31 em
+// fevereiro), usa o último dia do mês.
 function primeiroVencimento(dataInicioStr, diaPagamento) {
   const [y, m] = dataInicioStr.split('-').map(Number);
-  const diasNoMes = new Date(y, m, 0).getDate();
+  const targetYear = y + Math.floor(m / 12);
+  const targetMonth = m % 12; // já é o mês seguinte (0-indexado)
+  const diasNoMes = new Date(targetYear, targetMonth + 1, 0).getDate();
   const dia = Math.min(diaPagamento, diasNoMes);
-  return `${y}-${String(m).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+  return `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
 }
 
 // Soma N meses a uma data "AAAA-MM-DD", mantendo o mesmo dia do mês sempre que
