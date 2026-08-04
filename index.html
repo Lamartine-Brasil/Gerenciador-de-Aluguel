@@ -871,7 +871,7 @@
         <div class="panel-header">
           <div class="panel-title-group">
             <h2>Usuários</h2>
-            <span class="panel-desc">Sua conta, quem mais tem acesso ao sistema e a chave que assina o login.</span>
+            <span class="panel-desc">Duas coisas diferentes, no mesmo lugar: as <strong>contas de acesso</strong> (quem entra no sistema, com senha) e as <strong>pessoas</strong> que aparecem nos cadastros como recebedor ou corretor, sem login.</span>
           </div>
         </div>
 
@@ -916,8 +916,8 @@
           </div>
 
           <div class="card config-span">
-            <h3><svg class="icon"><use href="#icon-users"></use></svg> Usuários administradores</h3>
-            <p class="modal-subtitle">Adicione outros usuários com acesso total ao sistema (ex: um sócio ou gerente). Todos têm as mesmas permissões.</p>
+            <h3><svg class="icon"><use href="#icon-lock"></use></svg> Contas de acesso</h3>
+            <p class="modal-subtitle">Quem pode <strong>entrar no sistema</strong>, com usuário e senha. Todos têm acesso total — não existe usuário "só leitura".</p>
             <div id="usersList" class="cards-list"></div>
             <form id="addUserForm" class="config-form mt-md">
               <label class="field">
@@ -941,6 +941,28 @@
               <button type="submit" class="btn btn-primary">Adicionar usuário</button>
             </form>
           </div>
+
+          <div class="card config-span">
+            <h3><svg class="icon"><use href="#icon-users"></use></svg> Pessoas (recebedores / corretores)</h3>
+            <p class="modal-subtitle">Quem recebe pagamentos e/ou atua como corretor. <strong>Não são contas de acesso</strong> — não entram no sistema nem têm senha: é uma lista de nomes reutilizável, para escolher pelos seletores "Quem recebe" e "Corretor" sem digitar toda vez.</p>
+            <div id="pessoasList" class="cards-list"></div>
+            <form id="addPessoaForm" class="config-form mt-md">
+              <input type="hidden" id="pessoaId">
+              <label class="field">
+                <span>Nome *</span>
+                <input type="text" id="newPessoaNome" required>
+              </label>
+              <label class="field hidden" id="campoNewPessoaCarteira">
+                <span>Aparece em qual carteira?</span>
+                <select id="newPessoaCarteira">
+                  <option value="">Todas as carteiras</option>
+                </select>
+              </label>
+              <p class="modal-subtitle hidden" id="pessoaCarteiraHint">Quem trabalha só com um proprietário pode ser amarrado à carteira dele — aí só aparece nos seletores daquela carteira. Deixe em "Todas" para quem atende o sistema inteiro (você mesmo, por exemplo).</p>
+              <button type="submit" class="btn btn-primary" id="btnSalvarPessoa">Adicionar pessoa</button>
+              <button type="button" class="btn btn-ghost hidden" id="btnCancelarEdicaoPessoa">Cancelar edição</button>
+            </form>
+          </div>
         </div>
       </section>
 
@@ -949,7 +971,7 @@
         <div class="panel-header">
           <div class="panel-title-group">
             <h2>Configurações</h2>
-            <span class="panel-desc">Taxas, cadastros auxiliares, texto do recibo e manutenção dos dados. Contas de acesso ficam em <strong>Usuários</strong>.</span>
+            <span class="panel-desc">Taxas, carteiras, texto do recibo e manutenção dos dados. Contas de acesso e o cadastro de pessoas ficam em <strong>Usuários</strong>.</span>
           </div>
         </div>
 
@@ -1017,27 +1039,6 @@
               </form>
             </div>
 
-            <div class="card config-span">
-              <h3><svg class="icon"><use href="#icon-users"></use></svg> Pessoas (recebedores / corretores)</h3>
-              <p class="modal-subtitle">Cadastre aqui quem pode receber pagamentos e/ou atuar como corretor, para escolher pela lista sem digitar o nome toda vez. A mesma lista alimenta os campos "Quem recebe" e "Corretor".</p>
-              <div id="pessoasList" class="cards-list"></div>
-              <form id="addPessoaForm" class="config-form mt-md">
-                <input type="hidden" id="pessoaId">
-                <label class="field">
-                  <span>Nome *</span>
-                  <input type="text" id="newPessoaNome" required>
-                </label>
-                <label class="field hidden" id="campoNewPessoaCarteira">
-                  <span>Aparece em qual carteira?</span>
-                  <select id="newPessoaCarteira">
-                    <option value="">Todas as carteiras</option>
-                  </select>
-                </label>
-                <p class="modal-subtitle hidden" id="pessoaCarteiraHint">Quem trabalha só com um proprietário pode ser amarrado à carteira dele — aí só aparece nos seletores daquela carteira. Deixe em "Todas" para quem atende o sistema inteiro (você mesmo, por exemplo).</p>
-                <button type="submit" class="btn btn-primary" id="btnSalvarPessoa">Adicionar pessoa</button>
-                <button type="button" class="btn btn-ghost hidden" id="btnCancelarEdicaoPessoa">Cancelar edição</button>
-              </form>
-            </div>
           </div>
         </div>
 

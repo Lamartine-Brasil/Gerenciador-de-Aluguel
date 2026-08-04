@@ -243,14 +243,13 @@ Se você não usa corretor nem condomínio, nada disso aparece: a tela mostra um
   editado, usuário adicionado/removido, chave de segurança regenerada), com quem fez e
   quando. Edições de contrato, dívida, despesa e reajuste mostram um diff campo a campo
   (valor antigo → novo). Filtros por ano, mês e usuário
-- **Usuários** — tudo que é acesso ao sistema, numa tela própria: sua conta (trocar
-  usuário e senha), os outros administradores (adicionar e remover, sempre confirmando sua
-  senha — e não dá para remover a si mesmo nem o último usuário) e a geração de uma nova
-  chave `COOKIE_SECRET` pelo próprio site
+- **Usuários** — todo mundo que o sistema conhece, numa tela só, separado em duas coisas
+  diferentes: as **contas de acesso** (sua conta, os outros administradores e a chave
+  `COOKIE_SECRET` — quem entra no sistema, com senha) e as **pessoas** (recebedores e
+  corretores, que aparecem nos seletores dos contratos e pagamentos mas não têm login)
 - **Configurações** — taxas de juros/multa, valores padrão, percentual de reajuste
-  sugerido, cadastro de pessoas (recebedores/corretores), **carteiras (proprietários)**,
-  **texto do recibo**, backup completo (exportar/importar) e zona de perigo (excluir todos
-  os dados)
+  sugerido, **carteiras (proprietários)**, **texto do recibo**, backup completo
+  (exportar/importar) e zona de perigo (excluir todos os dados)
 
 **Recibo em PDF**
 
@@ -677,8 +676,9 @@ atrasado, soma `valorAtrasoBase` + (`total` × `taxaJurosMensal`/100 × meses de
 
 #### Pessoas (array `pessoas` em `data/dados.json`)
 
-Lista reutilizável de nomes cadastrados (`{ id, nome, carteiraId }`), gerenciada em
-Configurações. Alimenta os seletores "Quem recebe" (contrato e pagamento) e "Corretor" — um
+Lista reutilizável de nomes cadastrados (`{ id, nome, carteiraId }`), gerenciada na tela
+**Usuários** — ao lado das contas de acesso, mas sem relação com elas: pessoa não faz
+login. Alimenta os seletores "Quem recebe" (contrato e pagamento) e "Corretor" — um
 mesmo nome cadastrado pode ser usado nos dois papéis, evitando digitar toda vez. Remover uma
 pessoa da lista não afeta contratos/pagamentos que já usam aquele nome; renomear atualiza os
 que usavam o nome antigo.

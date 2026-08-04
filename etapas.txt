@@ -98,8 +98,9 @@ b) No PAGAMENTO — "Recebeu o condomínio junto?", perguntado **toda vez** que 
   manutenção de dados, e pular contratos por causa de um filtro de tela seria pior.
 - Carteira do contrato é preenchida sozinha ao escolher um imóvel que já tem carteira.
   Despesa ligada a contrato herda a carteira dele; só a despesa geral escolhe a própria.
-- Remover uma carteira não apaga nada: contratos, imóveis e despesas dela voltam a contar
-  como "sem carteira" (imóvel próprio), com aviso de quantos itens serão afetados.
+- Remover uma carteira não apaga nada: contratos, imóveis, despesas e pessoas dela voltam
+  a contar como "sem carteira" (no caso das pessoas, a "todas as carteiras"), com aviso de
+  quantos itens serão afetados.
 
 1.7 Convenções de valores nas telas
 - "Recebido" em Relatórios, Gráficos e Histórico é sempre **líquido**.
@@ -418,13 +419,25 @@ dentro de Contratos, Atrasos ou Histórico.
 - [x] Do mais recente para o mais antigo, mantendo os últimos 300 eventos
 
 2.14 Usuários
-- [x] Tela própria, no bloco SISTEMA (entre Auditoria e Configurações), reunindo tudo que é
-      conta de acesso — antes isso ficava escondido dentro de Configurações, e conta de
-      usuário não é "configuração do sistema". Também tem atalho no menu do usuário
+- [x] Tela própria, no bloco SISTEMA (entre Auditoria e Configurações), reunindo todo mundo
+      que o sistema conhece — antes isso ficava escondido dentro de Configurações, e gente
+      não é "configuração do sistema". Também tem atalho no menu do usuário
+- [x] A tela separa duas coisas que são diferentes, e diz isso no texto:
+      **contas de acesso** (entram no sistema, têm senha) e **pessoas** (só um nome
+      reutilizável nos seletores, sem login)
 - [x] Conta do administrador: trocar o próprio usuário e senha (exige a senha atual)
-- [x] Usuários administradores: listar, adicionar e remover, todos com acesso total (não
-      existe "só leitura"). Adicionar e remover exigem confirmar a própria senha, e não dá
-      para remover a si mesmo nem o último usuário restante
+- [x] Contas de acesso: listar, adicionar e remover, todas com acesso total (não existe
+      "só leitura"). Adicionar e remover exigem confirmar a própria senha, e não dá para
+      remover a si mesmo nem o último usuário restante
+- [x] Pessoas (recebedores / corretores): lista reutilizável usada em "Quem recebe"
+      (contrato e pagamento) e em "Corretor". Cada pessoa pode ser amarrada a uma carteira
+      — aí só aparece nos seletores daquela carteira. "Todas as carteiras" (o padrão) é
+      para quem atende o sistema inteiro. A regra é própria das pessoas: em contratos e
+      imóveis, "sem carteira" é um grupo à parte; aqui significa "aparece em todas"
+      (`pessoasVisiveis()`)
+- [x] Editar uma pessoa carrega ela no mesmo formulário (vira "Editar pessoa"); renomear
+      atualiza também os contratos e pagamentos que usam o nome antigo, como no cadastro
+      de imóveis
 - [x] Segurança: "Gerar novo COOKIE_SECRET" (exige senha atual) gera uma chave aleatória e
       reescreve `api/config.php` sozinho. Reemite a própria sessão na hora, mas desconecta
       todos os outros usuários logados (a chave assina o cookie de todos). Escrita atômica
@@ -436,15 +449,6 @@ dentro de Contratos, Atrasos ou Histórico.
   - [x] Taxa de juros mensal (%) e multa fixa por atraso (%) — usadas no cálculo do atraso
         e como percentual padrão de Juros/Multa em contratos novos
   - [x] Percentual padrão do corretor (%) e percentual de reajuste sugerido (%)
-  - [x] Cadastro de Pessoas (recebedores/corretores): lista reutilizável usada em "Quem
-        recebe" (contrato e pagamento) e em "Corretor". Cada pessoa pode ser amarrada a uma
-        carteira — aí só aparece nos seletores daquela carteira. "Todas as carteiras"
-        (o padrão) é para quem atende o sistema inteiro. A regra é própria das pessoas:
-        em contratos e imóveis, "sem carteira" é um grupo à parte; aqui significa
-        "aparece em todas" (`pessoasVisiveis()`)
-  - [x] Editar uma pessoa carrega ela no mesmo formulário (vira "Editar pessoa"); renomear
-        atualiza também os contratos e pagamentos que usam o nome antigo, como no cadastro
-        de imóveis
 - Carteiras
   - [x] Cadastro das carteiras/proprietários, com a contagem de contratos e imóveis de
         cada uma (ver 1.6)

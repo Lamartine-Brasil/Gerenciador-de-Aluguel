@@ -2800,7 +2800,6 @@ function renderConfig() {
   document.getElementById('configTaxaMulta').value = state.config.taxaMultaPercent;
   document.getElementById('configCorretorPercentualPadrao').value = state.config.corretorPercentualPadrao || 0;
   document.getElementById('configPercentualReajusteSugerido').value = state.config.percentualReajusteSugerido || 0;
-  renderPessoasConfig();
   renderCarteirasConfig();
   renderReciboConfig();
 }
@@ -2840,7 +2839,11 @@ configReajusteForm.addEventListener('submit', (e) => {
   showToast('Percentual de reajuste salvo com sucesso.', 'success');
 });
 
-/* ===================== PESSOAS (cadastro reutilizável: recebedores/corretores) ===================== */
+/* ===================== PESSOAS (cadastro reutilizável: recebedores/corretores) =====================
+ * Vive na tela Usuários, ao lado das contas de acesso — mas são coisas
+ * diferentes: administrador entra no sistema com senha, pessoa é só um nome
+ * reutilizável nos seletores "Quem recebe" e "Corretor", sem login.
+ */
 const addPessoaForm = document.getElementById('addPessoaForm');
 
 function populatePessoaSelect(selectEl, valorAtual, placeholder) {
@@ -3067,6 +3070,8 @@ function removerCarteira(id) {
   state.contratos.forEach(x => { if (x.carteiraId === id) x.carteiraId = ''; });
   state.imoveis.forEach(x => { if (x.carteiraId === id) x.carteiraId = ''; });
   state.despesas.forEach(x => { if (x.carteiraId === id) x.carteiraId = ''; });
+  // pessoa amarrada à carteira removida volta a valer para todas
+  state.pessoas.forEach(x => { if (x.carteiraId === id) x.carteiraId = ''; });
   if (carteiraAtiva === id) definirCarteiraAtiva('', true);
   if (document.getElementById('carteiraId').value === id) cancelarEdicaoCarteira();
 
@@ -3268,6 +3273,7 @@ formImovel.addEventListener('submit', (e) => {
 function renderUsuarios() {
   document.getElementById('accUsername').value = currentUsername;
   loadUsers();
+  renderPessoasConfig();
 }
 
 const accountForm = document.getElementById('accountForm');
@@ -5909,6 +5915,7 @@ document.getElementById('btnExportPDF').addEventListener('click', () => {
 /* ===================== RENDER ALL ===================== */
 function renderAll() {
   renderDashboard();
+  renderPessoasConfig();
   renderImoveis();
   renderContratos();
   renderAtrasos();
