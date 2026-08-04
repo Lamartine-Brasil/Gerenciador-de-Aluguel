@@ -45,12 +45,28 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
 - [x] Alerta de dívidas vencendo nos próximos 5 dias
 - [x] Lista das dívidas mais recentes
 
+### Imóveis
+- [x] Aba dedicada de cadastro de imóveis (descrição livre, ex: "Apartamento 302 - Rua
+      das Flores #123"), gerenciada como uma lista simples (adicionar/remover)
+- [x] Ao criar ou editar um contrato, o imóvel é escolhido de um seletor alimentado por
+      essa lista, em vez de digitado como texto livre — evita erros de digitação e
+      duplicidade. Se não houver nenhum imóvel cadastrado ainda, um aviso no formulário
+      de novo contrato indica para cadastrar um na aba Imóveis primeiro
+- [x] Remover um imóvel da lista não afeta contratos que já usam aquela descrição
+
 ### Contratos (CRUD)
 - [x] Listar, criar, editar, excluir — 1 card por contrato, com a lista de dívidas
       daquele contrato dentro do card (cada dívida com seu próprio status, valores e
       ações de pagar/editar/excluir)
+- [x] Número sequencial único gerado automaticamente na criação (`#1`, `#2`...), exibido
+      no card do contrato e nos modais de pagamento/histórico, usado só para identificar
+      o contrato (não tem relação com o `id` interno). Nunca se repete, mesmo depois de
+      excluir contratos. Também entra na busca (buscar por "#12" encontra o contrato 12).
+      Contratos de instalações antigas (sem número) recebem um automaticamente na
+      primeira vez que os dados são carregados, na ordem de criação
 - [x] Campos do contrato (compartilhados entre as dívidas): imóvel, inquilino, quem
-      recebe (padrão), data de início, dia de pagamento, anexo do contrato assinado
+      recebe (padrão), data de início, dia de pagamento, anexo do contrato assinado,
+      caução (opcional)
 - [x] Campos de cada dívida: vencimento, aluguel, desconto, juros, multa, condomínio,
       valor em atraso, observação — total calculado automaticamente
 - [x] Busca por inquilino ou imóvel; filtro por ano, mês e status (um contrato aparece
@@ -111,6 +127,18 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
       aberto (login) — garante que as dívidas ficam sempre em dia mesmo sem clicar em
       nada, sem depender de um cron no servidor (o sistema não tem acesso a isso em
       hospedagem compartilhada comum)
+- [x] Encerrar contrato: botão "Encerrar contrato" marca o contrato como encerrado (com
+      confirmação) — diferente de excluir, NÃO apaga nada: todas as dívidas e o
+      histórico de pagamentos continuam existindo e visíveis normalmente, só faz o
+      sistema parar de gerar novas dívidas mensais automaticamente (nem pelo botão
+      "Atualizar dívidas" nem pela atualização automática de login). Pensado para
+      quando um inquilino deixa o imóvel, mantendo o histórico do contrato. Mostra um
+      badge "Encerrado" e a data no card; pode ser revertido a qualquer momento pelo
+      botão "Reabrir contrato"
+- [x] Caução (opcional, por contrato): valor digitado na criação ou em "Editar
+      contrato". É só uma anotação informativa exibida no card do contrato — nunca
+      soma em nenhum total, dívida, atraso ou relatório, já que em teoria é devolvida
+      ao inquilino no final
 
 ### Pagamentos
 - [x] Modal "Registrar pagamento" (por dívida) com: data, valor pago, desconto, forma
@@ -226,6 +254,14 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
       corretor cadastrado também pode ser escolhido como "quem recebeu" um pagamento.
       Renomeado do antigo cadastro "Corretores" (dados antigos migrados automaticamente)
 - [x] Conta do administrador (usuário/senha)
+- [x] Segurança: botão "Gerar novo COOKIE_SECRET" (exige senha atual) — gera uma nova
+      chave aleatória e reescreve `api/config.php` no servidor automaticamente (sem
+      precisar editar o arquivo manualmente). Reemite a sessão do próprio administrador
+      na hora, então ele continua logado; TODOS os outros usuários logados no momento
+      são desconectados (precisam entrar de novo), já que a chave assina o cookie de
+      login de todo mundo. Substituição feita com escrita atômica (arquivo temporário +
+      `rename()`) e só acontece se o padrão exato de `COOKIE_SECRET` for encontrado no
+      arquivo — nunca deixa `api/config.php` num estado quebrado
 - [x] Backup do banco de dados (exportar/importar)
 - [x] Zona de perigo: excluir todos os dados (contratos, pagamentos e configuração)
       permanentemente do servidor. Exige confirmação em duas etapas (diálogo de aviso +
@@ -269,7 +305,9 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
       no final para quem quiser se aprofundar
 
 ## ⚠️ PENDENTE / ATENÇÃO ANTES DE PRODUÇÃO
-- [ ] Trocar `COOKIE_SECRET` em `api/config.php` por um valor aleatório próprio
+- [x] Trocar `COOKIE_SECRET` em `api/config.php` por um valor aleatório próprio — não
+      precisa mais editar o arquivo manualmente, tem um botão em Configurações >
+      Segurança ("Gerar novo COOKIE_SECRET") que faz isso pelo próprio site
 - [ ] Testar em hospedagem real com Apache (confirmar que `.htaccess` bloqueia `data/`
       pela URL — isso não é validado pelo servidor embutido do PHP usado em testes locais)
 - [ ] Trocar a senha padrão (`admin`/`123456`) assim que possível após o primeiro deploy

@@ -64,8 +64,10 @@ o projeto não tem dependências.
 Este sistema foi feito para hospedagem compartilhada comum com **PHP + Apache** (cPanel,
 Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servidor.
 
-1. **Troque a chave secreta**: abra `api/config.php` e mude o valor de `COOKIE_SECRET`
-   para algo aleatório e único (isso protege o cookie de login contra falsificação)
+1. **Troque a chave secreta**: depois de logar, vá em Configurações > Segurança e clique
+   em "Gerar novo COOKIE_SECRET" (isso protege o cookie de login contra falsificação).
+   Também dá pra fazer manualmente, abrindo `api/config.php` e trocando o valor de
+   `COOKIE_SECRET` por algo aleatório e único
 2. **Envie os arquivos**: copie a pasta inteira do projeto (`index.html`, `index.css`,
    `index.js`, `api/`, `data/`, `contratos/`) para a hospedagem, mantendo a mesma
    organização de pastas
@@ -80,9 +82,13 @@ Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servid
 
 - **Dashboard** — visão geral: quantas dívidas estão ativas, quanto está em atraso no
   total, próximo vencimento, e um alerta para dívidas que vencem nos próximos 5 dias
+- **Imóveis** — cadastro simples de imóveis (uma lista de descrições, ex: "Apartamento
+  302 - Rua das Flores #123"), usado como seletor ao criar/editar um contrato — evita
+  digitar o mesmo endereço toda vez e reduz erro de digitação
 - **Contratos** — cada contrato (imóvel + inquilino) aparece como um card com todas as
-  suas dívidas (uma por mês) dentro. Ao criar um contrato, informe a data de início e o
-  dia de pagamento (1-31); se a data de início já passou, o sistema gera automaticamente
+  suas dívidas (uma por mês) dentro, identificado por um número sequencial único
+  (`#1`, `#2`...) gerado automaticamente. Ao criar um contrato, informe a data de início e
+  o dia de pagamento (1-31); se a data de início já passou, o sistema gera automaticamente
   uma dívida para cada mês em atraso até hoje, tudo dentro do mesmo contrato. Registrar
   pagamento em um clique por dívida, anexar o contrato assinado (PDF/JPG/PNG) e
   reajustar o valor do aluguel (atualiza as dívidas em aberto, preserva o histórico das
@@ -91,7 +97,11 @@ Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servid
   salvar. Opcionalmente, associe um corretor (escolhido de uma lista de pessoas
   cadastrada em Configurações + percentual, padrão 5%) — o valor aparece em cada
   dívida só como cálculo informativo, sem mudar o total cobrado do inquilino; sem
-  corretor selecionado a comissão simplesmente não existe
+  corretor selecionado a comissão simplesmente não existe. Também é possível informar
+  uma caução (valor retido do inquilino) — fica só como anotação visível no card do
+  contrato, nunca soma em nenhum total, já que em teoria é devolvida no final. Quando um
+  inquilino deixa o imóvel, "Encerrar contrato" para a geração automática de novas
+  dívidas mensais sem apagar nada do histórico (pode ser revertido depois)
 - **Atualizar dívidas** — um botão "Atualizar dívidas" no topo do sistema gera o
   próximo mês de todos os contratos de uma vez (cada contrato também tem seu próprio
   botão individual); roda sozinho, silenciosamente, toda vez que o sistema é aberto,
@@ -116,6 +126,9 @@ Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servid
   escolher manualmente; a partir daí fica salvo no navegador
 - **Login protegido** — sessão de 30 dias, não desloga ao fechar o navegador. Suporta
   múltiplos usuários administradores, todos com o mesmo nível de acesso
+- **Segurança** — em Configurações, um botão gera uma nova chave `COOKIE_SECRET`
+  (que assina o cookie de login) direto pelo site, sem precisar editar nenhum arquivo
+  manualmente. Desconecta os outros usuários logados no momento (a sua sessão continua)
 - **Atalhos de teclado** — `N` abre um novo contrato, `/` foca a busca, `Esc` fecha
   modais
 
@@ -159,6 +172,8 @@ api/session.php      GET -> { authenticated, username }
 api/data.php         GET lê / POST grava data/dados.json (exige autenticação)
 api/account.php      POST { currentPassword, newUsername, newPassword } -> troca o
                       próprio usuário/senha em data/auth.json (exige senha atual)
+api/regenerate_secret.php  POST { currentPassword } -> gera um novo COOKIE_SECRET
+                      aleatório e reescreve api/config.php (exige senha atual)
 api/users.php         GET lista os usuários administradores; POST { action: 'add' | 'remove', ... }
                       adiciona ou remove outros usuários (exige autenticação)
 api/anexo.php         GET ?file=... baixa/visualiza o anexo; POST (multipart) envia um
@@ -211,7 +226,8 @@ vez de criar vários contratos separados.
 | Campo           | Tipo               | Descrição                                                |
 |------------------|--------------------|------------------------------------------------------------|
 | `id`             | string             | Gerado no front-end (`uuid()`)                              |
-| `imovel`         | string             | Descrição do imóvel                                        |
+| `numero`         | number             | Número sequencial único para identificar o contrato (`max(números existentes) + 1`), gerado automaticamente na criação. Sem relação com `id` |
+| `imovel`         | string             | Descrição do imóvel — escolhida da lista cadastrada na aba "Imóveis" |
 | `inquilino`      | string             | Nome do inquilino                                           |
 | `quemRecebeu`    | string             | Recebedor padrão sugerido ao registrar pagamento — nome escolhido da lista de "pessoas" (ou vazio) |
 | `dataInicio`     | string `AAAA-MM-DD`| Data de início do contrato, informada na criação             |
@@ -221,6 +237,9 @@ vez de criar vários contratos separados.
 | `anexoContrato`  | string ou null     | Nome do arquivo do contrato assinado anexado (em `contratos/`), ou `null` |
 | `corretorNome`   | string             | Nome do corretor associado a este contrato (vazio = sem corretor) |
 | `corretorPercentual` | number         | Percentual do aluguel considerado repasse ao corretor — só informativo, não altera `total` de nenhuma dívida (mesma lógica do `condominio`: passa pela mão do proprietário, mas não é receita dele) |
+| `caucao`         | number             | Valor de caução retido (opcional) — só informativo, nunca entra em nenhum cálculo/total |
+| `encerrado`      | boolean            | Se `true`, o sistema não gera mais novas dívidas mensais para este contrato (nem manual nem automaticamente), mas nada é apagado — histórico e dívidas existentes continuam intactos |
+| `dataEncerramento` | string `AAAA-MM-DD` ou null | Data em que o contrato foi encerrado, ou `null` |
 | `criadoEm`       | number (timestamp) | Data de criação do contrato                                  |
 | `dividas`        | array              | Lista de dívidas (ver abaixo) — pelo menos uma                |
 
@@ -292,6 +311,13 @@ Alimenta os seletores "Quem recebe" (contrato e pagamento) e "Corretor" — um m
 cadastrado pode ser usado nos dois papéis, evitando digitar toda vez. Remover uma pessoa
 da lista não afeta contratos/pagamentos que já usam aquele nome. Substitui o antigo
 array `corretores`; dados antigos são migrados automaticamente ao carregar.
+
+#### Imóveis (array `imoveis` em `data/dados.json`)
+
+Lista reutilizável de imóveis cadastrados (`{ id, nome }`, onde `nome` é a descrição
+livre do imóvel), gerenciada na aba "Imóveis". Alimenta o seletor de imóvel ao
+criar/editar um contrato. Remover um imóvel da lista não afeta contratos que já usam
+aquela descrição.
 
 #### Despesa (cada item do array `despesas` em `data/dados.json`)
 

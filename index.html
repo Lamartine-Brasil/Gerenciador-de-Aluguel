@@ -78,6 +78,7 @@
 
   <nav class="tabs" id="tabsNav">
     <button class="tab-btn active" data-tab="dashboard"><span class="tab-icon"><svg class="icon"><use href="#icon-grid"></use></svg></span><span>Dashboard</span></button>
+    <button class="tab-btn" data-tab="imoveis"><span class="tab-icon"><svg class="icon"><use href="#icon-home"></use></svg></span><span>Imóveis</span></button>
     <button class="tab-btn" data-tab="contratos"><span class="tab-icon"><svg class="icon"><use href="#icon-file-text"></use></svg></span><span>Contratos</span></button>
     <button class="tab-btn" data-tab="atrasos"><span class="tab-icon"><svg class="icon"><use href="#icon-clock"></use></svg></span><span>Atrasos</span></button>
     <button class="tab-btn" data-tab="historico"><span class="tab-icon"><svg class="icon"><use href="#icon-receipt"></use></svg></span><span>Histórico</span></button>
@@ -126,6 +127,25 @@
         <h3>Contratos recentes</h3>
       </div>
       <div id="dashboardRecentList" class="cards-list"></div>
+    </section>
+
+    <!-- ---------- IMÓVEIS ---------- -->
+    <section id="tab-imoveis" class="tab-panel">
+      <div class="panel-header">
+        <h2>Imóveis</h2>
+      </div>
+      <div class="card">
+        <h3>Novo imóvel</h3>
+        <p class="modal-subtitle">Cadastre aqui os imóveis para escolher pela lista ao criar um contrato, sem digitar o endereço toda vez.</p>
+        <form id="formImovel" class="config-form">
+          <label class="field">
+            <span>Descrição do imóvel *</span>
+            <input type="text" id="newImovelNome" placeholder="Ex: Apartamento 302 - Rua das Flores #123" required>
+          </label>
+          <button type="submit" class="btn btn-primary">Adicionar imóvel</button>
+        </form>
+      </div>
+      <div id="imoveisList" class="cards-list"></div>
     </section>
 
     <!-- ---------- CONTRATOS ---------- -->
@@ -470,6 +490,20 @@
       </div>
 
       <div class="card">
+        <h3>Segurança</h3>
+        <p class="modal-subtitle">A chave <code>COOKIE_SECRET</code> (em <code>api/config.php</code>) assina o cookie de login. Gerar uma nova desconecta automaticamente todos os OUTROS usuários que estiverem logados agora (precisam entrar de novo) — a sua sessão continua ativa normalmente.</p>
+        <form id="regenerateSecretForm" class="config-form">
+          <label class="field">
+            <span>Confirme sua senha atual *</span>
+            <input type="password" id="secretCurrentPassword" required autocomplete="current-password">
+          </label>
+          <p id="regenerateSecretError" class="error-msg hidden"></p>
+          <button type="submit" class="btn btn-danger">Gerar novo COOKIE_SECRET</button>
+          <p id="regenerateSecretSaved" class="success-msg hidden">Nova chave gerada com sucesso!</p>
+        </form>
+      </div>
+
+      <div class="card">
         <h3>Usuários administradores</h3>
         <p class="modal-subtitle">Adicione outros usuários com acesso total ao sistema (ex: um sócio ou gerente). Todos têm as mesmas permissões.</p>
         <div id="usersList" class="cards-list"></div>
@@ -538,7 +572,9 @@
         </label>
         <label class="field" id="fCampoImovel">
           <span>Imóvel *</span>
-          <input type="text" id="fImovel" placeholder="Ex: Apartamento 302 - Rua das Flores #123" required>
+          <select id="fImovel" required>
+            <option value="" disabled selected>Selecione um imóvel...</option>
+          </select>
         </label>
         <label class="field" id="fCampoInquilino">
           <span>Inquilino *</span>
@@ -592,9 +628,15 @@
           <span>Valor em atraso já existente (R$)</span>
           <input type="number" id="fValorAtraso" step="0.01" min="0" placeholder="0,00">
         </label>
+        <label class="field" id="fCampoCaucao">
+          <span>Caução (R$) — opcional</span>
+          <input type="number" id="fCaucao" step="0.01" min="0" placeholder="0,00">
+        </label>
       </div>
+      <p class="modal-subtitle hidden" id="fSemImovelHint">Nenhum imóvel cadastrado ainda. Cadastre um na aba <strong>Imóveis</strong> antes de criar um contrato.</p>
       <p class="modal-subtitle" id="fRetroativoHint">Contrato antigo? Se a data de início já passou, o sistema gera automaticamente uma dívida para cada mês, do mês de início até o mês atual (útil para lançar de uma vez o histórico de um contrato antigo).</p>
       <p class="modal-subtitle" id="fCorretorHint">Se houver corretor, o percentual informado não é somado ao total cobrado do inquilino — é só um cálculo informativo de quanto do aluguel recebido não é receita sua (mesma lógica do condomínio).</p>
+      <p class="modal-subtitle" id="fCaucaoHint">O valor da caução não é somado a nenhum total — é só uma anotação informativa no contrato (o valor é, em teoria, devolvido no final).</p>
       <label class="field">
         <span>Observação</span>
         <textarea id="fObservacao" rows="2" placeholder="Observações adicionais (opcional)"></textarea>
@@ -623,12 +665,19 @@
       <p class="modal-subtitle" id="infoContratoSubtitle"></p>
       <label class="field">
         <span>Imóvel *</span>
-        <input type="text" id="infoImovel" required>
+        <select id="infoImovel" required>
+          <option value="" disabled>Selecione um imóvel...</option>
+        </select>
       </label>
       <label class="field">
         <span>Inquilino *</span>
         <input type="text" id="infoInquilino" required>
       </label>
+      <label class="field">
+        <span>Caução (R$) — opcional</span>
+        <input type="number" id="infoCaucao" step="0.01" min="0" placeholder="0,00">
+      </label>
+      <p class="modal-subtitle">O valor da caução não é somado a nenhum total — é só uma anotação informativa no contrato.</p>
       <label class="field">
         <span>Quem recebe (padrão)</span>
         <select id="infoQuemRecebeu">

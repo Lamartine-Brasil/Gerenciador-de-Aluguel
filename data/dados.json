@@ -3,10 +3,17 @@
     "config": {
         "taxaJurosMensal": 1,
         "taxaMultaPercent": 2,
+        "corretorPercentualPadrao": 5,
         "jurosPadrao": 0,
-        "multaPadrao": 0,
-        "corretorPercentualPadrao": 5
+        "multaPadrao": 0
     },
     "auditoria": [],
-    "corretores": []
+    "pessoas": [
+        {
+            "id": "c_msdz8j1c_9gjzqve",
+            "nome": "Lamartine"
+        }
+    ],
+    "despesas": [],
+    "imoveis": []
 }

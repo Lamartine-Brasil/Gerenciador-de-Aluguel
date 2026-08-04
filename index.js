@@ -13,7 +13,7 @@ const DIAS_ALERTA_VENCIMENTO = 5;
  * contrato antigo já nascer com várias dívidas em aberto (uma por mês em
  * atraso), em vez de virar vários "contratos" separados.
  */
-let state = { contratos: [], config: { taxaJurosMensal: 1, taxaMultaPercent: 2, corretorPercentualPadrao: 5 }, auditoria: [], pessoas: [], despesas: [] };
+let state = { contratos: [], config: { taxaJurosMensal: 1, taxaMultaPercent: 2, corretorPercentualPadrao: 5 }, auditoria: [], pessoas: [], despesas: [], imoveis: [] };
 let currentUsername = '';
 
 function setCurrentUsername(username) {
@@ -83,6 +83,7 @@ async function fetchState() {
   data.pessoas = data.pessoas || data.corretores || [];
   delete data.corretores;
   data.despesas = data.despesas || [];
+  data.imoveis = data.imoveis || [];
   return data;
 }
 
@@ -334,6 +335,7 @@ function todasDividas() {
       lista.push({
         ...d,
         contratoId: c.id,
+        numero: c.numero,
         imovel: c.imovel,
         inquilino: c.inquilino,
         quemRecebeu: c.quemRecebeu,
@@ -354,6 +356,31 @@ function encontrarDivida(dividaId) {
     if (d) return { contrato: c, divida: d };
   }
   return null;
+}
+
+// Número sequencial usado só para identificar o contrato (ex: "Contrato #12"),
+// sem relação com o `id` interno (uuid). O próximo número é sempre
+// max(números existentes) + 1, então nunca se repete mesmo depois de excluir
+// contratos antigos.
+function proximoNumeroContrato() {
+  const max = state.contratos.reduce((m, c) => Math.max(m, Number(c.numero) || 0), 0);
+  return max + 1;
+}
+
+// Contratos de instalações antigas (antes deste campo existir) não têm
+// `numero` — atribui um a cada um, na ordem de criação, sem repetir.
+function precisaMigrarNumerosContrato(contratos) {
+  return contratos.some(c => !c.numero);
+}
+
+function migrarNumerosContrato(contratos) {
+  const ordenados = contratos.slice().sort((a, b) => (a.criadoEm || 0) - (b.criadoEm || 0));
+  let proximo = 1;
+  ordenados.forEach(c => {
+    if (!c.numero) c.numero = proximo;
+    proximo = Math.max(proximo, c.numero) + 1;
+  });
+  return contratos;
 }
 
 /* ===================== AUTH ===================== */
@@ -378,6 +405,10 @@ async function showApp() {
     state = await fetchState();
     if (precisaMigrarContratos(state.contratos)) {
       state.contratos = migrarContratos(state.contratos);
+      await saveState();
+    }
+    if (precisaMigrarNumerosContrato(state.contratos)) {
+      state.contratos = migrarNumerosContrato(state.contratos);
       await saveState();
     }
     // roda sozinho a cada vez que o sistema é aberto — não depende de o
@@ -449,6 +480,7 @@ document.getElementById('tabsNav').addEventListener('click', (e) => {
   if (btn.dataset.tab === 'auditoria') renderAuditoria();
   if (btn.dataset.tab === 'calendario') renderCalendario();
   if (btn.dataset.tab === 'despesas') renderDespesas();
+  if (btn.dataset.tab === 'imoveis') renderImoveis();
 });
 
 /* ===================== MODALS ===================== */
@@ -533,10 +565,15 @@ document.getElementById('btnNovoContrato').addEventListener('click', () => {
   document.getElementById('fCampoDataInicio').classList.remove('hidden');
   document.getElementById('fCampoDiaPagamento').classList.remove('hidden');
   document.getElementById('fCampoImovel').classList.remove('hidden');
+  populateImovelSelect(document.getElementById('fImovel'), '');
+  document.getElementById('fSemImovelHint').classList.toggle('hidden', state.imoveis.length > 0);
   document.getElementById('fCampoInquilino').classList.remove('hidden');
   document.getElementById('fCampoQuemRecebeu').classList.remove('hidden');
   populatePessoaSelect(document.getElementById('fQuemRecebeu'), '', 'Nenhum / outro');
   document.getElementById('fCampoVencimento').classList.add('hidden');
+  document.getElementById('fCampoCaucao').classList.remove('hidden');
+  document.getElementById('fCaucaoHint').classList.remove('hidden');
+  document.getElementById('fCaucao').value = '';
   document.getElementById('fCampoJurosPercentual').classList.remove('hidden');
   document.getElementById('fCampoMultaPercentual').classList.remove('hidden');
   document.getElementById('fCampoJuros').classList.add('hidden');
@@ -585,6 +622,9 @@ function openEditDivida(dividaId) {
   document.getElementById('fCampoCorretorNome').classList.add('hidden');
   document.getElementById('fCampoCorretorPercentual').classList.add('hidden');
   document.getElementById('fCorretorHint').classList.add('hidden');
+  document.getElementById('fCampoCaucao').classList.add('hidden');
+  document.getElementById('fCaucaoHint').classList.add('hidden');
+  document.getElementById('fSemImovelHint').classList.add('hidden');
   document.getElementById('fDataInicio').required = false;
   document.getElementById('fDiaPagamento').required = false;
   document.getElementById('fImovel').required = false;
@@ -647,6 +687,7 @@ formContrato.addEventListener('submit', (e) => {
 
     const corretorNome = document.getElementById('fCorretorNome').value;
     const corretorPercentual = Number(document.getElementById('fCorretorPercentual').value) || 0;
+    const caucao = Number(document.getElementById('fCaucao').value) || 0;
 
     const primeiroVenc = primeiroVencimento(dataInicio, diaPagamento);
     const vencimentos = gerarVencimentosAtePresente(primeiroVenc);
@@ -684,6 +725,7 @@ formContrato.addEventListener('submit', (e) => {
 
     state.contratos.push({
       id: uuid(),
+      numero: proximoNumeroContrato(),
       imovel,
       inquilino,
       quemRecebeu,
@@ -697,6 +739,9 @@ formContrato.addEventListener('submit', (e) => {
       anexoContrato: null,
       corretorNome,
       corretorPercentual,
+      caucao,
+      encerrado: false,
+      dataEncerramento: null,
       criadoEm: Date.now(),
       dividas,
     });
@@ -726,6 +771,33 @@ function excluirContrato(contratoId) {
   showToast('Contrato excluído.', 'success');
 }
 
+// Encerrar é diferente de excluir: não apaga nenhum dado (as dívidas e o
+// histórico de pagamentos continuam existindo e visíveis), só faz o sistema
+// parar de gerar novas dívidas mensais para este contrato — usado quando o
+// inquilino deixa o imóvel. Pode ser revertido a qualquer momento.
+function encerrarContrato(contratoId) {
+  const c = state.contratos.find(x => x.id === contratoId);
+  if (!c) return;
+  if (!confirm(`Encerrar o contrato de ${c.imovel} - ${c.inquilino}? O histórico continua disponível normalmente — o sistema só para de gerar novas dívidas mensais automaticamente. Você pode reabrir depois, se precisar.`)) return;
+  c.encerrado = true;
+  c.dataEncerramento = todayStr();
+  registrarAuditoria('contrato_encerrado', `Contrato encerrado: ${c.imovel} - ${c.inquilino}`);
+  saveState();
+  renderAll();
+  showToast('Contrato encerrado.', 'success');
+}
+
+function reabrirContrato(contratoId) {
+  const c = state.contratos.find(x => x.id === contratoId);
+  if (!c) return;
+  c.encerrado = false;
+  c.dataEncerramento = null;
+  registrarAuditoria('contrato_reaberto', `Contrato reaberto: ${c.imovel} - ${c.inquilino}`);
+  saveState();
+  renderAll();
+  showToast('Contrato reaberto.', 'success');
+}
+
 function excluirDivida(dividaId) {
   const achado = encontrarDivida(dividaId);
   if (!achado) return;
@@ -746,6 +818,7 @@ function excluirDivida(dividaId) {
 // contrato só quanto pela atualização em lote de todos os contratos.
 // Retorna quantas dívidas novas foram geradas.
 function gerarDividasFaltantes(c) {
+  if (c.encerrado) return 0;
   let vencimentos;
   if (!c.dividas.length) {
     vencimentos = gerarVencimentosAtePresente(primeiroVencimento(c.dataInicio, c.diaPagamento));
@@ -827,12 +900,13 @@ function openContratoInfo(contratoId) {
   const c = state.contratos.find(x => x.id === contratoId);
   if (!c) return;
   document.getElementById('infoContratoId').value = c.id;
-  document.getElementById('infoImovel').value = c.imovel;
+  populateImovelSelect(document.getElementById('infoImovel'), c.imovel);
   document.getElementById('infoInquilino').value = c.inquilino;
+  document.getElementById('infoCaucao').value = c.caucao || '';
   populatePessoaSelect(document.getElementById('infoQuemRecebeu'), c.quemRecebeu || '', 'Nenhum / outro');
-  document.getElementById('infoContratoSubtitle').textContent = c.dataInicio
-    ? `Início do contrato: ${formatDate(c.dataInicio)}, todo dia ${c.diaPagamento}`
-    : '';
+  document.getElementById('infoContratoSubtitle').textContent = (c.dataInicio
+    ? `Contrato #${c.numero} — Início: ${formatDate(c.dataInicio)}, todo dia ${c.diaPagamento}`
+    : `Contrato #${c.numero}`) + (c.encerrado ? ` — Encerrado em ${formatDate(c.dataEncerramento)}` : '');
 
   populatePessoaSelect(document.getElementById('infoCorretorNome'), c.corretorNome || '', 'Nenhum (sem corretor)');
   document.getElementById('infoCampoCorretorPercentual').classList.toggle('hidden', !c.corretorNome);
@@ -864,6 +938,7 @@ formContratoInfo.addEventListener('submit', (e) => {
   c.quemRecebeu = document.getElementById('infoQuemRecebeu').value.trim();
   c.corretorNome = document.getElementById('infoCorretorNome').value;
   c.corretorPercentual = Number(document.getElementById('infoCorretorPercentual').value) || 0;
+  c.caucao = Number(document.getElementById('infoCaucao').value) || 0;
 
   registrarAuditoria('contrato_editado', `Contrato editado: ${c.imovel} - ${c.inquilino}`);
   saveState();
@@ -988,7 +1063,7 @@ function openPagamento(dividaId) {
   if (!achado) return;
   const { contrato: c, divida: d } = achado;
   document.getElementById('pagDividaId').value = d.id;
-  document.getElementById('pagContratoInfo').textContent = `${c.imovel} — ${c.inquilino} — Vencimento: ${formatDate(d.vencimento)} — Total: ${formatCurrency(d.total)}`;
+  document.getElementById('pagContratoInfo').textContent = `#${c.numero} — ${c.imovel} — ${c.inquilino} — Vencimento: ${formatDate(d.vencimento)} — Total: ${formatCurrency(d.total)}`;
   document.getElementById('pagData').value = todayStr();
   document.getElementById('pagDesconto').value = '';
   document.getElementById('pagValor').value = (d.total + calcAtrasoAtual(d)).toFixed(2);
@@ -1040,7 +1115,7 @@ function openHistoricoContrato(contratoId) {
   const c = state.contratos.find(x => x.id === contratoId);
   if (!c) return;
   historicoContratoAtualId = contratoId;
-  document.getElementById('histContratoInfo').textContent = `${c.imovel} — ${c.inquilino}`;
+  document.getElementById('histContratoInfo').textContent = `#${c.numero} — ${c.imovel} — ${c.inquilino}`;
   const list = document.getElementById('histContratoList');
   const pagamentos = [];
   c.dividas.forEach(d => d.pagamentos.forEach(p => pagamentos.push({ ...p, vencimentoDivida: d.vencimento, valorLiquido: valorLiquidoPagamento(c, d, p) })));
@@ -1079,7 +1154,7 @@ function escapeHtml(str) {
 // os critérios (ano/mês/status); a busca por texto olha o imóvel/inquilino.
 function contratoPassaFiltro(c, { search, ano, mes, status }) {
   if (search) {
-    const haystack = (c.inquilino + ' ' + c.imovel).toLowerCase();
+    const haystack = (c.inquilino + ' ' + c.imovel + ' #' + (c.numero || '')).toLowerCase();
     if (!haystack.includes(search)) return false;
   }
   if (!ano && mes === '' && !status) return true;
@@ -1202,10 +1277,12 @@ function contratoGrupoHtml(c) {
     <div class="contrato-grupo" data-contrato-id="${c.id}">
       <div class="contrato-grupo-header">
         <div>
-          <div class="contrato-title">${escapeHtml(c.imovel)}</div>
+          <div class="contrato-title">#${c.numero || '--'} — ${escapeHtml(c.imovel)}${c.encerrado ? ' <span class="status-badge status-atrasado">Encerrado</span>' : ''}</div>
           <div class="contrato-sub">${icon('user')} ${escapeHtml(c.inquilino)} · ${c.dividas.length} dívida(s)${pendentes ? `, ${pendentes} em aberto` : ' — tudo pago'}</div>
           ${c.quemRecebeu ? `<div class="contrato-sub">Recebedor padrão: ${escapeHtml(c.quemRecebeu)}</div>` : ''}
           ${c.corretorNome ? `<div class="contrato-sub">${icon('user')} Corretor: ${escapeHtml(c.corretorNome)} (${c.corretorPercentual}% do aluguel — não somado ao total)</div>` : ''}
+          ${c.caucao ? `<div class="contrato-sub">${icon('wallet')} Caução retida: ${formatCurrency(c.caucao)} (não somada a nenhum total)</div>` : ''}
+          ${c.encerrado ? `<div class="contrato-sub">Encerrado em ${formatDate(c.dataEncerramento)}</div>` : ''}
         </div>
         <div class="contrato-actions">
           <button class="btn btn-ghost btn-sm" data-grupo-action="atualizar" data-contrato-id="${c.id}">${icon('calendar')} Atualizar dívidas</button>
@@ -1213,6 +1290,9 @@ function contratoGrupoHtml(c) {
           ${c.anexoContrato ? `<a class="btn btn-ghost btn-sm" href="api/anexo.php?file=${encodeURIComponent(c.anexoContrato)}" target="_blank">${icon('paperclip')} Anexo</a>` : ''}
           <button class="btn btn-ghost btn-sm" data-grupo-action="historico" data-contrato-id="${c.id}">${icon('receipt')} Histórico</button>
           <button class="btn btn-ghost btn-sm" data-grupo-action="editar" data-contrato-id="${c.id}">${icon('pencil')} Editar contrato</button>
+          ${c.encerrado
+            ? `<button class="btn btn-ghost btn-sm" data-grupo-action="reabrir" data-contrato-id="${c.id}">${icon('trending-up')} Reabrir contrato</button>`
+            : `<button class="btn btn-ghost btn-sm" data-grupo-action="encerrar" data-contrato-id="${c.id}">${icon('clock')} Encerrar contrato</button>`}
           <button class="btn btn-danger btn-sm" data-grupo-action="excluir" data-contrato-id="${c.id}">${icon('trash')} Excluir contrato</button>
         </div>
       </div>
@@ -1233,6 +1313,8 @@ function bindGrupoActions(container) {
       else if (action === 'historico') openHistoricoContrato(contratoId);
       else if (action === 'excluir') excluirContrato(contratoId);
       else if (action === 'atualizar') atualizarDividas(contratoId);
+      else if (action === 'encerrar') encerrarContrato(contratoId);
+      else if (action === 'reabrir') reabrirContrato(contratoId);
     });
   });
   bindDividaRowActions(container);
@@ -1248,7 +1330,7 @@ function dividaCardHtml(item) {
     <div class="contrato-card status-${status}" data-divida-id="${item.id}">
       <div class="contrato-top">
         <div>
-          <div class="contrato-title">${escapeHtml(item.imovel)}</div>
+          <div class="contrato-title">#${item.numero || '--'} — ${escapeHtml(item.imovel)}</div>
           <div class="contrato-sub">${icon('user')} ${escapeHtml(item.inquilino)} · Vencimento: ${formatDate(item.vencimento)}</div>
         </div>
         <span class="status-badge status-${status}">${statusLabel(status)}</span>
@@ -1650,6 +1732,66 @@ addPessoaForm.addEventListener('submit', (e) => {
   showToast('Pessoa adicionada com sucesso.', 'success');
 });
 
+/* ===================== IMÓVEIS (cadastro reutilizável) ===================== */
+const formImovel = document.getElementById('formImovel');
+
+function populateImovelSelect(selectEl, valorAtual) {
+  const atual = valorAtual || '';
+  selectEl.innerHTML = '<option value="" disabled' + (atual ? '' : ' selected') + '>Selecione um imóvel...</option>' +
+    state.imoveis.map(i => `<option value="${escapeHtml(i.nome)}">${escapeHtml(i.nome)}</option>`).join('');
+  // se o valor atual não estiver na lista (imóvel removido do cadastro depois
+  // de já usado num contrato), mantém mostrando o nome mesmo assim
+  if (atual && !state.imoveis.some(i => i.nome === atual)) {
+    selectEl.innerHTML += `<option value="${escapeHtml(atual)}">${escapeHtml(atual)}</option>`;
+  }
+  selectEl.value = atual;
+}
+
+function renderImoveis() {
+  const list = document.getElementById('imoveisList');
+  if (!state.imoveis.length) {
+    list.innerHTML = '<div class="empty-state">Nenhum imóvel cadastrado ainda.</div>';
+    return;
+  }
+  list.innerHTML = state.imoveis.map(i => `
+    <div class="card">
+      <div class="contrato-top">
+        <div class="contrato-title">${escapeHtml(i.nome)}</div>
+        <button type="button" class="btn btn-danger btn-sm" data-remove-imovel="${i.id}">${icon('trash')} Remover</button>
+      </div>
+    </div>
+  `).join('');
+  list.querySelectorAll('[data-remove-imovel]').forEach(btn => {
+    btn.addEventListener('click', () => removeImovel(btn.dataset.removeImovel));
+  });
+}
+
+function removeImovel(id) {
+  const i = state.imoveis.find(x => x.id === id);
+  if (!i) return;
+  if (!confirm(`Remover "${i.nome}" da lista de imóveis? Contratos que já usam esse imóvel não são afetados.`)) return;
+  state.imoveis = state.imoveis.filter(x => x.id !== id);
+  saveState();
+  renderImoveis();
+  showToast('Imóvel removido.', 'success');
+}
+
+formImovel.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const nomeInput = document.getElementById('newImovelNome');
+  const nome = nomeInput.value.trim();
+  if (!nome) return;
+  if (state.imoveis.some(i => i.nome.toLowerCase() === nome.toLowerCase())) {
+    showToast('Já existe um imóvel cadastrado com essa descrição.', 'error');
+    return;
+  }
+  state.imoveis.push({ id: uuid(), nome });
+  saveState();
+  nomeInput.value = '';
+  renderImoveis();
+  showToast('Imóvel adicionado com sucesso.', 'success');
+});
+
 /* ===================== CONTA (usuário/senha) ===================== */
 const accountForm = document.getElementById('accountForm');
 
@@ -1686,6 +1828,41 @@ accountForm.addEventListener('submit', async (e) => {
       loadUsers();
     } else {
       errorEl.textContent = data.error || 'Não foi possível atualizar os dados de acesso.';
+      errorEl.classList.remove('hidden');
+    }
+  } catch (err) {
+    errorEl.textContent = 'Não foi possível conectar ao servidor.';
+    errorEl.classList.remove('hidden');
+  }
+});
+
+/* ===================== SEGURANÇA (regenerar COOKIE_SECRET) ===================== */
+const regenerateSecretForm = document.getElementById('regenerateSecretForm');
+
+regenerateSecretForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const currentPassword = document.getElementById('secretCurrentPassword').value;
+  const errorEl = document.getElementById('regenerateSecretError');
+  errorEl.classList.add('hidden');
+
+  if (!confirm('Gerar uma nova chave vai desconectar automaticamente todos os OUTROS usuários administradores que estiverem logados agora (eles precisam entrar de novo). Deseja continuar?')) return;
+
+  try {
+    const res = await apiFetch('regenerate_secret.php', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword }),
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      document.getElementById('secretCurrentPassword').value = '';
+      const msg = document.getElementById('regenerateSecretSaved');
+      msg.classList.remove('hidden');
+      setTimeout(() => msg.classList.add('hidden'), 2200);
+      registrarAuditoria('cookie_secret_regenerado', 'COOKIE_SECRET regenerado pelo administrador');
+      saveState();
+      showToast('Nova chave gerada com sucesso.', 'success');
+    } else {
+      errorEl.textContent = data.error || 'Não foi possível gerar a nova chave.';
       errorEl.classList.remove('hidden');
     }
   } catch (err) {
@@ -1815,9 +1992,13 @@ document.getElementById('inputImportBackup').addEventListener('change', (e) => {
     if (precisaMigrarContratos(state.contratos)) {
       state.contratos = migrarContratos(state.contratos);
     }
+    if (precisaMigrarNumerosContrato(state.contratos)) {
+      state.contratos = migrarNumerosContrato(state.contratos);
+    }
     state.pessoas = state.pessoas || state.corretores || [];
     delete state.corretores;
     state.despesas = state.despesas || [];
+    state.imoveis = state.imoveis || [];
     state.auditoria = state.auditoria || [];
     await saveState();
     renderAll();
@@ -1836,7 +2017,7 @@ document.getElementById('btnDeleteDatabase').addEventListener('click', async () 
     showToast('Exclusão cancelada.', 'error');
     return;
   }
-  state = { contratos: [], config: { taxaJurosMensal: 1, taxaMultaPercent: 2, corretorPercentualPadrao: 5 }, auditoria: [], pessoas: [], despesas: [] };
+  state = { contratos: [], config: { taxaJurosMensal: 1, taxaMultaPercent: 2, corretorPercentualPadrao: 5 }, auditoria: [], pessoas: [], despesas: [], imoveis: [] };
   await saveState();
   renderAll();
   showToast('Todos os dados foram excluídos.', 'success');
@@ -2366,8 +2547,9 @@ document.getElementById('btnExportCSV').addEventListener('click', () => {
   const dividas = getFilteredDividasFlat();
   if (!dividas.length) { showToast('Nenhuma dívida para exportar.', 'error'); return; }
 
-  const headers = ['Vencimento', 'Imóvel', 'Inquilino', 'Aluguel', 'Desconto', 'Juros', 'Multa', 'Condomínio', 'Total', 'Valor em Atraso', 'Status', 'Quem Recebe', 'Observação'];
+  const headers = ['Nº Contrato', 'Vencimento', 'Imóvel', 'Inquilino', 'Aluguel', 'Desconto', 'Juros', 'Multa', 'Condomínio', 'Total', 'Valor em Atraso', 'Status', 'Quem Recebe', 'Observação'];
   const rows = dividas.map(d => [
+    d.numero || '',
     formatDate(d.vencimento),
     d.imovel,
     d.inquilino,
@@ -2466,24 +2648,28 @@ document.getElementById('inputImportCSV').addEventListener('change', (e) => {
     let ignorados = 0;
 
     linhasDados.forEach(row => {
-      const vencimento = parseDateBR(row[0]);
-      const imovel = (row[1] || '').trim();
-      const inquilino = (row[2] || '').trim();
+      // Colunas seguem a mesma ordem do CSV exportado (ver btnExportCSV):
+      // Nº Contrato (ignorado — é sempre gerado de novo), Vencimento, Imóvel,
+      // Inquilino, Aluguel, Desconto, Juros, Multa, Condomínio, Total, Valor
+      // em Atraso, Status, Quem Recebe, Observação
+      const vencimento = parseDateBR(row[1]);
+      const imovel = (row[2] || '').trim();
+      const inquilino = (row[3] || '').trim();
       if (!vencimento || !imovel || !inquilino) { ignorados++; return; }
 
-      const aluguel = parseFloat(row[3]) || 0;
-      const desconto = parseFloat(row[4]) || 0;
-      const juros = parseFloat(row[5]) || 0;
-      const multa = parseFloat(row[6]) || 0;
-      const condominio = parseFloat(row[7]) || 0;
-      const quemRecebeu = (row[11] || '').trim();
+      const aluguel = parseFloat(row[4]) || 0;
+      const desconto = parseFloat(row[5]) || 0;
+      const juros = parseFloat(row[6]) || 0;
+      const multa = parseFloat(row[7]) || 0;
+      const condominio = parseFloat(row[8]) || 0;
+      const quemRecebeu = (row[12] || '').trim();
 
       const divida = {
         id: uuid(),
         vencimento,
         aluguel, desconto, juros, multa, condominio,
-        valorAtrasoBase: parseFloat(row[9]) || 0,
-        observacao: (row[12] || '').trim(),
+        valorAtrasoBase: parseFloat(row[10]) || 0,
+        observacao: (row[13] || '').trim(),
         pago: false,
         dataPagamento: null,
         pagamentos: [],
@@ -2493,6 +2679,7 @@ document.getElementById('inputImportCSV').addEventListener('change', (e) => {
 
       state.contratos.push({
         id: uuid(),
+        numero: proximoNumeroContrato(),
         imovel,
         inquilino,
         quemRecebeu,
@@ -2500,6 +2687,8 @@ document.getElementById('inputImportCSV').addEventListener('change', (e) => {
         diaPagamento: parseDate(vencimento).getDate(),
         aluguel, desconto, juros, multa, condominio,
         anexoContrato: null,
+        encerrado: false,
+        dataEncerramento: null,
         criadoEm: Date.now(),
         dividas: [divida],
       });
@@ -2600,6 +2789,7 @@ function truncateText(ctx, text, maxWidth) {
 /* ===================== RENDER ALL ===================== */
 function renderAll() {
   renderDashboard();
+  renderImoveis();
   renderContratos();
   renderAtrasos();
   renderHistorico();
