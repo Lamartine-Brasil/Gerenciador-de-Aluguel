@@ -388,6 +388,54 @@ a { color: var(--accent); }
 .pagination { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 18px; }
 .pagination-info { font-size: 13px; color: var(--text-dim); }
 
+/* contrato = grupo com várias dívidas (meses) dentro */
+.contrato-grupo {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: fadeIn .3s var(--ease);
+  transition: box-shadow .2s var(--ease);
+}
+.contrato-grupo:hover { box-shadow: var(--shadow); }
+
+.contrato-grupo-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.contrato-grupo-dividas { display: flex; flex-direction: column; gap: 8px; }
+.contrato-grupo-toggle {
+  background: none; border: none; color: var(--text-dim); font-size: 12px; font-weight: 600;
+  cursor: pointer; text-align: left; padding: 2px 0; display: flex; align-items: center; gap: 4px;
+}
+.contrato-grupo-toggle:hover { color: var(--text); }
+.contrato-grupo-dividas.collapsed .divida-row:nth-child(n+4) { display: none; }
+
+.divida-row {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text-faint);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: box-shadow .15s var(--ease);
+}
+.divida-row.status-ativo { border-left-color: var(--accent); }
+.divida-row.status-atrasado { border-left-color: var(--danger); }
+.divida-row.status-pago { border-left-color: var(--success); }
+
+.divida-row-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.divida-row-venc { font-weight: 600; font-size: 13.5px; }
+
+.divida-row-valores { display: flex; gap: 18px; flex-wrap: wrap; }
+.divida-row-valores div span { display: block; color: var(--text-faint); font-size: 11px; margin-bottom: 1px; }
+.divida-row-valores div strong { font-size: 13px; font-weight: 600; }
+
+.divida-row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
 /* ===================== TOOLBAR ===================== */
 .toolbar {
   display: flex;
@@ -642,6 +690,7 @@ a { color: var(--accent); }
   .stat-value { font-size: 17px; }
   .stat-icon { width: 36px; height: 36px; font-size: 17px; border-radius: 10px; }
   .toolbar .input { flex: 1 1 100%; }
+  .btn-label-full { display: none; }
 }
 
 @media print {

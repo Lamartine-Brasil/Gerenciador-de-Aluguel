@@ -78,14 +78,23 @@ Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servid
 
 ## O que o sistema faz
 
-- **Dashboard** — visão geral: quantos contratos estão ativos, quanto está em atraso no
-  total, próximo vencimento, e um alerta para contratos que vencem nos próximos 5 dias
-- **Contratos** — cadastrar, editar e excluir contratos de aluguel, com busca, filtros
-  por ano/mês/status e paginação. Ao criar um contrato, informe a data de início e o dia
-  de pagamento (1-31); se a data de início já passou, o sistema gera automaticamente um
-  contrato para cada mês em atraso até hoje. Registrar pagamento em um clique, anexar o
-  contrato assinado (PDF/JPG/PNG) e reajustar o valor do aluguel a qualquer momento
-- **Atrasos** — lista separada só dos contratos vencidos, com juros e multa calculados
+- **Dashboard** — visão geral: quantas dívidas estão ativas, quanto está em atraso no
+  total, próximo vencimento, e um alerta para dívidas que vencem nos próximos 5 dias
+- **Contratos** — cada contrato (imóvel + inquilino) aparece como um card com todas as
+  suas dívidas (uma por mês) dentro. Ao criar um contrato, informe a data de início e o
+  dia de pagamento (1-31); se a data de início já passou, o sistema gera automaticamente
+  uma dívida para cada mês em atraso até hoje, tudo dentro do mesmo contrato. Registrar
+  pagamento em um clique por dívida, anexar o contrato assinado (PDF/JPG/PNG) e
+  reajustar o valor do aluguel (atualiza as dívidas em aberto, preserva o histórico das
+  já pagas). Opcionalmente, associe um corretor (escolhido de uma lista cadastrada em
+  Configurações + percentual, padrão 5%) — o valor aparece em cada dívida só como
+  cálculo informativo, sem mudar o total cobrado do inquilino; sem corretor selecionado
+  a comissão simplesmente não existe
+- **Atualizar dívidas** — um botão "Atualizar dívidas" no topo do sistema gera o
+  próximo mês de todos os contratos de uma vez (cada contrato também tem seu próprio
+  botão individual); roda sozinho, silenciosamente, toda vez que o sistema é aberto,
+  então as dívidas ficam sempre em dia sem precisar clicar em nada
+- **Atrasos** — lista separada só das dívidas vencidas, com juros e multa calculados
   automaticamente conforme a taxa configurada
 - **Calendário** — grade mensal mostrando vencimentos e pagamentos dia a dia
 - **Histórico** — todos os pagamentos já registrados, com exportação em CSV
@@ -186,35 +195,53 @@ sem exigir nenhuma ação manual.
 
 ### Modelo de dados
 
+Um **contrato** representa um acordo de aluguel (imóvel + inquilino) e guarda dentro de
+si uma lista de **dívidas** — uma por mês/ciclo de cobrança. Isso permite lançar um
+contrato antigo com vários meses em aberto de uma vez, tudo dentro do mesmo contrato, em
+vez de criar vários contratos separados.
+
 #### Contrato (cada item do array `contratos` em `data/dados.json`)
+
+| Campo           | Tipo               | Descrição                                                |
+|------------------|--------------------|------------------------------------------------------------|
+| `id`             | string             | Gerado no front-end (`uuid()`)                              |
+| `imovel`         | string             | Descrição do imóvel                                        |
+| `inquilino`      | string             | Nome do inquilino                                           |
+| `quemRecebeu`    | string             | Recebedor padrão sugerido ao registrar pagamento            |
+| `dataInicio`     | string `AAAA-MM-DD`| Data de início do contrato, informada na criação             |
+| `diaPagamento`   | number             | Dia do mês do pagamento (1-31), informado na criação         |
+| `aluguel`        | number             | Valor de aluguel **padrão atual** — usado ao gerar novas dívidas (via "Atualizar dívidas") e atualizado pelo reajuste. Cada dívida guarda seu próprio valor, então mudar isto não altera dívidas já existentes |
+| `desconto`, `juros`, `multa`, `condominio` | number | Valores padrão atuais, mesma lógica do aluguel |
+| `anexoContrato`  | string ou null     | Nome do arquivo do contrato assinado anexado (em `contratos/`), ou `null` |
+| `corretorNome`   | string             | Nome do corretor associado a este contrato (vazio = sem corretor) |
+| `corretorPercentual` | number         | Percentual do aluguel considerado repasse ao corretor — só informativo, não altera `total` de nenhuma dívida (mesma lógica do `condominio`: passa pela mão do proprietário, mas não é receita dele) |
+| `criadoEm`       | number (timestamp) | Data de criação do contrato                                  |
+| `dividas`        | array              | Lista de dívidas (ver abaixo) — pelo menos uma                |
+
+#### Dívida (cada item de `contrato.dividas`)
 
 | Campo             | Tipo              | Descrição                                             |
 |--------------------|------------------|--------------------------------------------------------|
 | `id`               | string            | Gerado no front-end (`uuid()`)                          |
-| `vencimento`       | string `AAAA-MM-DD` | Data de vencimento deste mês específico                |
-| `dataInicio`       | string `AAAA-MM-DD` ou undefined | Data de início do contrato, informada na criação (só para referência — editar o contrato não altera este campo) |
-| `diaPagamento`     | number ou undefined | Dia do mês do pagamento (1-31), informado na criação    |
-| `imovel`           | string            | Descrição do imóvel                                    |
-| `inquilino`        | string            | Nome do inquilino                                       |
-| `aluguel`          | number            | Valor do aluguel mensal                                 |
+| `vencimento`       | string `AAAA-MM-DD` | Data de vencimento desta dívida (deste mês)           |
+| `aluguel`          | number            | Valor do aluguel mensal desta dívida (snapshot — não muda se o contrato for reajustado depois de paga) |
 | `desconto`         | number            | Desconto aplicado                                       |
-| `juros`            | number            | Juros já lançados manualmente no contrato               |
-| `multa`            | number            | Multa já lançada manualmente no contrato                |
+| `juros`            | number            | Juros já lançados manualmente nesta dívida               |
+| `multa`            | number            | Multa já lançada manualmente nesta dívida                |
 | `condominio`       | number            | Valor do condomínio                                     |
 | `total`             | number            | `aluguel - desconto + juros + multa + condominio`      |
 | `valorAtrasoBase`  | number            | Atraso herdado/manual, somado ao atraso calculado       |
-| `quemRecebeu`      | string            | Recebedor padrão sugerido ao registrar pagamento        |
-| `observacao`       | string            | Observações livres                                      |
-| `pago`             | boolean           | Se já foi pago (contrato "quitado")                    |
-| `dataPagamento`    | string ou null    | Data do último pagamento registrado                     |
-| `pagamentos`       | array             | Histórico de pagamentos deste contrato (ver abaixo)     |
-| `anexoContrato`    | string ou null    | Nome do arquivo do contrato assinado anexado (em `contratos/`), ou `null` se não houver |
-| `criadoEm`         | number (timestamp)| Usado para ordenar "contratos recentes" no Dashboard    |
+| `observacao`       | string            | Observações livres desta dívida                         |
+| `pago`             | boolean           | Se esta dívida já foi paga                              |
+| `dataPagamento`    | string ou null    | Data do pagamento registrado                             |
+| `pagamentos`       | array             | Histórico de pagamentos desta dívida (ver abaixo)        |
+| `criadoEm`         | number (timestamp)| Usado para ordenar "dívidas recentes" no Dashboard       |
 
-**Status do contrato** (calculado, não é um campo salvo): `pago` se `pago=true`;
-senão `atrasado` se hoje > vencimento; senão `ativo`.
+**Status da dívida** (calculado, não é um campo salvo): `pago` se `pago=true`;
+senão `atrasado` se hoje > vencimento; senão `ativo`. O status do contrato como um todo
+não existe — cada dívida tem o seu.
 
-#### Pagamento (cada item de `contrato.pagamentos`)
+#### Pagamento (cada item de `divida.pagamentos`)
 
 | Campo         | Tipo   | Descrição                                  |
 |---------------|--------|----------------------------------------------|
@@ -225,6 +252,15 @@ senão `atrasado` se hoje > vencimento; senão `ativo`.
 | `quemRecebeu` | string | Quem recebeu (banco, PIX, transferência...)   |
 | `observacao`  | string | Observação do pagamento                       |
 
+#### Migração automática do formato antigo
+
+Instalações antigas tinham um "contrato" plano por vencimento (sem `dividas`). Na
+primeira vez que os dados são carregados após essa mudança, o front-end migra
+automaticamente: contratos antigos que compartilhavam `imovel` + `inquilino` +
+`dataInicio` + `diaPagamento` são agrupados num único contrato novo com várias dívidas;
+os demais viram um contrato com uma única dívida. Nenhum dado é perdido (pagamentos,
+status, valores) e a migração não se repete depois de feita.
+
 #### Configuração (`config` em `data/dados.json`)
 
 | Campo               | Padrão | Descrição                                            |
@@ -233,10 +269,18 @@ senão `atrasado` se hoje > vencimento; senão `ativo`.
 | `taxaMultaPercent`  | 2 (%)  | Multa fixa aplicada uma vez que o contrato atrasa      |
 | `jurosPadrao`       | 0 (R$) | Valor de juros pré-preenchido ao criar um novo contrato|
 | `multaPadrao`       | 0 (R$) | Valor de multa pré-preenchido ao criar um novo contrato|
+| `corretorPercentualPadrao` | 5 (%) | Percentual do corretor pré-preenchido ao criar um novo contrato |
 
 Cálculo do atraso atual (função `calcAtrasoAtual` em `index.js`): se o contrato já está
 atrasado, soma `valorAtrasoBase` + (`total` × `taxaJurosMensal`/100 × meses de atraso)
 + (`total` × `taxaMultaPercent`/100).
+
+#### Corretores (array `corretores` em `data/dados.json`)
+
+Lista reutilizável de corretores cadastrados (`{ id, nome }`), gerenciada em
+Configurações. Serve só para preencher um seletor ao criar/editar um contrato, evitando
+digitar o nome toda vez — remover um corretor da lista não afeta contratos que já usam
+aquele nome.
 
 #### Auditoria (array `auditoria` em `data/dados.json`)
 
@@ -245,7 +289,7 @@ atrasado, soma `valorAtrasoBase` + (`total` × `taxaJurosMensal`/100 × meses de
 | `id`        | string             | Identificador único do evento                          |
 | `timestamp` | number (ms)        | Quando o evento aconteceu                               |
 | `usuario`   | string             | Nome do usuário logado que realizou a ação              |
-| `acao`      | string             | Tipo do evento (`contrato_criado`, `contrato_editado`, `contrato_excluido`, `pagamento_registrado`, `usuario_adicionado`, `usuario_removido`) |
+| `acao`      | string             | Tipo do evento (`contrato_criado`, `contrato_editado`, `contrato_excluido`, `contrato_reajustado`, `divida_editada`, `divida_excluida`, `pagamento_registrado`, `usuario_adicionado`, `usuario_removido`) |
 | `descricao` | string             | Texto legível do evento, mostrado na aba Auditoria      |
 
 Mantém só os últimos 300 eventos — os mais antigos são descartados automaticamente.

@@ -68,6 +68,7 @@
       <span class="brand"><svg class="icon"><use href="#icon-home"></use></svg> Gestão de Aluguéis</span>
     </div>
     <div class="topbar-right">
+      <button id="btnAtualizarTodasDividas" class="btn btn-ghost" title="Gerar as dívidas em atraso de todos os contratos até hoje"><svg class="icon"><use href="#icon-calendar"></use></svg><span class="btn-label-full"> Atualizar dívidas</span></button>
       <button id="btnThemeToggle" class="btn btn-ghost" title="Alternar tema claro/escuro"><svg class="icon"><use href="#icon-moon"></use></svg></button>
       <span class="user-chip"><svg class="icon"><use href="#icon-user"></use></svg> <span id="currentUserName">admin</span></span>
       <button id="btnLogout" class="btn btn-ghost">Sair</button>
@@ -244,7 +245,7 @@
           <div class="stat-icon"><svg class="icon"><use href="#icon-alert-triangle"></use></svg></div>
           <div class="stat-info">
             <span class="stat-value" id="relatorioTotalAtrasoAno">R$ 0,00</span>
-            <span class="stat-label">Total em atraso no ano</span>
+            <span class="stat-label">Total em atraso no ano (aluguel + juros/multa)</span>
           </div>
         </div>
         <div class="card stat-card stat-warn">
@@ -267,7 +268,7 @@
       <div class="card table-card">
         <table class="report-table">
           <thead>
-            <tr><th>Mês</th><th>Total pago</th><th>Total em atraso</th><th>Contratos no período</th></tr>
+            <tr><th>Mês</th><th>Total pago</th><th>Total em atraso (aluguel + juros/multa)</th><th>Contratos no período</th></tr>
           </thead>
           <tbody id="relatorioTabelaBody"></tbody>
         </table>
@@ -278,7 +279,7 @@
         <p class="modal-subtitle">Totais de cada ano lado a lado, para comparar a evolução ano a ano.</p>
         <table class="report-table">
           <thead>
-            <tr><th>Ano</th><th>Total pago</th><th>Total em atraso</th><th>Contratos no ano</th></tr>
+            <tr><th>Ano</th><th>Total pago</th><th>Total em atraso (aluguel + juros/multa)</th><th>Contratos no ano</th></tr>
           </thead>
           <tbody id="comparativoAnualBody"></tbody>
         </table>
@@ -355,8 +356,25 @@
             <span>Multa padrão (R$)</span>
             <input type="number" id="configMultaPadrao" step="0.01" min="0" required>
           </label>
+          <label class="field">
+            <span>Percentual padrão do corretor (%)</span>
+            <input type="number" id="configCorretorPercentualPadrao" step="0.01" min="0" max="100" required>
+          </label>
           <button type="submit" class="btn btn-primary">Salvar valores padrão</button>
           <p id="configPadraoSaved" class="success-msg hidden">Valores padrão salvos!</p>
+        </form>
+      </div>
+
+      <div class="card">
+        <h3>Corretores</h3>
+        <p class="modal-subtitle">Cadastre os corretores uma vez para escolher pela lista ao criar um contrato, sem precisar digitar o nome toda vez.</p>
+        <div id="corretoresList" class="cards-list"></div>
+        <form id="addCorretorForm" class="config-form" style="margin-top:14px;">
+          <label class="field">
+            <span>Nome do corretor *</span>
+            <input type="text" id="newCorretorNome" required>
+          </label>
+          <button type="submit" class="btn btn-primary">Adicionar corretor</button>
         </form>
       </div>
 
@@ -438,6 +456,7 @@
     </div>
     <form id="formContrato" class="modal-body">
       <input type="hidden" id="contratoId">
+      <input type="hidden" id="dividaId">
       <div class="form-grid">
         <label class="field" id="fCampoDataInicio">
           <span>Data de início do contrato *</span>
@@ -448,16 +467,30 @@
           <input type="number" id="fDiaPagamento" min="1" max="31" step="1" placeholder="Ex: 5" required>
         </label>
         <label class="field hidden" id="fCampoVencimento">
-          <span>Dia de vencimento *</span>
+          <span>Dia de vencimento desta dívida *</span>
           <input type="date" id="fVencimento" required>
         </label>
-        <label class="field">
+        <label class="field" id="fCampoImovel">
           <span>Imóvel *</span>
           <input type="text" id="fImovel" placeholder="Ex: Apartamento 302 - Rua das Flores #123" required>
         </label>
-        <label class="field">
+        <label class="field" id="fCampoInquilino">
           <span>Inquilino *</span>
           <input type="text" id="fInquilino" placeholder="Ex: Maria Silva" required>
+        </label>
+        <label class="field" id="fCampoQuemRecebeu">
+          <span>Quem recebe (padrão)</span>
+          <input type="text" id="fQuemRecebeu" placeholder="Ex: Banco X, PIX...">
+        </label>
+        <label class="field" id="fCampoCorretorNome">
+          <span>Corretor (opcional)</span>
+          <select id="fCorretorNome">
+            <option value="">Nenhum (sem corretor)</option>
+          </select>
+        </label>
+        <label class="field hidden" id="fCampoCorretorPercentual">
+          <span>Percentual do corretor (%)</span>
+          <input type="number" id="fCorretorPercentual" min="0" max="100" step="0.01" placeholder="Ex: 5">
         </label>
         <label class="field">
           <span>Aluguel (R$) *</span>
@@ -483,17 +516,65 @@
           <span>Valor em atraso já existente (R$)</span>
           <input type="number" id="fValorAtraso" step="0.01" min="0" placeholder="0,00">
         </label>
-        <label class="field">
-          <span>Quem recebe (padrão)</span>
-          <input type="text" id="fQuemRecebeu" placeholder="Ex: Banco X, PIX...">
-        </label>
       </div>
-      <p class="modal-subtitle" id="fRetroativoHint">Contrato antigo? Se a data de início já passou, o sistema gera automaticamente um contrato para cada mês, do mês de início até o mês atual (útil para lançar de uma vez o histórico de um contrato antigo).</p>
-      <p class="modal-subtitle hidden" id="fInicioInfo"></p>
+      <p class="modal-subtitle" id="fRetroativoHint">Contrato antigo? Se a data de início já passou, o sistema gera automaticamente uma dívida para cada mês, do mês de início até o mês atual (útil para lançar de uma vez o histórico de um contrato antigo).</p>
+      <p class="modal-subtitle" id="fCorretorHint">Se houver corretor, o percentual informado não é somado ao total cobrado do inquilino — é só um cálculo informativo de quanto do aluguel recebido não é receita sua (mesma lógica do condomínio).</p>
       <label class="field">
         <span>Observação</span>
         <textarea id="fObservacao" rows="2" placeholder="Observações adicionais (opcional)"></textarea>
       </label>
+      <div class="total-preview">
+        <span>Total calculado:</span>
+        <strong id="fTotalPreview">R$ 0,00</strong>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== MODAL: EDITAR CONTRATO (dados compartilhados) ===================== -->
+<div id="modalContratoInfo" class="modal-overlay hidden">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h3>Editar contrato</h3>
+      <button class="modal-close" data-close>&times;</button>
+    </div>
+    <form id="formContratoInfo" class="modal-body">
+      <input type="hidden" id="infoContratoId">
+      <p class="modal-subtitle" id="infoContratoSubtitle"></p>
+      <label class="field">
+        <span>Imóvel *</span>
+        <input type="text" id="infoImovel" required>
+      </label>
+      <label class="field">
+        <span>Inquilino *</span>
+        <input type="text" id="infoInquilino" required>
+      </label>
+      <label class="field">
+        <span>Quem recebe (padrão)</span>
+        <input type="text" id="infoQuemRecebeu" placeholder="Ex: Banco X, PIX...">
+      </label>
+      <div class="field">
+        <span>Corretor (opcional)</span>
+        <p class="modal-subtitle">O percentual do corretor não é somado ao total cobrado do inquilino — é só um cálculo informativo de quanto do aluguel recebido não é receita do proprietário (mesma lógica do condomínio: passa pela sua mão, mas não é seu).</p>
+        <label class="field">
+          <span>Nome do corretor</span>
+          <select id="infoCorretorNome">
+            <option value="">Nenhum (sem corretor)</option>
+          </select>
+        </label>
+        <label class="field hidden" id="infoCampoCorretorPercentual">
+          <span>Percentual do corretor (%)</span>
+          <input type="number" id="infoCorretorPercentual" min="0" max="100" step="0.01">
+        </label>
+        <div class="total-preview hidden" id="infoCampoCorretorValor">
+          <span>Valor calculado (sobre o aluguel atual):</span>
+          <strong id="infoCorretorValor">R$ 0,00</strong>
+        </div>
+      </div>
       <div class="field" id="fAnexoSection">
         <span>Contrato assinado (anexo)</span>
         <div id="fAnexoAtual" class="total-preview hidden">
@@ -506,13 +587,9 @@
         <input type="file" id="fAnexoInput" accept=".pdf,.jpg,.jpeg,.png">
         <p class="modal-subtitle" id="fAnexoStatus">PDF, JPG ou PNG, até 15MB. Enviado automaticamente ao escolher o arquivo.</p>
       </div>
-      <div class="total-preview">
-        <span>Total calculado:</span>
-        <strong id="fTotalPreview">R$ 0,00</strong>
-      </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
-        <button type="submit" class="btn btn-primary">Salvar contrato</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
       </div>
     </form>
   </div>
@@ -526,7 +603,7 @@
       <button class="modal-close" data-close>&times;</button>
     </div>
     <form id="formPagamento" class="modal-body">
-      <input type="hidden" id="pagContratoId">
+      <input type="hidden" id="pagDividaId">
       <p class="modal-subtitle" id="pagContratoInfo"></p>
       <label class="field">
         <span>Data do pagamento *</span>
@@ -574,6 +651,7 @@
     <form id="formReajuste" class="modal-body">
       <input type="hidden" id="reajusteContratoId">
       <p class="modal-subtitle" id="reajusteContratoInfo"></p>
+      <p class="modal-subtitle">Atualiza o valor padrão do contrato (usado em novas dívidas) e também todas as dívidas ainda não pagas. Dívidas já pagas não são alteradas.</p>
       <div class="total-preview">
         <span>Aluguel atual:</span>
         <strong id="reajusteValorAtual">R$ 0,00</strong>

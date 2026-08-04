@@ -20,74 +20,119 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
       (usuário único) é migrado automaticamente para o novo formato com lista de
       usuários no primeiro acesso, sem exigir nenhuma ação manual
 
+### Modelo de dados: contrato com várias dívidas
+- [x] Reestruturação de fundo: antes, cada "contrato" guardava um único vencimento —
+      um contrato antigo com vários meses em aberto virava vários contratos separados
+      (bug real relatado e corrigido). Agora um **contrato** (imóvel + inquilino, dados
+      compartilhados) guarda dentro de si uma lista de **dívidas** (uma por mês/ciclo de
+      cobrança: vencimento, valores, se foi paga, pagamentos). Um contrato antigo lançado
+      retroativamente vira 1 contrato com N dívidas em aberto, não N contratos
+- [x] Migração automática e transparente: na primeira vez que os dados são carregados
+      após essa mudança, contratos no formato antigo são convertidos para o novo formato
+      sozinhos, sem exigir nenhuma ação manual e sem perder nenhum dado (pagamentos,
+      status, valores). Contratos antigos que compartilhavam imóvel + inquilino + data de
+      início + dia de pagamento são automaticamente agrupados num único contrato com
+      várias dívidas — corrigindo de tabela os casos já lançados incorretamente antes
+      desta mudança. Testada com dados reais de produção antes de entrar no ar
+
 ### Dashboard
-- [x] Card: total de contratos ativos
-- [x] Card: total em atraso (R$) — soma só o componente de juros/multa dos contratos atrasados
+- [x] Card: total de dívidas ativas (não pagas e dentro do prazo)
+- [x] Card: total em atraso (R$) — valor cheio devido (aluguel/total + juros/multa),
+      mesma convenção usada em Atrasos, Relatórios e no gráfico "Evolução do total em
+      atraso" (antes esse card e o gráfico somavam só o componente de juros/multa,
+      diferente do resto do app — corrigido para ficar consistente em todas as abas)
 - [x] Card: próximo vencimento
-- [x] Alerta de contratos vencendo nos próximos 5 dias
-- [x] Lista dos contratos mais recentes
+- [x] Alerta de dívidas vencendo nos próximos 5 dias
+- [x] Lista das dívidas mais recentes
 
 ### Contratos (CRUD)
-- [x] Listar, criar, editar, excluir
-- [x] Todos os campos: vencimento, imóvel, inquilino, aluguel, desconto, juros, multa,
-      condomínio, valor em atraso, quem recebe, observação
-- [x] Total calculado automaticamente (aluguel - desconto + juros + multa + condomínio)
-- [x] Busca por inquilino ou imóvel
-- [x] Filtro por ano, mês e status
+- [x] Listar, criar, editar, excluir — 1 card por contrato, com a lista de dívidas
+      daquele contrato dentro do card (cada dívida com seu próprio status, valores e
+      ações de pagar/editar/excluir)
+- [x] Campos do contrato (compartilhados entre as dívidas): imóvel, inquilino, quem
+      recebe (padrão), data de início, dia de pagamento, anexo do contrato assinado
+- [x] Campos de cada dívida: vencimento, aluguel, desconto, juros, multa, condomínio,
+      valor em atraso, observação — total calculado automaticamente
+- [x] Busca por inquilino ou imóvel; filtro por ano, mês e status (um contrato aparece
+      se pelo menos uma das suas dívidas bater com o filtro)
 - [x] Ao criar um contrato novo, os campos Juros e Multa vêm pré-preenchidos com os
-      "valores padrão" configurados em Configurações — evita digitar sempre. Se o
-      usuário alterar o valor no formulário, o valor digitado prevalece e é o que é salvo
+      "valores padrão" configurados em Configurações
 - [x] Criação de contrato pede "Data de início do contrato" e "Dia de pagamento" (1-31)
-      em vez de uma data de vencimento única — o primeiro vencimento é calculado a
-      partir desses dois campos (com ajuste automático se o dia não existir naquele mês,
-      ex: dia 31 em fevereiro vira o último dia do mês). Ao editar um contrato existente,
-      o formulário volta a mostrar o campo "Dia de vencimento" direto, editando aquele
-      mês específico
+      — o primeiro vencimento é calculado a partir desses dois campos (com ajuste
+      automático se o dia não existir naquele mês, ex: dia 31 em fevereiro vira o
+      último dia do mês)
 - [x] Lançamento retroativo de contratos antigos: se a data de início informada já
-      passou, o sistema gera automaticamente um contrato separado para cada mês seguinte
-      (mesmo dia de pagamento, com ajuste automático em meses menores) até o mês atual —
-      evita ter que cadastrar manualmente cada mês em atraso de um contrato antigo. Pede
-      confirmação antes, mostrando quantos contratos serão criados. O "valor em atraso já
-      existente" só é aplicado no mês mais recente gerado, não em todos. Os campos
-      `dataInicio`/`diaPagamento` ficam salvos no contrato só como referência (aparecem
-      no card e na tela de edição), sem afetar contratos já criados anteriormente
-- [x] Registrar pagamento em um clique, com modal dedicado (ver "Pagamentos" abaixo)
+      passou, o sistema gera automaticamente uma dívida para cada mês seguinte (mesmo
+      dia de pagamento, com ajuste automático em meses menores) até o mês atual, todas
+      dentro do MESMO contrato — evita ter que cadastrar manualmente cada mês em atraso.
+      Pede confirmação antes, mostrando quantas dívidas serão criadas. O "valor em
+      atraso já existente" só é aplicado na dívida mais recente gerada, não em todas
+- [x] Botão "Atualizar dívidas" em cada contrato: gera as dívidas que faltam entre a
+      última já existente e o mês atual, usando os valores padrão atuais do contrato —
+      é assim que um contrato "cresce" mês a mês conforme o tempo passa
+- [x] Editar contrato (dados compartilhados: imóvel, inquilino, quem recebe, anexo) é
+      uma tela separada de editar uma dívida específica (vencimento e valores daquele mês)
+- [x] Registrar pagamento em um clique por dívida, com modal dedicado (ver "Pagamentos"
+      abaixo)
 - [x] Lista paginada (20 contratos por página), com botões Anterior/Próxima e indicador
-      de página — evita lentidão com uma base grande de contratos. A página volta para 1
-      automaticamente ao mudar busca ou filtros
-- [x] Anexar o contrato assinado (PDF, JPG ou PNG, até 15MB) a cada contrato — botão
-      "📎 Anexo" no card quando existe, upload/visualização/remoção pela tela de edição.
-      Arquivos ficam em `contratos/` (pasta protegida por `.htaccess`, como `data/`),
-      renomeados automaticamente no servidor para `nomedoinquilino-imovel-idcurto.ext`
-      (removendo acentos e caracteres especiais). Só é possível anexar em um contrato
-      já existente (não na tela de "Novo contrato")
-- [x] Reajustar valor: botão "📈 Reajustar" abre um modal dedicado para lançar um novo
-      valor de aluguel — substitui o aluguel atual (e recalcula o total) e fica
-      registrado na Auditoria com o valor antigo e o novo. Qualquer usuário
-      administrador pode fazer esse reajuste (decisão consciente: sem restrição de
-      usuário específico)
+      de página. A página volta para 1 automaticamente ao mudar busca ou filtros
+- [x] Anexar o contrato assinado (PDF, JPG ou PNG, até 15MB) — um por contrato (não por
+      dívida), pela tela "Editar contrato". Arquivos ficam em `contratos/` (pasta
+      protegida por `.htaccess`, como `data/`), renomeados automaticamente no servidor
+      para `nomedoinquilino-imovel-idcurto.ext` (removendo acentos e caracteres
+      especiais). Só é possível anexar em um contrato já existente
+- [x] Reajustar valor: botão "Reajustar" no contrato lança um novo valor de aluguel —
+      atualiza o valor padrão do contrato (usado em dívidas futuras) e também todas as
+      dívidas ainda não pagas; dívidas já pagas mantêm o valor histórico. Fica
+      registrado na Auditoria com o valor antigo, o novo e quantas dívidas foram
+      atualizadas. Qualquer usuário administrador pode reajustar (decisão consciente:
+      sem restrição de usuário específico)
+- [x] Excluir contrato apaga o contrato inteiro e todas as suas dívidas (com aviso
+      mostrando quantas); excluir uma dívida específica remove só aquele mês, mantendo
+      o resto do contrato
+- [x] Corretor (opcional, por contrato): nome (escolhido de uma lista cadastrada em
+      Configurações, para não digitar toda vez) + percentual (padrão configurável em
+      Configurações, ex: 5%). O valor do corretor é só um cálculo informativo mostrado
+      em cada dívida (aluguel da dívida × percentual) — mesma lógica do condomínio: faz
+      parte do que passa pela mão do proprietário, mas não conta como receita dele. Não
+      é somado ao total cobrado do inquilino, não muda nenhum vencimento, e não tem
+      rastreio de pagamento separado. O campo de percentual só aparece quando um
+      corretor é de fato escolhido (com "Nenhum" selecionado, a comissão simplesmente
+      não existe); ao trocar de "Nenhum" para um corretor, o percentual volta ao padrão
+      configurado
+- [x] Botão global "Atualizar dívidas" no topo do sistema (barra superior, visível em
+      qualquer aba): gera de uma vez as dívidas em atraso de TODOS os contratos, sem
+      precisar entrar em cada um. Mostra quantas dívidas foram geradas e em quantos
+      contratos, ou avisa que já está tudo em dia
+- [x] A mesma atualização roda sozinha, silenciosamente, toda vez que o sistema é
+      aberto (login) — garante que as dívidas ficam sempre em dia mesmo sem clicar em
+      nada, sem depender de um cron no servidor (o sistema não tem acesso a isso em
+      hospedagem compartilhada comum)
 
 ### Pagamentos
-- [x] Modal "Registrar pagamento" com: data, valor pago, desconto, forma de pagamento,
-      quem recebeu, observação
-- [x] Valor sugerido automaticamente = total do contrato + atraso atual (juros/multa)
+- [x] Modal "Registrar pagamento" (por dívida) com: data, valor pago, desconto, forma
+      de pagamento, quem recebeu, observação
+- [x] Valor sugerido automaticamente = total da dívida + atraso atual (juros/multa)
 - [x] Campo "Desconto (R$)": ao digitar, recalcula o valor pago automaticamente
       (total + atraso - desconto); o campo valor pago continua editável manualmente depois
 - [x] Campo "Forma de pagamento": seleção obrigatória entre Dinheiro e Pix
 - [x] Campo "Quem recebeu": texto livre, pré-preenchido com o recebedor padrão do contrato
-- [x] Ao confirmar, marca o contrato como pago, registra a data do pagamento e zera o
-      atraso base do contrato
+- [x] Ao confirmar, marca a dívida como paga, registra a data do pagamento e zera o
+      atraso base daquela dívida (as outras dívidas do mesmo contrato não são afetadas)
 
 ### Atrasos
-- [x] Aba dedicada listando só os contratos com status "atrasado"
-- [x] Card com o total em atraso (aluguel + juros/multa) somando todos os contratos
-      atrasados — valor cheio devido, diferente do card do Dashboard que soma só o
+- [x] Aba dedicada listando só as dívidas com status "atrasado" (de todos os contratos)
+- [x] Card com o total em atraso (aluguel + juros/multa) somando todas as dívidas
+      atrasadas — valor cheio devido, diferente do card do Dashboard que soma só o
       componente de juros/multa
 - [x] Cálculo automático de juros/multa conforme a taxa configurada
 
 ### Histórico de pagamentos
-- [x] Aba geral com todos os pagamentos de todos os contratos, filtrável por contrato
-- [x] Modal de histórico por contrato (acessível pelo botão "Histórico" de cada contrato)
+- [x] Aba geral com todos os pagamentos de todas as dívidas de todos os contratos,
+      filtrável por contrato
+- [x] Modal de histórico por contrato (acessível pelo botão "Histórico"), somando os
+      pagamentos de todas as dívidas daquele contrato, mostrando de qual dívida
+      (vencimento) veio cada pagamento
 - [x] Exibição de desconto e forma de pagamento em cada registro do histórico
 - [x] Exportação CSV do histórico de um contrato específico (inclui desconto e forma
       de pagamento)
@@ -109,6 +154,10 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
 - [x] Comparativo anual: tabela com todos os anos que têm dados lado a lado (total pago,
       total em atraso, contratos no ano), para comparar a evolução de um ano para o outro
       sem precisar trocar o seletor repetidamente
+- [x] "Total em atraso" (card do ano, tabela mensal e comparativo anual) é o valor cheio
+      devido — aluguel + juros/multa — e não só o componente de juros/multa. Mesma
+      convenção usada na aba Atrasos. Só o card "Total em atraso" do Dashboard continua
+      somando apenas juros/multa (decisão consciente, mantido como resumo rápido)
 - [x] Card "Total de descontos concedidos no ano"
 - [x] Tabela "Pagamentos por forma no ano": quantidade e total recebido por forma de
       pagamento (Dinheiro/Pix/Não informado), para o ano selecionado
@@ -133,16 +182,23 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
       campo de formulário
 
 ### Exportação / Importação
-- [x] Exportar CSV dos contratos (respeita filtros ativos)
-- [x] Exportar PDF (via canvas + impressão do navegador)
-- [x] Importar contratos via CSV (mesmo formato do exportado)
-- [x] Exportar backup completo (JSON) com contratos + configuração
-- [x] Importar/restaurar backup completo (JSON), com confirmação antes de substituir
+- [x] Exportar CSV — uma linha por dívida (respeita filtros ativos)
+- [x] Exportar PDF (via canvas + impressão do navegador) — mesma granularidade do CSV
+- [x] Importar contratos via CSV (mesmo formato do exportado) — cada linha vira um
+      contrato novo com uma única dívida
+- [x] Exportar backup completo (JSON) com contratos (já no formato com dívidas) +
+      configuração
+- [x] Importar/restaurar backup completo (JSON), com confirmação antes de substituir —
+      se o backup estiver no formato antigo, é migrado automaticamente também
 
 ### Configurações
 - [x] Taxa de juros mensal (%) e taxa de multa fixa por atraso (%) — usadas no cálculo
       automático de atraso dos contratos vencidos
-- [x] Valores padrão de juros e multa (R$) para pré-preencher novos contratos
+- [x] Valores padrão de juros e multa (R$) e percentual padrão do corretor (%, padrão
+      5%) para pré-preencher novos contratos
+- [x] Cadastro de corretores: lista reutilizável de nomes de corretores (adicionar/
+      remover), usada como um seletor ao criar ou editar um contrato — evita digitar o
+      nome toda vez
 - [x] Conta do administrador (usuário/senha)
 - [x] Backup do banco de dados (exportar/importar)
 - [x] Zona de perigo: excluir todos os dados (contratos, pagamentos e configuração)
