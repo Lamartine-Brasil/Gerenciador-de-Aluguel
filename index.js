@@ -556,6 +556,15 @@ function imoveisVisiveis() {
   return state.imoveis.filter(i => (i.carteiraId || '') === carteiraAtiva);
 }
 
+// Pessoas seguem uma regra própria: quem NÃO tem carteira aparece em todas (é o
+// caso de quem atende o sistema inteiro, o próprio proprietário-administrador),
+// e quem tem carteira só aparece na dela. Diferente de contratos e imóveis, em
+// que "sem carteira" significa um grupo à parte.
+function pessoasVisiveis() {
+  if (!carteiraAtiva) return state.pessoas;
+  return state.pessoas.filter(p => !p.carteiraId || p.carteiraId === carteiraAtiva);
+}
+
 // Preenche um <select> de carteira (formulários de contrato, imóvel e despesa).
 function populateCarteiraSelect(selectEl, valorAtual) {
   const atual = valorAtual || '';
@@ -702,7 +711,7 @@ async function showApp() {
     showToast('Não foi possível carregar os dados do servidor.', 'error');
   }
   renderAll();
-  loadUsers();
+  renderUsuarios();
 }
 
 function showLogin() {
@@ -765,6 +774,7 @@ document.getElementById('tabsNav').addEventListener('click', (e) => {
   if (btn.dataset.tab === 'calendario') renderCalendario();
   if (btn.dataset.tab === 'despesas') renderDespesas();
   if (btn.dataset.tab === 'imoveis') renderImoveis();
+  if (btn.dataset.tab === 'usuarios') renderUsuarios();
 });
 
 /* ===================== MODALS ===================== */
@@ -2169,7 +2179,13 @@ function renderDashboard() {
   const atrasados = dividas.filter(d => getStatus(d) === 'atrasado');
   const totalAtraso = atrasados.reduce((sum, d) => sum + d.total + calcAtrasoAtual(d), 0);
 
-  document.getElementById('statAtivos').textContent = ativos.length;
+  // "Contratos ativos" conta CONTRATOS em andamento — os que ainda não foram
+  // encerrados — e não dívidas com status "ativo". Um contrato com todas as
+  // parcelas pagas, ou com parcelas atrasadas, continua em andamento: o que o
+  // encerra é o botão "Encerrar contrato", que só para de gerar novas dívidas
+  // (nada é apagado, o histórico continua acessível).
+  const contratosEmAndamento = contratosVisiveis().filter(c => !c.encerrado).length;
+  document.getElementById('statAtivos').textContent = contratosEmAndamento;
   document.getElementById('statAtraso').textContent = formatCurrency(totalAtraso);
 
   const pendentes = dividas.filter(d => getStatus(d) !== 'pago');
@@ -2311,9 +2327,16 @@ function historicoFiltrado() {
   return entries;
 }
 
+// A lista pagina, mas o CONTADOR e a EXPORTAÇÃO continuam olhando o filtro
+// inteiro: o CSV precisa sair com tudo que está filtrado, não só com a página
+// que está na tela.
+const HISTORICO_POR_PAGINA = 20;
+let historicoPaginaAtual = 1;
+
 function renderHistorico() {
   populateHistoricoFilter();
   const list = document.getElementById('historicoList');
+  const paginacao = document.getElementById('historicoPagination');
   const entries = historicoFiltrado();
 
   const contador = document.getElementById('historicoCount');
@@ -2324,10 +2347,16 @@ function renderHistorico() {
 
   if (!entries.length) {
     list.innerHTML = '<div class="empty-state">Nenhum pagamento encontrado para esses filtros.</div>';
+    paginacao.innerHTML = '';
     return;
   }
 
-  list.innerHTML = entries.map(e => {
+  const totalPaginas = Math.max(1, Math.ceil(entries.length / HISTORICO_POR_PAGINA));
+  historicoPaginaAtual = Math.min(Math.max(historicoPaginaAtual, 1), totalPaginas);
+  const inicio = (historicoPaginaAtual - 1) * HISTORICO_POR_PAGINA;
+  const pagina = entries.slice(inicio, inicio + HISTORICO_POR_PAGINA);
+
+  list.innerHTML = pagina.map(e => {
     const valorLiquido = valorLiquidoPagamento(e.contrato, e.divida, e);
     return `
     <div class="card">
@@ -2357,6 +2386,28 @@ function renderHistorico() {
   }).join('');
 
   bindReciboButtons(list);
+  renderHistoricoPagination(totalPaginas, entries.length);
+}
+
+function renderHistoricoPagination(totalPaginas, totalPagamentos) {
+  const paginacao = document.getElementById('historicoPagination');
+  if (totalPaginas <= 1) {
+    paginacao.innerHTML = '';
+    return;
+  }
+  paginacao.innerHTML = `
+    <button type="button" class="btn btn-ghost btn-sm" id="btnHistoricoAnterior" ${historicoPaginaAtual <= 1 ? 'disabled' : ''}>‹ Anterior</button>
+    <span class="pagination-info">Página ${historicoPaginaAtual} de ${totalPaginas} (${totalPagamentos} pagamentos)</span>
+    <button type="button" class="btn btn-ghost btn-sm" id="btnHistoricoProxima" ${historicoPaginaAtual >= totalPaginas ? 'disabled' : ''}>Próxima ›</button>
+  `;
+  document.getElementById('btnHistoricoAnterior').addEventListener('click', () => {
+    historicoPaginaAtual--;
+    renderHistorico();
+  });
+  document.getElementById('btnHistoricoProxima').addEventListener('click', () => {
+    historicoPaginaAtual++;
+    renderHistorico();
+  });
 }
 
 // Botões "Recibo" das listas de pagamento (aba Histórico e modal por contrato).
@@ -2367,9 +2418,15 @@ function bindReciboButtons(container) {
 }
 
 ['historicoFiltroContrato', 'historicoFiltroAno'].forEach(id => {
-  document.getElementById(id).addEventListener('change', renderHistorico);
+  document.getElementById(id).addEventListener('change', () => {
+    historicoPaginaAtual = 1;
+    renderHistorico();
+  });
 });
-document.getElementById('historicoSearch').addEventListener('input', renderHistorico);
+document.getElementById('historicoSearch').addEventListener('input', () => {
+  historicoPaginaAtual = 1;
+  renderHistorico();
+});
 
 document.getElementById('btnExportHistorico').addEventListener('click', () => {
   const entries = historicoFiltrado();
@@ -2602,7 +2659,6 @@ function renderConfig() {
   document.getElementById('configTaxaMulta').value = state.config.taxaMultaPercent;
   document.getElementById('configCorretorPercentualPadrao').value = state.config.corretorPercentualPadrao || 0;
   document.getElementById('configPercentualReajusteSugerido').value = state.config.percentualReajusteSugerido || 0;
-  document.getElementById('accUsername').value = currentUsername;
   renderPessoasConfig();
   renderCarteirasConfig();
   renderReciboConfig();
@@ -2648,11 +2704,12 @@ const addPessoaForm = document.getElementById('addPessoaForm');
 
 function populatePessoaSelect(selectEl, valorAtual, placeholder) {
   const atual = valorAtual || '';
+  const lista = pessoasVisiveis();
   selectEl.innerHTML = `<option value="">${placeholder}</option>` +
-    state.pessoas.map(p => `<option value="${escapeHtml(p.nome)}">${escapeHtml(p.nome)}</option>`).join('');
-  // se o valor atual não estiver na lista (pessoa removida do cadastro depois
-  // de já usada num contrato/pagamento), mantém mostrando o nome mesmo assim
-  if (atual && !state.pessoas.some(p => p.nome === atual)) {
+    lista.map(p => `<option value="${escapeHtml(p.nome)}">${escapeHtml(p.nome)}</option>`).join('');
+  // se o valor atual não estiver na lista (pessoa removida do cadastro, ou de
+  // outra carteira, depois de já usada num contrato/pagamento), mantém o nome
+  if (atual && !lista.some(p => p.nome === atual)) {
     selectEl.innerHTML += `<option value="${escapeHtml(atual)}">${escapeHtml(atual)}</option>`;
   }
   selectEl.value = atual;
@@ -2677,28 +2734,76 @@ document.getElementById('infoCorretorNome').addEventListener('change', () => {
 
 function renderPessoasConfig() {
   const list = document.getElementById('pessoasList');
-  if (!state.pessoas.length) {
+  const lista = pessoasVisiveis();
+  const selectCarteira = document.getElementById('newPessoaCarteira');
+  const usaCarteiras = state.carteiras.length > 0;
+  // com uma edição em andamento, não mexe no que já está escolhido no formulário
+  populateCarteiraSelectPessoa(selectCarteira, document.getElementById('pessoaId').value ? selectCarteira.value : carteiraAtiva);
+  document.getElementById('campoNewPessoaCarteira').classList.toggle('hidden', !usaCarteiras);
+  document.getElementById('pessoaCarteiraHint').classList.toggle('hidden', !usaCarteiras);
+
+  if (!lista.length) {
     list.innerHTML = '<div class="empty-state">Nenhuma pessoa cadastrada ainda.</div>';
     return;
   }
-  list.innerHTML = state.pessoas.map(p => `
+  list.innerHTML = lista.map(p => `
     <div class="card">
       <div class="contrato-top">
-        <div class="contrato-title">${escapeHtml(p.nome)}</div>
-        <button type="button" class="btn btn-danger btn-sm" data-remove-pessoa="${p.id}">${icon('trash')} Remover</button>
+        <div>
+          <div class="contrato-title">${escapeHtml(p.nome)}</div>
+          ${usaCarteiras ? `<div class="contrato-sub">${icon('tag')} ${p.carteiraId && carteiraNome(p.carteiraId) ? escapeHtml(carteiraNome(p.carteiraId)) : 'Todas as carteiras'}</div>` : ''}
+        </div>
+        <div class="contrato-actions">
+          <button type="button" class="btn btn-ghost btn-sm" data-edit-pessoa="${p.id}">${icon('pencil')} Editar</button>
+          <button type="button" class="btn btn-danger btn-sm" data-remove-pessoa="${p.id}">${icon('trash')} Remover</button>
+        </div>
       </div>
     </div>
   `).join('');
   list.querySelectorAll('[data-remove-pessoa]').forEach(btn => {
     btn.addEventListener('click', () => removePessoa(btn.dataset.removePessoa));
   });
+  list.querySelectorAll('[data-edit-pessoa]').forEach(btn => {
+    btn.addEventListener('click', () => editarPessoa(btn.dataset.editPessoa));
+  });
 }
+
+// Igual ao seletor de carteira dos outros cadastros, só que "vazio" aqui
+// significa "vale para todas", e não "sem carteira".
+function populateCarteiraSelectPessoa(selectEl, valorAtual) {
+  const atual = valorAtual || '';
+  selectEl.innerHTML = '<option value="">Todas as carteiras</option>' +
+    state.carteiras.map(c => `<option value="${c.id}">${escapeHtml(c.nome)}</option>`).join('');
+  selectEl.value = state.carteiras.some(c => c.id === atual) ? atual : '';
+}
+
+function editarPessoa(id) {
+  const p = state.pessoas.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('pessoaId').value = p.id;
+  document.getElementById('newPessoaNome').value = p.nome;
+  populateCarteiraSelectPessoa(document.getElementById('newPessoaCarteira'), p.carteiraId || '');
+  document.getElementById('btnSalvarPessoa').textContent = 'Salvar alterações';
+  document.getElementById('btnCancelarEdicaoPessoa').classList.remove('hidden');
+  document.getElementById('newPessoaNome').focus();
+}
+
+function cancelarEdicaoPessoa() {
+  document.getElementById('pessoaId').value = '';
+  document.getElementById('newPessoaNome').value = '';
+  populateCarteiraSelectPessoa(document.getElementById('newPessoaCarteira'), carteiraAtiva);
+  document.getElementById('btnSalvarPessoa').textContent = 'Adicionar pessoa';
+  document.getElementById('btnCancelarEdicaoPessoa').classList.add('hidden');
+}
+
+document.getElementById('btnCancelarEdicaoPessoa').addEventListener('click', cancelarEdicaoPessoa);
 
 function removePessoa(id) {
   const p = state.pessoas.find(x => x.id === id);
   if (!p) return;
   if (!confirm(`Remover "${p.nome}" da lista de pessoas? Contratos/pagamentos que já usam esse nome não são afetados.`)) return;
   state.pessoas = state.pessoas.filter(x => x.id !== id);
+  if (document.getElementById('pessoaId').value === id) cancelarEdicaoPessoa();
   saveState();
   renderPessoasConfig();
   showToast('Pessoa removida.', 'success');
@@ -2706,18 +2811,41 @@ function removePessoa(id) {
 
 addPessoaForm.addEventListener('submit', (e) => {
   e.preventDefault();
-  const nomeInput = document.getElementById('newPessoaNome');
-  const nome = nomeInput.value.trim();
+  const pessoaId = document.getElementById('pessoaId').value;
+  const nome = document.getElementById('newPessoaNome').value.trim();
+  const carteiraId = document.getElementById('newPessoaCarteira').value || '';
   if (!nome) return;
-  if (state.pessoas.some(p => p.nome.toLowerCase() === nome.toLowerCase())) {
+  if (state.pessoas.some(p => p.id !== pessoaId && p.nome.toLowerCase() === nome.toLowerCase())) {
     showToast('Já existe uma pessoa cadastrada com esse nome.', 'error');
     return;
   }
-  state.pessoas.push({ id: uuid(), nome });
+
+  if (pessoaId) {
+    const p = state.pessoas.find(x => x.id === pessoaId);
+    if (!p) return;
+    // renomear atualiza os contratos/pagamentos que já usam o nome antigo,
+    // mesma lógica do cadastro de imóveis (a referência é pelo nome)
+    const nomeAntigo = p.nome;
+    p.nome = nome;
+    p.carteiraId = carteiraId;
+    if (nomeAntigo !== nome) {
+      state.contratos.forEach(c => {
+        if (c.quemRecebeu === nomeAntigo) c.quemRecebeu = nome;
+        if (c.corretorNome === nomeAntigo) c.corretorNome = nome;
+        (c.dividas || []).forEach(d => (d.pagamentos || []).forEach(pg => {
+          if (pg.quemRecebeu === nomeAntigo) pg.quemRecebeu = nome;
+        }));
+      });
+    }
+    showToast('Pessoa atualizada com sucesso.', 'success');
+  } else {
+    state.pessoas.push({ id: uuid(), nome, carteiraId });
+    showToast('Pessoa adicionada com sucesso.', 'success');
+  }
+
+  cancelarEdicaoPessoa();
   saveState();
-  nomeInput.value = '';
-  renderPessoasConfig();
-  showToast('Pessoa adicionada com sucesso.', 'success');
+  renderAll();
 });
 
 /* ===================== CARTEIRAS (cadastro + seletor global) ===================== */
@@ -2991,7 +3119,16 @@ formImovel.addEventListener('submit', (e) => {
   }
 });
 
-/* ===================== CONTA (usuário/senha) ===================== */
+/* ===================== TELA: USUÁRIOS =====================
+ * Tudo que é conta de acesso vive aqui — a própria conta, os outros
+ * administradores e a chave que assina o cookie de login. Ficava escondido
+ * dentro de Configurações, e conta de usuário não é "configuração do sistema".
+ */
+function renderUsuarios() {
+  document.getElementById('accUsername').value = currentUsername;
+  loadUsers();
+}
+
 const accountForm = document.getElementById('accountForm');
 
 accountForm.addEventListener('submit', async (e) => {
@@ -3017,6 +3154,7 @@ accountForm.addEventListener('submit', async (e) => {
     const data = await res.json();
     if (res.ok && data.ok) {
       setCurrentUsername(data.username);
+      document.getElementById('accUsername').value = data.username;
       document.getElementById('accCurrentPassword').value = '';
       document.getElementById('accNewPassword').value = '';
       document.getElementById('accConfirmPassword').value = '';
@@ -3387,7 +3525,7 @@ const CODIGOS_RECIBO = [
 function dadosRecibo(c, d, p, indice) {
   const carteira = carteiraPorId(c.carteiraId) || {};
   const cidade = (state.config.recibo && state.config.recibo.cidade) || '';
-  const comissao = c.corretorNome ? (d.aluguel * (c.corretorPercentual || 0) / 100) : 0;
+  const comissao = comissaoCorretor(c, d);
   // dias de atraso na DATA DO PAGAMENTO (não hoje): um recibo reimpresso meses
   // depois precisa continuar dizendo o que valia quando o pagamento foi feito
   const diasAtrasoNoPagamento = Math.max(0, Math.round(
@@ -4665,8 +4803,8 @@ function renderCalendario() {
     const dots = [];
     vencimentos.forEach(d => {
       const st = getStatus(d);
-      const cor = st === 'atrasado' ? 'var(--danger)' : st === 'pago' ? 'var(--success)' : 'var(--accent)';
-      dots.push(`<span class="calendar-dot" style="background:${cor}"></span>`);
+      const classeCor = st === 'atrasado' ? 'bg-danger' : st === 'pago' ? 'bg-success' : 'bg-accent';
+      dots.push(`<span class="calendar-dot ${classeCor}"></span>`);
     });
     pagamentosNoDia.forEach(() => dots.push('<span class="calendar-dot bg-success"></span>'));
 

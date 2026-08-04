@@ -112,14 +112,14 @@ b) No PAGAMENTO — "Recebeu o condomínio junto?", perguntado **toda vez** que 
 2. TELAS
 --------------------------------------------------------------------------------
 
-Sidebar vertical fixa (280px, recolhível para 76px, gaveta no celular) com 11 telas em 5
+Sidebar vertical fixa (280px, recolhível para 76px, gaveta no celular) com 12 telas em 5
 blocos:
 
   Dashboard
   GESTÃO      │ Imóveis, Contratos, Atrasos, Histórico
   FINANCEIRO  │ Despesas, Gráficos, Relatórios
   AGENDA      │ Calendário
-  SISTEMA     │ Auditoria, Configurações
+  SISTEMA     │ Auditoria, Usuários, Configurações
 
 "Pagamento" e "Recibo" não são telas: são um modal e uma janela de impressão, acessados de
 dentro de Contratos, Atrasos ou Histórico.
@@ -132,16 +132,19 @@ dentro de Contratos, Atrasos ou Histórico.
 - [x] Senha sempre com `password_hash`, mínimo 8 caracteres em qualquer senha nova
 - [x] Bloqueio por tentativas: 5 erros seguidos do mesmo IP bloqueiam por 15 minutos
       (`data/login_attempts.json`, fora do controle de versão)
-- [x] Múltiplos administradores, todos com acesso total. Listar/adicionar/remover em
-      Configurações, sempre confirmando a própria senha (é ação de alto impacto). Não dá
-      para remover a si mesmo nem o último usuário
+- [x] Múltiplos administradores, todos com acesso total. Listar/adicionar/remover na tela
+      **Usuários** (ver 2.14), sempre confirmando a própria senha (é ação de alto impacto).
+      Não dá para remover a si mesmo nem o último usuário
 - [x] Usuário/senha padrão `admin` / `12345678`, só na primeira execução
 - [x] `data/auth.json` de usuário único é migrado sozinho para o formato com lista
 
 2.2 Dashboard
-- [x] Cards: total em atraso, próximo vencimento, despesas do mês. "Contratos ativos" não
-      tem card próprio — a lista logo abaixo já mostra isso, e o número continua no
-      "Resumo financeiro" no fim da tela
+- [x] Cards: contratos ativos, total em atraso, próximo vencimento, despesas do mês
+- [x] "Contratos ativos" conta **contratos em andamento** — os que não foram encerrados —
+      e não dívidas com status "ativo". Um contrato com tudo pago, ou com parcelas
+      atrasadas, continua em andamento; o que o tira da conta é "Encerrar contrato"
+- [x] Não existe bloco "Resumo financeiro" no fim da tela: ele repetia, num formato
+      diferente, os mesmos números dos cards do topo
 - [x] Card "Corretor a pagar no mês", com a quebra por corretor logo abaixo do valor —
       só aparece quando algum contrato tem corretor
 - [x] Alerta de dívidas vencendo em até 5 dias (laranja) e de contratos no aniversário de
@@ -285,6 +288,9 @@ dentro de Contratos, Atrasos ou Histórico.
 - [x] Botão "Recibo" em cada pagamento
 - [x] Modal de histórico por contrato (botão "Histórico"), somando os pagamentos de todas
       as dívidas e mostrando de qual vencimento veio cada um
+- [x] Lista paginada (20 pagamentos por página), voltando para a página 1 ao mudar filtro
+      ou busca. O contador do topo e a exportação continuam olhando o filtro INTEIRO, não
+      só a página visível — o CSV precisa sair completo
 - [x] Exportação CSV da aba (respeitando exatamente os filtros da tela — tela e arquivo
       saem da mesma função, `historicoFiltrado()`) e do modal por contrato
 
@@ -351,13 +357,34 @@ dentro de Contratos, Atrasos ou Histórico.
 - [x] Filtros por ano, mês e usuário, montados a partir dos próprios eventos
 - [x] Do mais recente para o mais antigo, mantendo os últimos 300 eventos
 
-2.14 Configurações (6 abas)
+2.14 Usuários
+- [x] Tela própria, no bloco SISTEMA (entre Auditoria e Configurações), reunindo tudo que é
+      conta de acesso — antes isso ficava escondido dentro de Configurações, e conta de
+      usuário não é "configuração do sistema". Também tem atalho no menu do usuário
+- [x] Conta do administrador: trocar o próprio usuário e senha (exige a senha atual)
+- [x] Usuários administradores: listar, adicionar e remover, todos com acesso total (não
+      existe "só leitura"). Adicionar e remover exigem confirmar a própria senha, e não dá
+      para remover a si mesmo nem o último usuário restante
+- [x] Segurança: "Gerar novo COOKIE_SECRET" (exige senha atual) gera uma chave aleatória e
+      reescreve `api/config.php` sozinho. Reemite a própria sessão na hora, mas desconecta
+      todos os outros usuários logados (a chave assina o cookie de todos). Escrita atômica
+      (temporário + `rename()`) e só se o padrão exato for encontrado — nunca deixa o
+      arquivo quebrado
+
+2.15 Configurações (5 abas)
 - Financeiro
   - [x] Taxa de juros mensal (%) e multa fixa por atraso (%) — usadas no cálculo do atraso
         e como percentual padrão de Juros/Multa em contratos novos
   - [x] Percentual padrão do corretor (%) e percentual de reajuste sugerido (%)
   - [x] Cadastro de Pessoas (recebedores/corretores): lista reutilizável usada em "Quem
-        recebe" (contrato e pagamento) e em "Corretor"
+        recebe" (contrato e pagamento) e em "Corretor". Cada pessoa pode ser amarrada a uma
+        carteira — aí só aparece nos seletores daquela carteira. "Todas as carteiras"
+        (o padrão) é para quem atende o sistema inteiro. A regra é própria das pessoas:
+        em contratos e imóveis, "sem carteira" é um grupo à parte; aqui significa
+        "aparece em todas" (`pessoasVisiveis()`)
+  - [x] Editar uma pessoa carrega ela no mesmo formulário (vira "Editar pessoa"); renomear
+        atualiza também os contratos e pagamentos que usam o nome antigo, como no cadastro
+        de imóveis
 - Carteiras
   - [x] Cadastro das carteiras/proprietários, com a contagem de contratos e imóveis de
         cada uma (ver 1.6)
@@ -380,15 +407,6 @@ dentro de Contratos, Atrasos ou Histórico.
   - [x] "Ver prévia" abre um recibo com o texto que está NO FORMULÁRIO (mesmo sem salvar);
         "Restaurar texto padrão" volta ao texto de fábrica mantendo a cidade, sem salvar
   - [x] Texto não salvo sobrevive a um `renderAll()` disparado por outra tela
-- Conta e acesso
-  - [x] Trocar o próprio usuário/senha (exige a senha atual)
-  - [x] "Gerar novo COOKIE_SECRET" (exige senha atual): gera uma chave aleatória e
-        reescreve `api/config.php` sozinho. Reemite a própria sessão na hora, mas
-        desconecta todos os outros usuários logados (a chave assina o cookie de todos).
-        Escrita atômica (temporário + `rename()`) e só se o padrão exato for encontrado —
-        nunca deixa o arquivo quebrado
-  - [x] Usuários administradores: listar, adicionar e remover (todos com acesso total,
-        não existe "só leitura")
 - Dados
   - [x] Backup completo em JSON: exportar tudo ou restaurar (com confirmação antes de
         substituir)
@@ -469,10 +487,13 @@ inclusive a carteira selecionada.
 - [x] Espaçamento definido só pelo container (`gap`), nunca por `margin-bottom` do `.card`
       junto — as duas coisas somadas deixavam o espaço entre linhas diferente do espaço
       entre colunas na mesma tela
-- [x] Nenhum `style="..."` solto nos templates gerados por JS: classes utilitárias
-      (`.text-danger`, `.is-current`, `.bg-*`, `.mt-*`) cobrem os casos
-- [x] Ícones em SVG (sprite `<symbol>` inline), com `stroke="currentColor"` — herdam a cor
-      do tema sem CSS por ícone
+- [x] Praticamente nenhum `style="..."` nos templates gerados por JS: classes utilitárias
+      (`.text-danger`, `.is-current`, `.bg-*`, `.mt-*`, definidas em `tokens.css`) cobrem os
+      casos. Sobram duas exceções deliberadas — as bolinhas de legenda dos gráficos, cuja
+      cor é lida do tema em tempo de execução (`cssVar()`) e por isso não cabe numa classe
+      fixa. Os pontos do calendário, que dependem só do status, usam as classes `.bg-*`
+- [x] Ícones em SVG (sprite `<symbol>` inline). A cor vem de `stroke: currentColor` numa
+      regra só, em `tokens.css` — cada ícone herda a cor do contexto sem CSS próprio
 - [x] Tema claro/escuro com preferência salva; na primeira visita segue o sistema
       operacional e acompanha mudanças em tempo real enquanto não houver escolha manual
 - [x] Responsivo de 360px a telas grandes
@@ -548,22 +569,23 @@ Cada item é uma melhoria em algo que JÁ existe, ou uma correção de uma lacun
     aplicado um a um. Com vários contratos vencendo no mesmo mês, faltaria uma tela para
     revisar e aplicar todos de uma vez, com o percentual configurado.
 
- 7. **Filtro por carteira também nas telas de cadastro de Pessoas.** Carteiras já filtram
-    contratos, imóveis e despesas, mas a lista de Pessoas é global. Quem administra
-    carteiras de proprietários diferentes provavelmente quer recebedores/corretores
-    separados por carteira.
+ 7. **Filtro de período no Histórico.** Hoje o filtro de tempo é só por ano. Com a lista já
+    paginada, faltaria escolher um intervalo de datas (de/até) para fechar, por exemplo, o
+    recebido de um trimestre sem exportar tudo e filtrar na planilha.
 
  8. **Undo do "excluir".** Excluir contrato, dívida ou despesa é imediato e definitivo (só
     fica o registro na Auditoria). Como a Auditoria já guarda o que foi excluído, daria
     para oferecer "desfazer" no toast por alguns segundos, ou restaurar a partir do
     evento de auditoria.
 
- 9. **Paginação de verdade no Histórico.** Contratos já pagina no `index.js` e Imóveis no
-    `ui.js`. O Histórico renderiza todos os pagamentos filtrados de uma vez — com anos de
-    uso e muitos contratos, essa lista fica grande e a tela pesa.
+ 9. **Auditoria dos cadastros auxiliares.** Contratos, dívidas, despesas, imóveis e
+    carteiras entram na Auditoria; pessoas, não. Criar, renomear ou remover um recebedor
+    mexe em contratos e pagamentos existentes, então merece o mesmo registro.
 
-10. **Testes automatizados no repositório.** As regras de dinheiro (os dois totais, a
-    comissão só sobre o aluguel, condomínio direto, valor sugerido no pagamento) foram
-    conferidas com scripts durante o desenvolvimento, mas eles não ficaram versionados.
-    Valeria um arquivo de teste simples rodando em Node, sem framework, para essas
-    funções não regredirem em silêncio numa mudança futura.
+10. **Versionar os scripts de auditoria e de teste.** As regras de dinheiro e as afirmações
+    deste documento são conferidas por três scripts em Node (sem framework): um checa o
+    código por leitura estática, outro executa o sistema num DOM falso e exercita cada
+    comportamento, e um terceiro confere só as contas. Eles pegaram problemas reais — o
+    recibo recalculando a comissão por fora, cards com espaçamento dobrado em
+    Configurações — mas ainda vivem fora do repositório. Trazer para dentro evitaria que
+    essas regressões voltassem em silêncio.

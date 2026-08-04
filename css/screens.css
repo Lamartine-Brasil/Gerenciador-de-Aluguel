@@ -196,42 +196,6 @@
 /* Sem nenhum alerta visível o bloco inteiro sai do fluxo (não deixa buraco). */
 .dash-alerts:not(:has(> .alert-banner:not(.hidden))) { display: none; }
 
-/* Resumo financeiro — apresenta, num formato comparativo, os mesmos números já
-   calculados e exibidos nos indicadores acima (nenhum cálculo novo). */
-.resumo-card { display: flex; flex-direction: column; gap: var(--space-4); }
-.resumo-bar {
-  display: flex;
-  height: 10px;
-  border-radius: var(--radius-pill);
-  overflow: hidden;
-  background: var(--surface-3);
-}
-.resumo-bar span { display: block; height: 100%; transition: width var(--dur-slow) var(--ease); }
-.resumo-legend { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-6); }
-.resumo-item { display: flex; flex-direction: column; gap: 2px; min-width: 120px; }
-.resumo-item-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--text-xs);
-  color: var(--text-dim);
-}
-.resumo-item-label::before {
-  content: '';
-  width: 8px; height: 8px;
-  border-radius: 2px;
-  background: var(--text-faint);
-}
-.resumo-item-atraso .resumo-item-label::before   { background: var(--danger); }
-.resumo-item-despesa .resumo-item-label::before  { background: var(--warn); }
-.resumo-item-ativos .resumo-item-label::before   { background: var(--accent); }
-.resumo-item-proximo .resumo-item-label::before  { background: var(--success); }
-.resumo-item-value {
-  font-size: var(--text-md);
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-}
-
 /* =============================================================================
    CONTRATOS — cards agrupados com as dívidas dentro
 ============================================================================= */

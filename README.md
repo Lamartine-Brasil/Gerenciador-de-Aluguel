@@ -110,7 +110,7 @@ Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servid
 ## O que o sistema faz
 
 A navegação fica numa **sidebar vertical fixa** (recolhível, e que vira gaveta no celular),
-com as 11 telas agrupadas em 5 blocos. No topo há um **header** com busca global, seletor de
+com as 12 telas agrupadas em 5 blocos. No topo há um **header** com busca global, seletor de
 carteira (só aparece se você administra imóveis de mais de um proprietário — veja abaixo),
 botão de atualizar dívidas, notificações (que espelham os alertas do Dashboard), alternância
 de tema claro/escuro e o menu do usuário.
@@ -146,8 +146,8 @@ Se você não usa corretor nem condomínio, nada disso aparece: a tela mostra um
 
 **Dashboard**
 
-- **Dashboard** — quanto está em atraso no total, próximo
-  vencimento, despesas lançadas no mês, um alerta (laranja) para dívidas que vencem nos
+- **Dashboard** — quantos contratos estão em andamento (ou seja, ainda não encerrados),
+  quanto está em atraso no total, próximo vencimento, despesas lançadas no mês, um alerta (laranja) para dívidas que vencem nos
   próximos 5 dias e um alerta (azul, para não se confundir com o de vencimento) para
   contratos no "aniversário" de reajuste. Cada item dentro dos alertas é clicável: no de
   vencimento leva direto para o contrato na aba Contratos; no de reajuste abre direto o
@@ -202,7 +202,8 @@ Se você não usa corretor nem condomínio, nada disso aparece: a tela mostra um
   calculados automaticamente conforme a taxa configurada
 - **Histórico** — todos os pagamentos já registrados, com busca por texto (imóvel,
   inquilino, forma de pagamento, quem recebeu, observação), filtro por contrato e por ano,
-  contador com o total somado e **exportação em CSV que respeita exatamente esses filtros**.
+  contador com o total somado, lista paginada de 20 em 20 e **exportação em CSV que respeita
+  exatamente esses filtros** (o arquivo sai completo, não só a página na tela).
   Quando o contrato tem corretor e/ou condomínio, mostra também o "valor líquido" (o que
   efetivamente fica com o proprietário, descontando o que só passa pela mão dele). Cada
   pagamento tem um botão **Recibo**, que gera o recibo em PDF (veja abaixo)
@@ -236,11 +237,14 @@ Se você não usa corretor nem condomínio, nada disso aparece: a tela mostra um
   editado, usuário adicionado/removido, chave de segurança regenerada), com quem fez e
   quando. Edições de contrato, dívida, despesa e reajuste mostram um diff campo a campo
   (valor antigo → novo). Filtros por ano, mês e usuário
+- **Usuários** — tudo que é acesso ao sistema, numa tela própria: sua conta (trocar
+  usuário e senha), os outros administradores (adicionar e remover, sempre confirmando sua
+  senha — e não dá para remover a si mesmo nem o último usuário) e a geração de uma nova
+  chave `COOKIE_SECRET` pelo próprio site
 - **Configurações** — taxas de juros/multa, valores padrão, percentual de reajuste
   sugerido, cadastro de pessoas (recebedores/corretores), **carteiras (proprietários)**,
-  **texto do recibo**, conta do administrador, geração de uma nova chave `COOKIE_SECRET`
-  pelo próprio site, outros usuários administradores, backup completo (exportar/importar)
-  e zona de perigo (excluir todos os dados)
+  **texto do recibo**, backup completo (exportar/importar) e zona de perigo (excluir todos
+  os dados)
 
 **Recibo em PDF**
 
@@ -440,8 +444,8 @@ geração de nova chave — são todas ações de alto impacto.
 ### Arquitetura geral
 
 - **Front-end**: `index.html` + `css/` + `index.js` + `ui.js`. Aplicação de página única
-  (SPA): as 11 telas (Dashboard, Imóveis, Contratos, Atrasos, Histórico, Despesas,
-  Gráficos, Relatórios, Calendário, Auditoria, Configurações) são seções que aparecem/somem
+  (SPA): as 12 telas (Dashboard, Imóveis, Contratos, Atrasos, Histórico, Despesas,
+  Gráficos, Relatórios, Calendário, Auditoria, Usuários, Configurações) são seções que aparecem/somem
   no mesmo HTML, sem recarregar a página. A navegação fica numa **sidebar vertical fixa**
   (280px, recolhível para 76px com o estado salvo no navegador; vira gaveta no celular),
   agrupada em 5 blocos: Dashboard, Gestão, Financeiro, Agenda e Sistema. O header traz
@@ -667,10 +671,16 @@ atrasado, soma `valorAtrasoBase` + (`total` × `taxaJurosMensal`/100 × meses de
 
 #### Pessoas (array `pessoas` em `data/dados.json`)
 
-Lista reutilizável de nomes cadastrados (`{ id, nome }`), gerenciada em Configurações.
-Alimenta os seletores "Quem recebe" (contrato e pagamento) e "Corretor" — um mesmo nome
-cadastrado pode ser usado nos dois papéis, evitando digitar toda vez. Remover uma pessoa
-da lista não afeta contratos/pagamentos que já usam aquele nome.
+Lista reutilizável de nomes cadastrados (`{ id, nome, carteiraId }`), gerenciada em
+Configurações. Alimenta os seletores "Quem recebe" (contrato e pagamento) e "Corretor" — um
+mesmo nome cadastrado pode ser usado nos dois papéis, evitando digitar toda vez. Remover uma
+pessoa da lista não afeta contratos/pagamentos que já usam aquele nome; renomear atualiza os
+que usavam o nome antigo.
+
+O `carteiraId` das pessoas segue uma regra **própria**, diferente da de contratos e imóveis:
+vazio significa "aparece em todas as carteiras" (o padrão, para quem atende o sistema
+inteiro), e preenchido restringe a pessoa aos seletores daquela carteira. É `pessoasVisiveis()`
+que aplica isso.
 
 #### Imóveis (array `imoveis` em `data/dados.json`)
 

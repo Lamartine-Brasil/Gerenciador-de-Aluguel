@@ -251,10 +251,14 @@ select.input {
 .card > h3:last-child { margin-bottom: 0; }
 
 /* Dentro de containers com gap próprio o espaçamento já vem do container. */
+/* Todo container que já separa os cards com `gap` precisa zerar a margem do
+   card, senão o espaço entre linhas fica maior que o entre colunas na mesma
+   tela — foi o bug de espaçamento "dobrado" que apareceu quando estes dois
+   mecanismos coexistiam. */
 .cards-grid > .card,
 .charts-grid > .card,
 .cards-list > .card,
-.card-grid > .card { margin-bottom: 0; }
+.config-grid > .card { margin-bottom: 0; }
 
 .cards-grid {
   display: grid;

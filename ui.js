@@ -11,7 +11,6 @@
      · menus suspensos (notificações e usuário)
      · busca do header delegando para a busca de Contratos já existente
      · painel de notificações espelhando os alertas já renderizados no Dashboard
-     · resumo financeiro espelhando os indicadores já calculados no Dashboard
      · abas internas de Configurações
      · expandir/recolher as dívidas dentro de cada contrato
      · busca e paginação em listas já renderizadas (Imóveis, Histórico)
@@ -284,58 +283,6 @@
     });
   });
   renderNotificacoes();
-
-  /* ===========================================================================
-     RESUMO FINANCEIRO (Dashboard)
-     Reapresenta, num formato comparativo, os MESMOS números que os indicadores
-     do topo já mostram. Nenhum cálculo novo: apenas leitura do que está na tela.
-  =========================================================================== */
-  const espelhos = [
-    { de: 'statAtraso',               para: 'uiResumoAtraso' },
-    { de: 'statDespesasMesDashboard', para: 'uiResumoDespesas' },
-    { de: 'statAtivos',               para: 'uiResumoAtivos' },
-    { de: 'statProximo',              para: 'uiResumoProximo' },
-  ];
-
-  // Extrai o número de um texto já formatado em pt-BR ("R$ 1.234,56" -> 1234.56).
-  function valorDoTexto(texto) {
-    const limpo = String(texto || '').replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
-    const n = parseFloat(limpo);
-    return isNaN(n) ? 0 : n;
-  }
-
-  function syncResumo() {
-    espelhos.forEach(({ de, para }) => {
-      const origem = document.getElementById(de);
-      const destino = document.getElementById(para);
-      if (origem && destino) destino.textContent = origem.textContent;
-    });
-
-    const barAtraso = $('#uiResumoBarAtraso');
-    const barDespesa = $('#uiResumoBarDespesa');
-    if (!barAtraso || !barDespesa) return;
-
-    const atraso = valorDoTexto($('#statAtraso') && $('#statAtraso').textContent);
-    const despesa = valorDoTexto($('#statDespesasMesDashboard') && $('#statDespesasMesDashboard').textContent);
-    const total = atraso + despesa;
-
-    if (total <= 0) {
-      barAtraso.style.width = '0%';
-      barDespesa.style.width = '0%';
-      return;
-    }
-    barAtraso.style.width = (atraso / total * 100).toFixed(1) + '%';
-    barDespesa.style.width = (despesa / total * 100).toFixed(1) + '%';
-  }
-
-  espelhos.forEach(({ de }) => {
-    const origem = document.getElementById(de);
-    if (!origem) return;
-    new MutationObserver(syncResumo).observe(origem, {
-      childList: true, characterData: true, subtree: true,
-    });
-  });
-  syncResumo();
 
   /* ===========================================================================
      CONFIGURAÇÕES — abas internas

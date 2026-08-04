@@ -152,6 +152,7 @@
       <div class="nav-group">
         <p class="nav-group-label">Sistema</p>
         <button class="tab-btn" data-tab="auditoria" data-tooltip="Auditoria"><span class="tab-icon"><svg class="icon"><use href="#icon-shield-check"></use></svg></span><span class="tab-label">Auditoria</span></button>
+        <button class="tab-btn" data-tab="usuarios" data-tooltip="Usuários"><span class="tab-icon"><svg class="icon"><use href="#icon-users"></use></svg></span><span class="tab-label">Usuários</span></button>
         <button class="tab-btn" data-tab="config" data-tooltip="Configurações"><span class="tab-icon"><svg class="icon"><use href="#icon-gear"></use></svg></span><span class="tab-label">Configurações</span></button>
       </div>
     </nav>
@@ -223,6 +224,9 @@
             <button type="button" class="dropdown-item" data-tab-link="config">
               <svg class="icon"><use href="#icon-gear"></use></svg> Configurações
             </button>
+            <button type="button" class="dropdown-item" data-tab-link="usuarios">
+              <svg class="icon"><use href="#icon-users"></use></svg> Usuários
+            </button>
             <button type="button" class="dropdown-item" data-tab-link="auditoria">
               <svg class="icon"><use href="#icon-shield-check"></use></svg> Auditoria
             </button>
@@ -253,6 +257,7 @@
             <div class="stat-info">
               <span class="stat-value" id="statAtivos">0</span>
               <span class="stat-label">Contratos ativos</span>
+              <span class="stat-hint">Em andamento (não encerrados)</span>
             </div>
           </div>
           <div class="card stat-card stat-danger">
@@ -297,32 +302,6 @@
         <h3 class="section-title"><svg class="icon"><use href="#icon-file-text"></use></svg> Últimos contratos</h3>
         <div id="dashboardRecentList" class="cards-list"></div>
 
-        <!-- Linha 4: resumo financeiro -->
-        <h3 class="section-title"><svg class="icon"><use href="#icon-dollar"></use></svg> Resumo financeiro</h3>
-        <div class="card resumo-card" id="uiResumoFinanceiro">
-          <div class="resumo-bar" aria-hidden="true">
-            <span class="bg-danger" id="uiResumoBarAtraso"></span>
-            <span class="bg-warn" id="uiResumoBarDespesa"></span>
-          </div>
-          <div class="resumo-legend">
-            <div class="resumo-item resumo-item-atraso">
-              <span class="resumo-item-label">Em atraso</span>
-              <span class="resumo-item-value" id="uiResumoAtraso">R$ 0,00</span>
-            </div>
-            <div class="resumo-item resumo-item-despesa">
-              <span class="resumo-item-label">Despesas no mês</span>
-              <span class="resumo-item-value" id="uiResumoDespesas">R$ 0,00</span>
-            </div>
-            <div class="resumo-item resumo-item-ativos">
-              <span class="resumo-item-label">Contratos ativos</span>
-              <span class="resumo-item-value" id="uiResumoAtivos">0</span>
-            </div>
-            <div class="resumo-item resumo-item-proximo">
-              <span class="resumo-item-label">Próximo vencimento</span>
-              <span class="resumo-item-value" id="uiResumoProximo">--</span>
-            </div>
-          </div>
-        </div>
       </section>
 
       <!-- ---------- IMÓVEIS ---------- -->
@@ -475,6 +454,7 @@
         </div>
 
         <div id="historicoList" class="cards-list"></div>
+        <div id="historicoPagination" class="pagination"></div>
       </section>
 
       <!-- ---------- DESPESAS ---------- -->
@@ -789,12 +769,90 @@
         <div id="auditoriaList" class="cards-list"></div>
       </section>
 
+      <!-- ---------- USUÁRIOS ---------- -->
+      <section id="tab-usuarios" class="tab-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>Usuários</h2>
+            <span class="panel-desc">Sua conta, quem mais tem acesso ao sistema e a chave que assina o login.</span>
+          </div>
+        </div>
+
+        <div class="config-grid">
+          <div class="card">
+            <h3><svg class="icon"><use href="#icon-user"></use></svg> Conta do administrador</h3>
+            <form id="accountForm" class="config-form">
+              <label class="field">
+                <span>Nome de usuário</span>
+                <input type="text" id="accUsername" required autocomplete="username">
+              </label>
+              <label class="field">
+                <span>Senha atual *</span>
+                <input type="password" id="accCurrentPassword" required autocomplete="current-password">
+              </label>
+              <label class="field">
+                <span>Nova senha, mínimo 8 caracteres (deixe em branco para manter a atual)</span>
+                <input type="password" id="accNewPassword" minlength="8" autocomplete="new-password">
+              </label>
+              <label class="field">
+                <span>Confirmar nova senha</span>
+                <input type="password" id="accConfirmPassword" autocomplete="new-password">
+              </label>
+              <p id="accountError" class="error-msg hidden"></p>
+              <button type="submit" class="btn btn-primary">Salvar alterações</button>
+              <p id="accountSaved" class="success-msg hidden">Dados de acesso atualizados!</p>
+            </form>
+          </div>
+
+          <div class="card">
+            <h3><svg class="icon"><use href="#icon-lock"></use></svg> Segurança</h3>
+            <p class="modal-subtitle">A chave <code>COOKIE_SECRET</code> (em <code>api/config.php</code>) assina o cookie de login. Gerar uma nova desconecta automaticamente todos os OUTROS usuários que estiverem logados agora (precisam entrar de novo) — a sua sessão continua ativa normalmente.</p>
+            <form id="regenerateSecretForm" class="config-form">
+              <label class="field">
+                <span>Confirme sua senha atual *</span>
+                <input type="password" id="secretCurrentPassword" required autocomplete="current-password">
+              </label>
+              <p id="regenerateSecretError" class="error-msg hidden"></p>
+              <button type="submit" class="btn btn-danger">Gerar novo COOKIE_SECRET</button>
+              <p id="regenerateSecretSaved" class="success-msg hidden">Nova chave gerada com sucesso!</p>
+            </form>
+          </div>
+
+          <div class="card config-span">
+            <h3><svg class="icon"><use href="#icon-users"></use></svg> Usuários administradores</h3>
+            <p class="modal-subtitle">Adicione outros usuários com acesso total ao sistema (ex: um sócio ou gerente). Todos têm as mesmas permissões.</p>
+            <div id="usersList" class="cards-list"></div>
+            <form id="addUserForm" class="config-form mt-md">
+              <label class="field">
+                <span>Novo usuário *</span>
+                <input type="text" id="newUserUsername" required autocomplete="off">
+              </label>
+              <label class="field">
+                <span>Senha (mínimo 8 caracteres) *</span>
+                <input type="password" id="newUserPassword" required minlength="8" autocomplete="new-password">
+              </label>
+              <label class="field">
+                <span>Confirmar senha *</span>
+                <input type="password" id="newUserConfirmPassword" required minlength="8" autocomplete="new-password">
+              </label>
+              <label class="field">
+                <span>Confirme sua própria senha atual *</span>
+                <input type="password" id="newUserCurrentPassword" required autocomplete="current-password">
+              </label>
+              <p class="modal-subtitle">Adicionar um novo administrador exige confirmar sua senha, já que dá acesso total ao sistema para outra pessoa.</p>
+              <p id="addUserError" class="error-msg hidden"></p>
+              <button type="submit" class="btn btn-primary">Adicionar usuário</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
       <!-- ---------- CONFIGURAÇÕES ---------- -->
       <section id="tab-config" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
             <h2>Configurações</h2>
-            <span class="panel-desc">Taxas, cadastros auxiliares, acesso e manutenção dos dados.</span>
+            <span class="panel-desc">Taxas, cadastros auxiliares, texto do recibo e manutenção dos dados. Contas de acesso ficam em <strong>Usuários</strong>.</span>
           </div>
         </div>
 
@@ -807,9 +865,6 @@
           </button>
           <button type="button" class="seg-tab" data-config-tab="recibo" role="tab" aria-selected="false">
             <svg class="icon"><use href="#icon-receipt"></use></svg> Recibo
-          </button>
-          <button type="button" class="seg-tab" data-config-tab="acesso" role="tab" aria-selected="false">
-            <svg class="icon"><use href="#icon-lock"></use></svg> Conta e acesso
           </button>
           <button type="button" class="seg-tab" data-config-tab="dados" role="tab" aria-selected="false">
             <svg class="icon"><use href="#icon-database"></use></svg> Dados
@@ -870,11 +925,20 @@
               <p class="modal-subtitle">Cadastre aqui quem pode receber pagamentos e/ou atuar como corretor, para escolher pela lista sem digitar o nome toda vez. A mesma lista alimenta os campos "Quem recebe" e "Corretor".</p>
               <div id="pessoasList" class="cards-list"></div>
               <form id="addPessoaForm" class="config-form mt-md">
+                <input type="hidden" id="pessoaId">
                 <label class="field">
                   <span>Nome *</span>
                   <input type="text" id="newPessoaNome" required>
                 </label>
-                <button type="submit" class="btn btn-primary">Adicionar pessoa</button>
+                <label class="field hidden" id="campoNewPessoaCarteira">
+                  <span>Aparece em qual carteira?</span>
+                  <select id="newPessoaCarteira">
+                    <option value="">Todas as carteiras</option>
+                  </select>
+                </label>
+                <p class="modal-subtitle hidden" id="pessoaCarteiraHint">Quem trabalha só com um proprietário pode ser amarrado à carteira dele — aí só aparece nos seletores daquela carteira. Deixe em "Todas" para quem atende o sistema inteiro (você mesmo, por exemplo).</p>
+                <button type="submit" class="btn btn-primary" id="btnSalvarPessoa">Adicionar pessoa</button>
+                <button type="button" class="btn btn-ghost hidden" id="btnCancelarEdicaoPessoa">Cancelar edição</button>
               </form>
             </div>
           </div>
@@ -950,77 +1014,6 @@
               <h3><svg class="icon"><use href="#icon-code"></use></svg> Códigos disponíveis</h3>
               <p class="modal-subtitle">Clique em qualquer código para inseri-lo no ponto onde estava o cursor (no último campo em que você clicou). A coluna da direita mostra um exemplo de como aquele código sai no recibo pronto.</p>
               <div id="reciboCodigos" class="codigo-grupos"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Conta e acesso -->
-        <div data-config-section="acesso" role="tabpanel" aria-label="Conta e acesso">
-          <div class="config-grid">
-            <div class="card">
-              <h3><svg class="icon"><use href="#icon-user"></use></svg> Conta do administrador</h3>
-              <form id="accountForm" class="config-form">
-                <label class="field">
-                  <span>Nome de usuário</span>
-                  <input type="text" id="accUsername" required autocomplete="username">
-                </label>
-                <label class="field">
-                  <span>Senha atual *</span>
-                  <input type="password" id="accCurrentPassword" required autocomplete="current-password">
-                </label>
-                <label class="field">
-                  <span>Nova senha, mínimo 8 caracteres (deixe em branco para manter a atual)</span>
-                  <input type="password" id="accNewPassword" minlength="8" autocomplete="new-password">
-                </label>
-                <label class="field">
-                  <span>Confirmar nova senha</span>
-                  <input type="password" id="accConfirmPassword" autocomplete="new-password">
-                </label>
-                <p id="accountError" class="error-msg hidden"></p>
-                <button type="submit" class="btn btn-primary">Salvar alterações</button>
-                <p id="accountSaved" class="success-msg hidden">Dados de acesso atualizados!</p>
-              </form>
-            </div>
-
-            <div class="card">
-              <h3><svg class="icon"><use href="#icon-lock"></use></svg> Segurança</h3>
-              <p class="modal-subtitle">A chave <code>COOKIE_SECRET</code> (em <code>api/config.php</code>) assina o cookie de login. Gerar uma nova desconecta automaticamente todos os OUTROS usuários que estiverem logados agora (precisam entrar de novo) — a sua sessão continua ativa normalmente.</p>
-              <form id="regenerateSecretForm" class="config-form">
-                <label class="field">
-                  <span>Confirme sua senha atual *</span>
-                  <input type="password" id="secretCurrentPassword" required autocomplete="current-password">
-                </label>
-                <p id="regenerateSecretError" class="error-msg hidden"></p>
-                <button type="submit" class="btn btn-danger">Gerar novo COOKIE_SECRET</button>
-                <p id="regenerateSecretSaved" class="success-msg hidden">Nova chave gerada com sucesso!</p>
-              </form>
-            </div>
-
-            <div class="card config-span">
-              <h3><svg class="icon"><use href="#icon-users"></use></svg> Usuários administradores</h3>
-              <p class="modal-subtitle">Adicione outros usuários com acesso total ao sistema (ex: um sócio ou gerente). Todos têm as mesmas permissões.</p>
-              <div id="usersList" class="cards-list"></div>
-              <form id="addUserForm" class="config-form mt-md">
-                <label class="field">
-                  <span>Novo usuário *</span>
-                  <input type="text" id="newUserUsername" required autocomplete="off">
-                </label>
-                <label class="field">
-                  <span>Senha (mínimo 8 caracteres) *</span>
-                  <input type="password" id="newUserPassword" required minlength="8" autocomplete="new-password">
-                </label>
-                <label class="field">
-                  <span>Confirmar senha *</span>
-                  <input type="password" id="newUserConfirmPassword" required minlength="8" autocomplete="new-password">
-                </label>
-                <label class="field">
-                  <span>Confirme sua própria senha atual *</span>
-                  <input type="password" id="newUserCurrentPassword" required autocomplete="current-password">
-                </label>
-                <p class="modal-subtitle">Adicionar um novo administrador exige confirmar sua senha, já que dá acesso total ao sistema para outra pessoa.</p>
-                <p id="addUserError" class="error-msg hidden"></p>
-                <button type="submit" class="btn btn-primary">Adicionar usuário</button>
-              </form>
             </div>
           </div>
         </div>
