@@ -462,7 +462,15 @@
         <div class="panel-header">
           <div class="panel-title-group">
             <h2>Despesas</h2>
-            <span class="panel-desc">Lançamentos avulsos ou ligados a um contrato específico.</span>
+            <span class="panel-desc">Lançamentos avulsos ou ligados a um contrato específico. Não entram no cálculo de nenhuma dívida — são um controle à parte, que aparece no lucro líquido dos Relatórios.</span>
+          </div>
+          <div class="panel-actions">
+            <button type="button" class="btn btn-primary" id="btnFocarNovaDespesa">
+              <svg class="icon"><use href="#icon-plus"></use></svg> Nova despesa
+            </button>
+            <button type="button" class="btn btn-ghost" id="btnExportDespesas">
+              <svg class="icon"><use href="#icon-download"></use></svg> CSV
+            </button>
           </div>
         </div>
 
@@ -472,6 +480,7 @@
             <div class="stat-info">
               <span class="stat-value" id="statDespesaFiltro">R$ 0,00</span>
               <span class="stat-label">Total no período filtrado</span>
+              <span class="stat-hint" id="statDespesaFiltroHint"></span>
             </div>
           </div>
           <div class="card stat-card stat-warn">
@@ -479,11 +488,24 @@
             <div class="stat-info">
               <span class="stat-value" id="statDespesaAno">R$ 0,00</span>
               <span class="stat-label">Total no ano selecionado</span>
+              <span class="stat-hint" id="statDespesaAnoHint"></span>
+            </div>
+          </div>
+          <div class="card stat-card stat-accent">
+            <div class="stat-icon"><svg class="icon"><use href="#icon-trending-up"></use></svg></div>
+            <div class="stat-info">
+              <span class="stat-value" id="statDespesaMedia">R$ 0,00</span>
+              <span class="stat-label">Média por mês no ano</span>
+              <span class="stat-hint">Considera só os meses com lançamento</span>
             </div>
           </div>
         </div>
 
         <div class="toolbar">
+          <div class="search-wrap">
+            <svg class="icon search-wrap-icon"><use href="#icon-search"></use></svg>
+            <input type="search" id="despesaBusca" class="input" placeholder="Buscar por descrição, contrato ou carteira..." aria-label="Buscar despesas">
+          </div>
           <select id="despesaFiltroAno" class="input select" aria-label="Filtrar despesas por ano"></select>
           <select id="despesaFiltroMes" class="input select" aria-label="Filtrar despesas por mês">
             <option value="">Todos os meses</option>
@@ -500,8 +522,7 @@
             <option value="10">Novembro</option>
             <option value="11">Dezembro</option>
           </select>
-          <span class="toolbar-sep"></span>
-          <span class="list-count">O ano escolhido vale para o gráfico e para a lista; o mês filtra só a lista.</span>
+          <span class="list-count">O ano vale para o gráfico e para a lista; o mês e a busca filtram só a lista.</span>
         </div>
 
         <div class="card chart-card">
@@ -510,15 +531,15 @@
           <canvas id="chartDespesasAno" height="240"></canvas>
         </div>
 
-        <div class="split-layout">
-          <div>
-            <div id="despesasList" class="cards-list"></div>
-          </div>
-
+        <!-- O formulário vem ANTES da lista no HTML de propósito: abaixo de 1080px
+             as duas colunas viram uma só, e com a ordem invertida era preciso
+             rolar a lista inteira para chegar em "Nova despesa". Em tela larga o
+             grid recoloca cada um na sua coluna. -->
+        <div class="split-layout split-layout-form-first">
           <aside class="split-aside">
             <div class="card">
               <h3 id="formDespesaTitle">Nova despesa</h3>
-              <p class="modal-subtitle">Cadastro simples e rápido — pode ou não estar ligada a um contrato específico.</p>
+              <p class="modal-subtitle">Cadastro rápido: depois de salvar, o formulário fica pronto para o próximo lançamento com a mesma data.</p>
               <form id="formDespesa" class="config-form">
                 <input type="hidden" id="despesaId">
                 <label class="field">
@@ -552,6 +573,11 @@
               </form>
             </div>
           </aside>
+
+          <div>
+            <div id="despesasList"></div>
+            <div id="despesasPagination" class="pagination"></div>
+          </div>
         </div>
       </section>
 
@@ -613,8 +639,26 @@
           </div>
           <div class="panel-actions">
             <select id="relatorioAno" class="input select" aria-label="Ano do relatório"></select>
+            <select id="relatorioMes" class="input select" aria-label="Mês do relatório">
+              <option value="">Ano inteiro</option>
+              <option value="0">Janeiro</option>
+              <option value="1">Fevereiro</option>
+              <option value="2">Março</option>
+              <option value="3">Abril</option>
+              <option value="4">Maio</option>
+              <option value="5">Junho</option>
+              <option value="6">Julho</option>
+              <option value="7">Agosto</option>
+              <option value="8">Setembro</option>
+              <option value="9">Outubro</option>
+              <option value="10">Novembro</option>
+              <option value="11">Dezembro</option>
+            </select>
             <button type="button" class="btn btn-ghost" id="btnExportRelatorio">
-              <svg class="icon"><use href="#icon-download"></use></svg> Exportar CSV
+              <svg class="icon"><use href="#icon-download"></use></svg> CSV
+            </button>
+            <button type="button" class="btn btn-ghost" id="btnExportRelatorioPDF">
+              <svg class="icon"><use href="#icon-download"></use></svg> PDF
             </button>
           </div>
         </div>
@@ -624,55 +668,75 @@
             <div class="stat-icon"><svg class="icon"><use href="#icon-dollar"></use></svg></div>
             <div class="stat-info">
               <span class="stat-value" id="relatorioTotalPagoAno">R$ 0,00</span>
-              <span class="stat-label">Recebido no ano (líquido — já sem corretor e condomínio)</span>
+              <span class="stat-label">Recebido <span data-periodo>no ano</span> (líquido — já sem corretor e condomínio)</span>
             </div>
           </div>
           <div class="card stat-card stat-danger">
             <div class="stat-icon"><svg class="icon"><use href="#icon-alert-triangle"></use></svg></div>
             <div class="stat-info">
               <span class="stat-value" id="relatorioTotalAtrasoAno">R$ 0,00</span>
-              <span class="stat-label">Em atraso no ano (aluguel + juros/multa)</span>
+              <span class="stat-label">Em atraso <span data-periodo>no ano</span> (aluguel + juros/multa)</span>
             </div>
           </div>
           <div class="card stat-card stat-warn">
             <div class="stat-icon"><svg class="icon"><use href="#icon-tag"></use></svg></div>
             <div class="stat-info">
               <span class="stat-value" id="relatorioTotalDescontoAno">R$ 0,00</span>
-              <span class="stat-label">Descontos concedidos no ano</span>
+              <span class="stat-label">Descontos concedidos <span data-periodo>no ano</span></span>
             </div>
           </div>
           <div class="card stat-card stat-warn">
             <div class="stat-icon"><svg class="icon"><use href="#icon-wallet"></use></svg></div>
             <div class="stat-info">
               <span class="stat-value" id="relatorioTotalDespesasAno">R$ 0,00</span>
-              <span class="stat-label">Despesas no ano</span>
+              <span class="stat-label">Despesas <span data-periodo>no ano</span></span>
             </div>
           </div>
           <div class="card stat-card stat-success">
             <div class="stat-icon"><svg class="icon"><use href="#icon-trending-up"></use></svg></div>
             <div class="stat-info">
               <span class="stat-value" id="relatorioLucroLiquidoAno">R$ 0,00</span>
-              <span class="stat-label">Lucro líquido no ano (pago − despesas)</span>
+              <span class="stat-label">Lucro líquido <span data-periodo>no ano</span> (pago − despesas)</span>
             </div>
           </div>
         </div>
 
+        <!-- A conta aberta do que entrou: bruto, o que foi repassado, e o que sobrou -->
         <div class="card table-card">
-          <h3>Pagamentos por forma no ano</h3>
+          <h3>Como se chega ao recebido líquido</h3>
+          <p class="modal-subtitle">Os cards acima e todas as tabelas mostram o valor <strong>líquido</strong>. Esta é a conta que leva até ele, somando os pagamentos do período escolhido.</p>
+          <table class="report-table">
+            <tbody id="relatorioExtratoBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card table-card hidden" id="relatorioCarteiraCard">
+          <h3>Por carteira <span data-periodo>no ano</span></h3>
+          <p class="modal-subtitle">Quanto cada proprietário rendeu no período escolhido. Aparece só quando há carteiras cadastradas e nenhuma está filtrada no topo — com uma carteira escolhida, o relatório inteiro já é dela.</p>
           <table class="report-table">
             <thead>
-              <tr><th>Forma</th><th>Quantidade</th><th>Total recebido (líquido)</th></tr>
+              <tr><th>Carteira</th><th>Contratos</th><th>Recebido (líquido)</th><th>Despesas</th><th>Em atraso</th><th>Resultado</th></tr>
+            </thead>
+            <tbody id="relatorioCarteiraBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card table-card">
+          <h3>Pagamentos por forma <span data-periodo>no ano</span></h3>
+          <table class="report-table">
+            <thead>
+              <tr><th>Forma</th><th>Quantidade</th><th>Recebido (bruto)</th><th>Recebido (líquido)</th></tr>
             </thead>
             <tbody id="relatorioFormaPagamentoBody"></tbody>
           </table>
         </div>
 
         <div class="card table-card hidden" id="relatorioCorretorCard">
-          <h3>Comissão de corretores no ano</h3>
-          <p class="modal-subtitle">Quanto precisa ser pago a cada corretor, somando as dívidas que vencem no ano selecionado. A base de cálculo é <strong>só o valor do aluguel</strong> de cada dívida — condomínio, juros, multa e valores em atraso não entram.</p>
+          <h3>Comissão de corretores <span data-periodo>no ano</span></h3>
+          <p class="modal-subtitle">Quanto precisa ser pago a cada corretor, somando as dívidas que vencem no período selecionado. A base de cálculo é <strong>só o valor do aluguel</strong> de cada dívida — condomínio, juros, multa e valores em atraso não entram.</p>
           <table class="report-table">
             <thead>
-              <tr><th>Corretor</th><th>Contratos</th><th>Dívidas</th><th>Comissão no ano</th></tr>
+              <tr><th>Corretor</th><th>Contratos</th><th>Dívidas</th><th>Comissão <span data-periodo>no ano</span></th></tr>
             </thead>
             <tbody id="relatorioCorretorBody"></tbody>
           </table>
@@ -680,20 +744,21 @@
 
         <div class="card table-card">
           <h3>Mês a mês</h3>
+          <p class="modal-subtitle">Sempre os 12 meses do ano escolhido, para dar contexto — com o mês filtrado em destaque, quando há um.</p>
           <table class="report-table">
             <thead>
-              <tr><th>Mês</th><th>Recebido (líquido)</th><th>Despesas</th><th>Total em atraso (aluguel + juros/multa)</th><th>Contratos no período</th></tr>
+              <tr><th>Mês</th><th>Recebido (bruto)</th><th>Recebido (líquido)</th><th>Descontos</th><th>Despesas</th><th>Total em atraso (aluguel + juros/multa)</th><th>Contratos</th><th>Dívidas</th></tr>
             </thead>
             <tbody id="relatorioTabelaBody"></tbody>
           </table>
         </div>
 
         <div class="card table-card">
-          <h3>Comparativo anual</h3>
-          <p class="modal-subtitle">Totais de cada ano lado a lado, para comparar a evolução ano a ano.</p>
+          <h3 id="comparativoTitulo">Comparativo anual</h3>
+          <p class="modal-subtitle" id="comparativoSubtitulo">Totais de cada ano lado a lado, para comparar a evolução ano a ano.</p>
           <table class="report-table">
             <thead>
-              <tr><th>Ano</th><th>Recebido (líquido)</th><th>Despesas</th><th>Total em atraso (aluguel + juros/multa)</th><th>Contratos no ano</th></tr>
+              <tr><th>Ano</th><th>Recebido (líquido)</th><th>Despesas</th><th>Resultado</th><th>Total em atraso (aluguel + juros/multa)</th><th>Contratos</th><th>Dívidas</th></tr>
             </thead>
             <tbody id="comparativoAnualBody"></tbody>
           </table>
@@ -715,11 +780,40 @@
           </div>
         </div>
 
+        <!-- Resumo do mês que está na tela (acompanha a navegação e a carteira) -->
+        <div class="cards-grid">
+          <div class="card stat-card stat-accent">
+            <div class="stat-icon"><svg class="icon"><use href="#icon-calendar"></use></svg></div>
+            <div class="stat-info">
+              <span class="stat-value" id="calAVencer">R$ 0,00</span>
+              <span class="stat-label">A cobrar no mês</span>
+              <span class="stat-hint" id="calAVencerHint"></span>
+            </div>
+          </div>
+          <div class="card stat-card stat-success">
+            <div class="stat-icon"><svg class="icon"><use href="#icon-dollar"></use></svg></div>
+            <div class="stat-info">
+              <span class="stat-value" id="calRecebido">R$ 0,00</span>
+              <span class="stat-label">Recebido no mês (líquido)</span>
+              <span class="stat-hint" id="calRecebidoHint"></span>
+            </div>
+          </div>
+          <div class="card stat-card stat-danger">
+            <div class="stat-icon"><svg class="icon"><use href="#icon-alert-triangle"></use></svg></div>
+            <div class="stat-info">
+              <span class="stat-value" id="calAtraso">R$ 0,00</span>
+              <span class="stat-label">Vencido e não pago no mês</span>
+              <span class="stat-hint" id="calAtrasoHint"></span>
+            </div>
+          </div>
+        </div>
+
         <div class="card">
           <div class="calendar-legend">
             <span class="chart-legend-item"><span class="chart-legend-dot bg-accent"></span> Vencimento ativo</span>
             <span class="chart-legend-item"><span class="chart-legend-dot bg-danger"></span> Vencimento atrasado</span>
             <span class="chart-legend-item"><span class="chart-legend-dot bg-success"></span> Pago / pagamento recebido</span>
+            <span class="calendar-legend-nota">O fundo do dia segue o pior status dele; o valor é o total a cobrar dos vencimentos daquele dia.</span>
           </div>
           <div class="calendar-weekdays">
             <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
@@ -728,8 +822,11 @@
         </div>
 
         <div class="card hidden" id="calendarioDetalheCard">
-          <h3 id="calendarioDetalheTitulo"></h3>
-          <div id="calendarioDetalheLista" class="cards-list"></div>
+          <div class="panel-header-tight">
+            <h3 id="calendarioDetalheTitulo"></h3>
+            <span class="panel-desc" id="calendarioDetalheResumo"></span>
+          </div>
+          <div id="calendarioDetalheLista"></div>
         </div>
       </section>
 

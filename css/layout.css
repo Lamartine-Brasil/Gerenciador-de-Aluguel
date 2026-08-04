@@ -352,6 +352,10 @@
 @media (min-width: 1080px) {
   .split-layout { grid-template-columns: minmax(0, 1fr) 340px; }
   .split-aside { position: sticky; top: calc(var(--topbar-h) + var(--space-5)); }
+  /* Quando o formulário vem primeiro no HTML (para não ficar depois da lista
+     inteira em tela estreita), o grid o devolve para a coluna da direita. */
+  .split-layout-form-first > .split-aside { grid-column: 2; grid-row: 1; }
+  .split-layout-form-first > :not(.split-aside) { grid-column: 1; grid-row: 1; }
 }
 
 /* =============================================================================

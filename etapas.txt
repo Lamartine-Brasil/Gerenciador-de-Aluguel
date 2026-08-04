@@ -303,15 +303,29 @@ dentro de Contratos, Atrasos ou Histórico.
 
 2.9 Despesas
 - [x] Lançamento simples (data, descrição, valor), com formulário sempre visível ao lado
-      da lista, pensado para lançar várias seguidas
+      da lista, pensado para lançar várias seguidas — depois de salvar, o formulário fica
+      pronto para o próximo lançamento com a mesma data
+- [x] O formulário vem ANTES da lista no HTML. Abaixo de 1080px as duas colunas viram uma
+      só, e com a ordem antiga era preciso rolar cards, filtros, gráfico e a lista inteira
+      para chegar em "Nova despesa" — em tablet e celular o cadastro ficava no fim da
+      página. Em tela larga o grid recoloca cada um na sua coluna
+      (`.split-layout-form-first`), então o visual de desktop não mudou
+- [x] Botão "Nova despesa" no topo: cancela qualquer edição em andamento, rola até o
+      formulário e põe o cursor na descrição
 - [x] Opcionalmente ligada a um contrato; despesa geral escolhe a própria carteira (com
       contrato escolhido, a carteira vem dele e o campo some)
-- [x] Filtro por ano e mês; card com o total do período e card com o total do ano inteiro
+- [x] Filtro por ano, por mês e **busca por texto** (descrição, contrato ou carteira)
+- [x] Três indicadores: total do período filtrado, total do ano e média por mês no ano —
+      a média considera só os meses que tiveram lançamento, porque dividir por 12 num ano
+      que começou em setembro daria um número que não descreve nada
 - [x] Gráfico de barras com o total de cada mês do ano selecionado
-- [x] Lista do período, mais recente primeiro, com editar (reaproveita o formulário do
-      topo, virando "Editar despesa") e excluir por item
-- [x] Aparecem também fora da aba: card no Dashboard, coluna e cards em Relatórios, e
-      gráfico "Despesas mensais" em Gráficos
+- [x] Lista na mesma **tabela** do resto do sistema (data, descrição, contrato, carteira,
+      valor e ações em ícone), mais recente primeiro, paginada de 20 em 20 e virando grade
+      em tela estreita. Editar reaproveita o formulário do lado, virando "Editar despesa"
+- [x] Exportação CSV com todas as despesas do filtro (não só a página visível), saindo de
+      `despesasFiltradas()` — a mesma função que desenha a lista
+- [x] Aparecem também fora da aba: card no Dashboard, colunas e cards em Relatórios
+      (inclusive na quebra por carteira), e gráfico "Despesas mensais" em Gráficos
 
 2.10 Gráficos
 - [x] Seletor de ano comanda a aba inteira (padrão: ano atual), igual a Relatórios
@@ -332,26 +346,65 @@ dentro de Contratos, Atrasos ou Histórico.
       largura inteira
 
 2.11 Relatórios
-- [x] Seletor de ano
-- [x] Cards do ano: recebido líquido, total em atraso, descontos concedidos, despesas e
-      lucro líquido (recebido líquido − despesas)
-- [x] Tabela "Pagamentos por forma no ano" (quantidade e total líquido)
-- [x] Tabela "Comissão de corretores no ano": por corretor, quantos contratos, quantas
-      dívidas e quanto pagar — base só o aluguel. O card some quando não há corretor
-- [x] Tabela mês a mês: recebido líquido, despesas, total em atraso, contratos no período
-- [x] Comparativo anual: todos os anos com dados lado a lado
-- [x] Exportação CSV com todas as seções da tela num arquivo só. O cálculo fica em
-      `calcularRelatorioAnual()` / `calcularComparativoAnual()`, usadas pela tela e pela
-      exportação — o arquivo nunca sai diferente do que está sendo exibido
+- [x] Dois seletores: **ano** e **mês** (com "Ano inteiro" como padrão). Aluguel é um
+      negócio mensal — fechar um mês é tão comum quanto fechar o ano —, então o filtro de
+      mês recorta a tela inteira: cards, extrato, por carteira, por forma e comissões
+- [x] Os rótulos acompanham o filtro: "Recebido no ano" vira "Recebido em Julho"
+- [x] Cards do período: recebido líquido, total em atraso, descontos concedidos, despesas
+      e lucro líquido (recebido líquido − despesas)
+- [x] Tabela "Como se chega ao recebido líquido": a conta aberta do período —
+      bruto → − comissão do corretor → − condomínio repassado → = líquido → − despesas →
+      = lucro líquido. Era a informação que faltava: todo o resto da tela mostra só o
+      líquido, sem dizer de onde ele veio
+- [x] Tabela "Por carteira": quanto cada proprietário rendeu (contratos, recebido líquido,
+      despesas, em atraso e resultado). Aparece só quando há carteiras cadastradas e
+      nenhuma está filtrada no topo — com uma carteira escolhida, o relatório inteiro já
+      é dela
+- [x] Tabela "Pagamentos por forma": quantidade, recebido bruto e recebido líquido
+- [x] Tabela "Comissão de corretores": por corretor, quantos contratos, quantas dívidas e
+      quanto pagar — base só o aluguel. O card some quando não há corretor
+- [x] Tabela mês a mês: sempre os 12 meses do ano escolhido (para dar contexto), com
+      recebido bruto e líquido, descontos, despesas, total em atraso, contratos e dívidas.
+      O mês filtrado fica destacado
+- [x] "Contratos" conta **contratos distintos**, e "Dívidas" conta dívidas — antes existia
+      uma coluna só, rotulada "Contratos no período", que na verdade contava dívidas
+- [x] Comparativo: com "Ano inteiro", compara os anos lado a lado; com um mês escolhido,
+      compara **o mesmo mês entre os anos** ("julho de 2024 × 2025 × 2026"), que é a
+      comparação que interessa quando se está fechando um mês
+- [x] Exportação em **CSV e em PDF**, ambas com todas as seções da tela num arquivo só. As
+      seções são montadas uma vez (`secoesRelatorio()`) e os dois formatos só as
+      apresentam de jeitos diferentes; o cálculo fica em `calcularRelatorio(ano, mes)` /
+      `calcularComparativo(mes)`, usados pela tela e pelas duas exportações — nenhum sai
+      diferente do que está sendo exibido
+- [x] Em tela estreita (até 900px) as tabelas viram lista, com o nome da coluna em cima de
+      cada valor — a de mês a mês tem 8 colunas e só rolava de lado no celular
 
 2.12 Calendário
 - [x] Grade mensal com navegação (anterior/próximo/hoje)
+- [x] Resumo do mês que está na tela, em três cards que acompanham a navegação e a
+      carteira ativa: "a cobrar no mês" (total a cobrar dos vencimentos), "recebido no mês
+      (líquido)" e "vencido e não pago no mês" (valor cheio devido) — as mesmas convenções
+      de 1.7, com a contagem de itens embaixo de cada valor
 - [x] Semanas completas: fecha com os últimos dias do mês anterior e os primeiros do
       seguinte, numerados corretamente, esmaecidos, sem cor de status e sem clique
 - [x] Fundo da célula inteira colorido pelo pior status do dia (vermelho = algo atrasado,
       azul = vencimento ativo, verde = só pago) — muito mais fácil de escanear que
-      pontinhos. Mostra também o total (R$) dos vencimentos do dia, além dos pontos
-- [x] Clicar num dia lista os vencimentos e pagamentos daquela data abaixo
+      pontinhos. Mostra também o total (R$) dos vencimentos do dia, além dos pontos.
+      Uma nota na legenda explica o que a cor de fundo significa
+- [x] Cada dia é um `<button>` de verdade: navegável por teclado, com foco visível e um
+      `aria-label` que descreve o dia em texto ("05-08-2026: 1 vencimento — R$ 927,00"),
+      já que a informação visual está em cor e em bolinhas
+- [x] Abrir o calendário no mês corrente já seleciona o dia de hoje, em vez de deixar uma
+      grade colorida sem nada embaixo esperando um clique
+- [x] Clicar num dia abre o detalhe, dividido em duas seções:
+      - **Vencimentos do dia**, na MESMA tabela de Contratos, Atrasos e Dashboard — com as
+        mesmas colunas, os mesmos dois totais e os mesmos botões (pagar, recibo, histórico,
+        editar). Antes eram cartõezinhos só de leitura: dava para ver o vencimento e não
+        fazer nada a respeito
+      - **Pagamentos recebidos**, com valor pago, líquido (quando difere), forma, quem
+        recebeu e os botões de recibo e histórico
+- [x] O cabeçalho do detalhe traz a data com o dia da semana e o resumo daquele dia
+      (quantos vencimentos e quanto a cobrar, quantos pagamentos e quanto entrou)
 
 2.13 Auditoria
 - [x] Histórico dos eventos principais: o quê, quem fez e quando. Contrato criado,

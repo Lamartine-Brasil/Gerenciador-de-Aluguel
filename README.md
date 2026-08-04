@@ -208,27 +208,33 @@ Se você não usa corretor nem condomínio, nada disso aparece: a tela mostra um
   efetivamente fica com o proprietário, descontando o que só passa pela mão dele). Cada
   pagamento tem um botão **Recibo**, que gera o recibo em PDF (veja abaixo)
 - **Despesas** — cadastro simples de despesas (data, descrição, valor), opcionalmente
-  ligadas a um contrato ou avulsas, com edição e exclusão por item. Um gráfico de barras
-  mostra o total de cada mês do ano selecionado. Também aparecem no Dashboard, em
-  Relatórios (com "lucro líquido" = pago menos despesas) e em Gráficos
+  ligadas a um contrato ou avulsas, com busca, filtro por ano e mês, lista paginada,
+  edição e exclusão por item e exportação em CSV. Três indicadores no topo (total do
+  período, total do ano e média mensal) e um gráfico de barras com o total de cada mês.
+  O formulário de lançamento fica ao lado da lista no computador e logo acima dela no
+  celular, para não ficar no fim da página. Também aparecem no Dashboard, em Relatórios
+  (com "lucro líquido" = pago menos despesas) e em Gráficos
 - **Gráficos** — seis gráficos do ano escolhido no seletor (padrão: ano atual): dívidas por
   status, pagamentos por forma (Dinheiro/Pix), receita líquida × despesas mês a mês, total
   em atraso por mês, despesas por mês e um ranking de inadimplência (top 6 por inquilino ou
   por imóvel). Passar o mouse mostra os valores do mês. Os valores de "recebido" são
   líquidos, mesma convenção de Relatórios — o total em atraso continua com o valor cheio
   devido, já que é dívida em aberto, não receita
-- **Relatórios** — totais mês a mês e no ano, comparativo com todos os anos lado a lado,
-  total de descontos concedidos, total de despesas e lucro líquido, e quebra de
-  pagamentos por forma no ano, com exportação de tudo isso em um CSV único. Todo valor
-  "recebido" mostrado aqui é líquido — já descontando a comissão do corretor e o
-  condomínio de cada pagamento
+- **Relatórios** — fecha **o ano ou um mês** (dois seletores no topo): a conta aberta de
+  como se chega ao recebido líquido (bruto − comissão do corretor − condomínio − despesas),
+  quebra por carteira/proprietário, por forma de pagamento e por corretor, tabela mês a mês
+  com os 12 meses do ano, e um comparativo que vira "o mesmo mês em cada ano" quando você
+  filtra um mês. Exporta tudo em **CSV ou PDF**. Todo valor "recebido" mostrado aqui é
+  líquido — já descontando a comissão do corretor e o condomínio de cada pagamento
 
 **Agenda**
 
 - **Calendário** — grade mensal mostrando vencimentos e pagamentos dia a dia, com o fundo
   da célula inteira colorido conforme o status do dia (mais fácil de escanear o mês do
-  que só pontinhos pequenos) e o valor total dos vencimentos de cada dia. Clicar num dia
-  abre o detalhe do que acontece nele
+  que só pontinhos pequenos) e o valor total dos vencimentos de cada dia. No topo, três
+  indicadores do mês que está na tela: a cobrar, recebido (líquido) e vencido e não pago.
+  Clicar num dia abre o detalhe — os vencimentos na mesma tabela usada em Contratos, com
+  os botões de pagar, gerar recibo e editar à mão, e os pagamentos recebidos logo abaixo
 
 **Sistema**
 

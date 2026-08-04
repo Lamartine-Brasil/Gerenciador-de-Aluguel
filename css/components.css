@@ -452,6 +452,52 @@ select.input {
 .report-table tbody tr:last-child td { border-bottom: none; }
 .report-table tr.is-current { background: var(--accent-softer); }
 .report-table tr.is-current td { font-weight: 700; color: var(--text); }
+/* Valores alinhados à direita, como em qualquer tabela de dinheiro — o primeiro
+   campo (mês, ano, forma, carteira) continua à esquerda. */
+.report-table th:not(:first-child),
+.report-table td:not(:first-child) { text-align: right; }
+/* Sinal (+ / − / =) antes do rótulo, no extrato do ano */
+.report-table .report-sinal {
+  display: inline-block;
+  width: 14px;
+  color: var(--text-faint);
+  font-weight: 500;
+}
+
+/* Em tela estreita a tabela de relatório vira lista: cada linha é um bloco e
+   cada valor ganha o nome da coluna em cima, no mesmo padrão da tabela de
+   dívidas. Sem isso a tabela de 8 colunas só rolava de lado no celular. */
+@media (max-width: 900px) {
+  .report-table,
+  .report-table tbody { display: block; }
+  .report-table thead { display: none; }
+  .report-table tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .report-table tbody tr:last-child { border-bottom: 0; }
+  .report-table td {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+    text-align: left;
+    white-space: normal;
+  }
+  .report-table td[data-rotulo]::before {
+    content: attr(data-rotulo);
+    color: var(--text-faint);
+    font-size: var(--text-2xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .report-table td:first-child { grid-column: 1 / -1; font-size: var(--text-md); }
+}
 
 /* Cabeçalho de "tabela" para listas montadas em <div> pelo JavaScript. */
 .list-head {

@@ -2517,6 +2517,33 @@ function renderDespesasAnoChart() {
   );
 }
 
+// Despesas que passam nos filtros da tela (ano, mês e busca), já ordenadas da
+// mais recente para a mais antiga. É a MESMA fonte usada para desenhar a lista e
+// para exportar o CSV, então os dois nunca divergem — igual ao Histórico.
+function despesasFiltradas() {
+  const ano = Number(document.getElementById('despesaFiltroAno').value);
+  const mes = document.getElementById('despesaFiltroMes').value;
+  const busca = document.getElementById('despesaBusca').value.trim().toLowerCase();
+
+  return despesasVisiveis().filter(d => {
+    const dt = parseDate(d.data);
+    if (dt.getFullYear() !== ano) return false;
+    if (mes !== '' && dt.getMonth() !== Number(mes)) return false;
+    if (busca) {
+      const alvo = [
+        d.descricao,
+        d.contratoId ? despesaContratoLabel(d.contratoId) : 'despesa geral',
+        carteiraNome(carteiraDaDespesa(d)),
+      ].join(' ').toLowerCase();
+      if (!alvo.includes(busca)) return false;
+    }
+    return true;
+  }).sort((a, b) => a.data < b.data ? 1 : -1);
+}
+
+const DESPESAS_POR_PAGINA = 20;
+let despesasPaginaAtual = 1;
+
 function renderDespesas() {
   if (!document.getElementById('despData').value) document.getElementById('despData').value = todayStr();
   populateDespesaContratoSelect();
@@ -2528,44 +2555,107 @@ function renderDespesas() {
   atualizarVisibilidadeCamposCarteira();
 
   const ano = Number(document.getElementById('despesaFiltroAno').value);
-  const mes = document.getElementById('despesaFiltroMes').value;
-
   renderDespesasAnoChart();
 
+  /* ---- indicadores do ano e do período filtrado ---- */
   const doAno = despesasVisiveis().filter(d => parseDate(d.data).getFullYear() === ano);
   const totalAno = doAno.reduce((sum, d) => sum + d.valor, 0);
   document.getElementById('statDespesaAno').textContent = formatCurrency(totalAno);
+  document.getElementById('statDespesaAnoHint').textContent = plural(doAno.length, 'lançamento', 'lançamentos');
 
-  const filtradas = doAno.filter(d => mes === '' || parseDate(d.data).getMonth() === Number(mes));
+  // média só dos meses que tiveram lançamento — dividir por 12 num ano que
+  // começou em setembro daria uma média que não descreve nada
+  const mesesComLancamento = new Set(doAno.map(d => parseDate(d.data).getMonth())).size;
+  document.getElementById('statDespesaMedia').textContent =
+    formatCurrency(mesesComLancamento ? totalAno / mesesComLancamento : 0);
+
+  const filtradas = despesasFiltradas();
   const totalFiltrado = filtradas.reduce((sum, d) => sum + d.valor, 0);
   document.getElementById('statDespesaFiltro').textContent = formatCurrency(totalFiltrado);
+  document.getElementById('statDespesaFiltroHint').textContent = plural(filtradas.length, 'lançamento', 'lançamentos');
 
-  const ordenadas = filtradas.slice().sort((a, b) => a.data < b.data ? 1 : -1);
+  /* ---- lista ---- */
   const list = document.getElementById('despesasList');
-  if (!ordenadas.length) {
-    list.innerHTML = '<div class="empty-state">Nenhuma despesa registrada neste período.</div>';
+  const paginacao = document.getElementById('despesasPagination');
+  if (!filtradas.length) {
+    list.innerHTML = '<div class="empty-state">Nenhuma despesa encontrada para esses filtros.</div>';
+    paginacao.innerHTML = '';
     return;
   }
-  list.innerHTML = ordenadas.map(d => `
-    <div class="card">
-      <div class="contrato-top">
-        <div>
-          <div class="contrato-title">${escapeHtml(d.descricao)}</div>
-          <div class="contrato-sub">${icon('calendar')} ${formatDate(d.data)}${d.contratoId ? ` · ${icon('user')} ${escapeHtml(despesaContratoLabel(d.contratoId))}` : ' · Despesa geral'}${carteiraDaDespesa(d) ? ` · ${icon('tag')} ${escapeHtml(carteiraNome(carteiraDaDespesa(d)))}` : ''}</div>
-        </div>
-        <strong class="text-danger">${formatCurrency(d.valor)}</strong>
-      </div>
-      <div class="contrato-actions">
-        <button type="button" class="btn btn-ghost btn-sm" data-edit-despesa="${d.id}">${icon('pencil')} Editar</button>
-        <button type="button" class="btn btn-danger btn-sm" data-remove-despesa="${d.id}">${icon('trash')} Excluir</button>
-      </div>
+
+  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / DESPESAS_POR_PAGINA));
+  despesasPaginaAtual = Math.min(Math.max(despesasPaginaAtual, 1), totalPaginas);
+  const inicio = (despesasPaginaAtual - 1) * DESPESAS_POR_PAGINA;
+  const pagina = filtradas.slice(inicio, inicio + DESPESAS_POR_PAGINA);
+
+  // Mesma tabela do resto do sistema: cabeçalho uma vez só, colunas alinhadas e
+  // ações em ícone. Em tela estreita ela vira grade, pelo mesmo CSS.
+  const usaCarteiras = state.carteiras.length > 0;
+  list.innerHTML = `
+    <div class="dividas-scroll">
+      <table class="dividas-tabela">
+        <thead>
+          <tr>
+            <th class="col-txt">Data</th>
+            <th class="col-txt">Descrição</th>
+            <th class="col-txt">Contrato</th>
+            ${usaCarteiras ? '<th class="col-txt">Carteira</th>' : ''}
+            <th class="is-forte">Valor</th>
+            <th class="col-acoes"></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${pagina.map(d => {
+            const carteira = carteiraDaDespesa(d);
+            return `
+            <tr class="divida-row" data-despesa-id="${d.id}">
+              <td class="col-txt col-cabecalho" data-rotulo="Data"><span class="divida-venc">${formatDate(d.data)}</span></td>
+              <td class="col-txt col-cabecalho" data-rotulo="Descrição">${escapeHtml(d.descricao)}</td>
+              <td class="col-txt" data-rotulo="Contrato">${d.contratoId ? escapeHtml(despesaContratoLabel(d.contratoId)) : '<span class="is-zero">Despesa geral</span>'}</td>
+              ${usaCarteiras ? `<td class="col-txt" data-rotulo="Carteira">${carteira ? escapeHtml(carteiraNome(carteira)) : '<span class="is-zero">—</span>'}</td>` : ''}
+              <td class="is-forte is-deducao" data-rotulo="Valor">${formatNumero(d.valor)}</td>
+              <td class="col-acoes">
+                <div class="divida-acoes">
+                  <button class="btn-acao" data-edit-despesa="${d.id}" title="Editar esta despesa" aria-label="Editar despesa">${icon('pencil')}</button>
+                  <button class="btn-acao is-excluir" data-remove-despesa="${d.id}" title="Excluir esta despesa" aria-label="Excluir despesa">${icon('trash')}</button>
+                </div>
+              </td>
+            </tr>
+          `;
+          }).join('')}
+        </tbody>
+      </table>
     </div>
-  `).join('');
+    <p class="dividas-legenda">Valores em R$. Despesas são um controle à parte: não entram no cálculo de nenhuma dívida, mas descontam do lucro líquido em Relatórios.</p>
+  `;
+
   list.querySelectorAll('[data-remove-despesa]').forEach(btn => {
     btn.addEventListener('click', () => excluirDespesa(btn.dataset.removeDespesa));
   });
   list.querySelectorAll('[data-edit-despesa]').forEach(btn => {
     btn.addEventListener('click', () => editarDespesa(btn.dataset.editDespesa));
+  });
+  renderDespesasPagination(totalPaginas, filtradas.length);
+}
+
+function renderDespesasPagination(totalPaginas, totalDespesas) {
+  const paginacao = document.getElementById('despesasPagination');
+  if (totalPaginas <= 1) {
+    paginacao.innerHTML = '';
+    return;
+  }
+  paginacao.innerHTML = `
+    <button type="button" class="btn btn-ghost btn-sm" id="btnDespesaAnterior" ${despesasPaginaAtual <= 1 ? 'disabled' : ''}>‹ Anterior</button>
+    <span class="pagination-info">Página ${despesasPaginaAtual} de ${totalPaginas} (${totalDespesas} despesas)</span>
+    <button type="button" class="btn btn-ghost btn-sm" id="btnDespesaProxima" ${despesasPaginaAtual >= totalPaginas ? 'disabled' : ''}>Próxima ›</button>
+  `;
+  document.getElementById('btnDespesaAnterior').addEventListener('click', () => {
+    despesasPaginaAtual--;
+    renderDespesas();
+  });
+  document.getElementById('btnDespesaProxima').addEventListener('click', () => {
+    despesasPaginaAtual++;
+    renderDespesas();
   });
 }
 
@@ -2601,6 +2691,7 @@ function editarDespesa(id) {
 
 function cancelarEdicaoDespesa() {
   document.getElementById('despesaId').value = '';
+  despesasPaginaAtual = 1;
   formDespesa.reset();
   document.getElementById('despData').value = todayStr();
   populateCarteiraSelect(document.getElementById('despCarteira'), carteiraAtiva);
@@ -2652,8 +2743,54 @@ formDespesa.addEventListener('submit', (e) => {
   }
 });
 
-document.getElementById('despesaFiltroAno').addEventListener('change', renderDespesas);
-document.getElementById('despesaFiltroMes').addEventListener('change', renderDespesas);
+['despesaFiltroAno', 'despesaFiltroMes'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    despesasPaginaAtual = 1;
+    renderDespesas();
+  });
+});
+document.getElementById('despesaBusca').addEventListener('input', () => {
+  despesasPaginaAtual = 1;
+  renderDespesas();
+});
+
+// O botão do topo leva ao formulário: em tela larga ele fica na coluna da
+// direita, em tela estreita logo acima da lista — nos dois casos o que importa
+// é cair com o cursor no campo de descrição.
+document.getElementById('btnFocarNovaDespesa').addEventListener('click', () => {
+  cancelarEdicaoDespesa();
+  // o foco vem primeiro: é ele que importa. A rolagem suave é conforto, e
+  // deixá-la depois garante que o cursor chega no campo de qualquer jeito.
+  const campo = document.getElementById('despDescricao');
+  campo.focus({ preventScroll: true });
+  campo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+
+// Exportação: sai de despesasFiltradas(), a mesma função que desenha a lista, e
+// leva TODAS as despesas do filtro — não só a página visível.
+document.getElementById('btnExportDespesas').addEventListener('click', () => {
+  const despesas = despesasFiltradas();
+  if (!despesas.length) { showToast('Nenhuma despesa para exportar.', 'error'); return; }
+
+  const headers = ['Data', 'Descrição', 'Valor', 'Contrato', 'Carteira', 'Proprietário'];
+  const rows = despesas.map(d => {
+    const carteiraId = carteiraDaDespesa(d);
+    const carteira = carteiraPorId(carteiraId) || {};
+    return [
+      formatDate(d.data),
+      d.descricao,
+      (Number(d.valor) || 0).toFixed(2),
+      d.contratoId ? despesaContratoLabel(d.contratoId) : 'Despesa geral',
+      carteiraNome(carteiraId),
+      carteira.proprietario || '',
+    ];
+  });
+
+  const total = despesas.reduce((soma, d) => soma + (Number(d.valor) || 0), 0);
+  downloadCsvRows(`despesas_${todayStr()}.csv`,
+    [headers, ...rows, [], ['TOTAL', `${despesas.length} lançamento(s)`, total.toFixed(2)]]);
+  showToast(`${despesas.length} despesa(s) exportada(s).`, 'success');
+});
 
 /* ===================== CONFIG ===================== */
 const configForm = document.getElementById('configForm');
@@ -4473,30 +4610,53 @@ function populateRelatorioAnoFilter() {
 
 // Todo o cálculo do relatório de um ano num lugar só — a tela e a exportação
 // em CSV consomem exatamente o mesmo resultado, então nunca divergem.
-function calcularRelatorioAnual(ano) {
+// `mes` é o índice 0-11 do mês, ou '' para o ano inteiro. Aluguel é um negócio
+// mensal: fechar um mês (quanto entrou, quanto sobrou, quanto ficou em atraso)
+// é tão comum quanto fechar o ano.
+function calcularRelatorio(ano, mes) {
   const dividas = todasDividas();
+  const filtraMes = mes !== '' && mes !== null && mes !== undefined;
+  const dentroDoPeriodo = (dataStr) => {
+    const dt = parseDate(dataStr);
+    return dt.getFullYear() === ano && (!filtraMes || dt.getMonth() === Number(mes));
+  };
 
-  let totalPagoAno = 0;
+  // Percorre os pagamentos de um período devolvendo a conta aberta: quanto
+  // entrou (bruto), quanto saiu para corretor e condomínio, e o que sobrou.
+  // É a mesma decomposição que a tela de uma dívida mostra, só que somada.
+  function somarPagamentos(filtro) {
+    const r = { bruto: 0, comissao: 0, condominio: 0, liquido: 0, desconto: 0, quantidade: 0 };
+    dividas.forEach(d => (d.pagamentos || []).forEach(p => {
+      if (!filtro(p)) return;
+      // o item "achatado" serve como contrato e como dívida nas funções de cálculo
+      r.bruto += Number(p.valor) || 0;
+      r.comissao += comissaoCorretor(d, d);
+      r.condominio += condominioNoPagamento(d, p);
+      r.liquido += valorLiquidoPagamento(d, d, p);
+      r.desconto += Number(p.desconto) || 0;
+      r.quantidade++;
+    }));
+    return r;
+  }
+
+  const noPeriodo = (p) => dentroDoPeriodo(p.data);
+
   let totalAtrasoAno = 0;
   let totalDespesasAno = 0;
 
   const linhas = MESES_PT.map((nomeMes, mesIndex) => {
-    // Valor líquido = valor pago - comissão do corretor (se houver) - condomínio,
-    // já que nenhum dos dois fica com o proprietário (mesma convenção do Histórico).
-    const totalPago = dividas.reduce((sum, d) => {
-      const pagoNoMes = d.pagamentos
-        .filter(p => {
-          const dt = parseDate(p.data);
-          return dt.getFullYear() === ano && dt.getMonth() === mesIndex;
-        })
-        .reduce((s, p) => s + valorLiquidoPagamento(d, d, p), 0);
-      return sum + pagoNoMes;
-    }, 0);
+    const recebido = somarPagamentos(p => {
+      const dt = parseDate(p.data);
+      return dt.getFullYear() === ano && dt.getMonth() === mesIndex;
+    });
 
     const dividasPeriodo = dividas.filter(d => {
       const dt = parseDate(d.vencimento);
       return dt.getFullYear() === ano && dt.getMonth() === mesIndex;
     });
+    // o mês só entra nos totais do período quando não há filtro de mês, ou
+    // quando é justamente o mês filtrado
+    const contaNoPeriodo = !filtraMes || Number(mes) === mesIndex;
 
     const totalAtraso = dividasPeriodo
       .filter(d => getStatus(d) === 'atrasado')
@@ -4506,40 +4666,110 @@ function calcularRelatorioAnual(ano) {
       .filter(d => { const dt = parseDate(d.data); return dt.getFullYear() === ano && dt.getMonth() === mesIndex; })
       .reduce((sum, d) => sum + d.valor, 0);
 
-    totalPagoAno += totalPago;
-    totalAtrasoAno += totalAtraso;
-    totalDespesasAno += totalDespesas;
+    if (contaNoPeriodo) {
+      totalAtrasoAno += totalAtraso;
+      totalDespesasAno += totalDespesas;
+    }
 
-    return { nomeMes, totalPago, totalAtraso, totalDespesas, count: dividasPeriodo.length };
+    return {
+      nomeMes,
+      totalPago: recebido.liquido,
+      totalBruto: recebido.bruto,
+      totalDesconto: recebido.desconto,
+      totalAtraso,
+      totalDespesas,
+      // "contratos no período" é a contagem de CONTRATOS distintos com dívida
+      // vencendo no mês — não a de dívidas, que é outra coisa e era o que
+      // estava sendo mostrado sob esse rótulo
+      contratos: new Set(dividasPeriodo.map(d => d.contratoId)).size,
+      dividas: dividasPeriodo.length,
+    };
   });
 
-  const pagamentosDoAno = [];
-  dividas.forEach(d => d.pagamentos.forEach(p => {
-    if (parseDate(p.data).getFullYear() === ano) pagamentosDoAno.push({ ...p, valorLiquido: valorLiquidoPagamento(d, d, p) });
-  }));
-
-  const totalDescontoAno = pagamentosDoAno.reduce((sum, p) => sum + (p.desconto || 0), 0);
+  const recebidoAno = somarPagamentos(noPeriodo);
 
   const porForma = {};
-  pagamentosDoAno.forEach(p => {
+  dividas.forEach(d => (d.pagamentos || []).forEach(p => {
+    if (!noPeriodo(p)) return;
     const forma = p.forma || 'Não informado';
-    if (!porForma[forma]) porForma[forma] = { count: 0, total: 0 };
+    if (!porForma[forma]) porForma[forma] = { count: 0, total: 0, bruto: 0 };
     porForma[forma].count++;
-    porForma[forma].total += p.valorLiquido;
-  });
+    porForma[forma].bruto += Number(p.valor) || 0;
+    porForma[forma].total += valorLiquidoPagamento(d, d, p);
+  }));
 
   // Comissões do ano, por corretor — o que precisa ser pago a cada um. A base é
   // sempre só o aluguel da dívida (ver comissaoCorretor).
-  const corretores = comissoesPorCorretor(d => parseDate(d.vencimento).getFullYear() === ano);
+  const corretores = comissoesPorCorretor(d => dentroDoPeriodo(d.vencimento));
   const totalCorretorAno = corretores.reduce((s, x) => s + x.total, 0);
 
-  return { ano, linhas, totalPagoAno, totalAtrasoAno, totalDespesasAno, totalDescontoAno, porForma, corretores, totalCorretorAno };
+  // Quebra por carteira: só faz sentido com carteiras cadastradas e sem nenhuma
+  // filtrada — é a visão "quanto rendeu o imóvel de cada proprietário".
+  const porCarteira = [];
+  if (state.carteiras.length && !carteiraAtiva) {
+    const grupos = new Map();
+    const registrar = (id) => {
+      if (!grupos.has(id)) {
+        grupos.set(id, { id, nome: carteiraNome(id) || 'Sem carteira', liquido: 0, atraso: 0, despesas: 0, contratos: new Set() });
+      }
+      return grupos.get(id);
+    };
+    dividas.forEach(d => {
+      const g = registrar(d.carteiraId || '');
+      (d.pagamentos || []).forEach(p => { if (noPeriodo(p)) g.liquido += valorLiquidoPagamento(d, d, p); });
+      if (dentroDoPeriodo(d.vencimento)) {
+        g.contratos.add(d.contratoId);
+        if (getStatus(d) === 'atrasado') g.atraso += d.total + calcAtrasoAtual(d);
+      }
+    });
+    despesasVisiveis().forEach(d => {
+      if (!dentroDoPeriodo(d.data)) return;
+      registrar(carteiraDaDespesa(d)).despesas += Number(d.valor) || 0;
+    });
+    grupos.forEach(g => porCarteira.push({
+      nome: g.nome, liquido: g.liquido, atraso: g.atraso, despesas: g.despesas,
+      contratos: g.contratos.size, resultado: g.liquido - g.despesas,
+    }));
+    porCarteira.sort((a, b) => b.liquido - a.liquido);
+  }
+
+  return {
+    ano, mes: filtraMes ? Number(mes) : '', linhas, porForma, corretores, totalCorretorAno, porCarteira,
+    totalPagoAno: recebidoAno.liquido,
+    totalBrutoAno: recebidoAno.bruto,
+    totalComissaoAno: recebidoAno.comissao,
+    totalCondominioAno: recebidoAno.condominio,
+    totalDescontoAno: recebidoAno.desconto,
+    qtdPagamentosAno: recebidoAno.quantidade,
+    totalAtrasoAno,
+    totalDespesasAno,
+  };
+}
+
+// Período escolhido nos dois seletores do topo. `mes` vazio = ano inteiro.
+function lerPeriodoRelatorio() {
+  return {
+    ano: Number(document.getElementById('relatorioAno').value),
+    mes: document.getElementById('relatorioMes').value,
+  };
+}
+
+// "no ano" / "em Julho de 2026" — usado nos rótulos, no CSV e no PDF.
+function rotuloPeriodo(ano, mes, comPreposicao) {
+  const temMes = mes !== '' && mes !== null && mes !== undefined;
+  if (!temMes) return comPreposicao ? 'no ano' : `${ano}`;
+  return comPreposicao ? `em ${MESES_PT[Number(mes)]}` : `${MESES_PT[Number(mes)]} de ${ano}`;
 }
 
 function renderRelatorios() {
   populateRelatorioAnoFilter();
-  const ano = Number(document.getElementById('relatorioAno').value);
-  const r = calcularRelatorioAnual(ano);
+  const { ano, mes } = lerPeriodoRelatorio();
+  const r = calcularRelatorio(ano, mes);
+
+  // rótulos "no ano" acompanham o filtro de mês
+  document.querySelectorAll('#tab-relatorios [data-periodo]').forEach(el => {
+    el.textContent = rotuloPeriodo(ano, mes, true);
+  });
 
   document.getElementById('relatorioTotalPagoAno').textContent = formatCurrency(r.totalPagoAno);
   document.getElementById('relatorioTotalAtrasoAno').textContent = formatCurrency(r.totalAtrasoAno);
@@ -4547,40 +4777,78 @@ function renderRelatorios() {
   document.getElementById('relatorioLucroLiquidoAno').textContent = formatCurrency(r.totalPagoAno - r.totalDespesasAno);
   document.getElementById('relatorioTotalDescontoAno').textContent = formatCurrency(r.totalDescontoAno);
 
-  document.getElementById('relatorioTabelaBody').innerHTML = r.linhas.map(l => `
-    <tr>
-      <td>${l.nomeMes}</td>
-      <td>${formatCurrency(l.totalPago)}</td>
-      <td>${formatCurrency(l.totalDespesas)}</td>
-      <td class="${l.totalAtraso > 0 ? 'text-danger' : ''}">${formatCurrency(l.totalAtraso)}</td>
-      <td>${l.count}</td>
+  /* ---- extrato do ano: como se chega ao líquido ---- */
+  const extrato = [
+    { sinal: '', label: `Recebido (bruto) — ${plural(r.qtdPagamentosAno, 'pagamento', 'pagamentos')}`, valor: r.totalBrutoAno },
+    { sinal: '−', label: 'Comissão do corretor', valor: r.totalComissaoAno, deducao: true },
+    { sinal: '−', label: 'Condomínio repassado', valor: r.totalCondominioAno, deducao: true },
+    { sinal: '=', label: 'Recebido (líquido)', valor: r.totalPagoAno, destaque: true, liquido: true },
+    { sinal: '−', label: 'Despesas', valor: r.totalDespesasAno, deducao: true },
+    { sinal: '=', label: `Lucro líquido ${rotuloPeriodo(ano, mes, true)}`, valor: r.totalPagoAno - r.totalDespesasAno, destaque: true, liquido: true },
+  ];
+  document.getElementById('relatorioExtratoBody').innerHTML = extrato.map(l => `
+    <tr class="${l.destaque ? 'is-current' : ''}">
+      <td><span class="report-sinal">${l.sinal}</span> ${escapeHtml(l.label)}</td>
+      <td class="${l.deducao ? 'text-warn' : ''}${l.liquido ? ' text-success' : ''}">${formatCurrency(l.valor)}</td>
     </tr>
   `).join('');
 
-  const formaBody = document.getElementById('relatorioFormaPagamentoBody');
-  const formas = Object.keys(r.porForma);
-  if (!formas.length) {
-    formaBody.innerHTML = '<tr><td colspan="3">Nenhum pagamento registrado neste ano.</td></tr>';
-  } else {
-    formaBody.innerHTML = formas.map(forma => `
+  /* ---- por carteira ---- */
+  const carteiraCard = document.getElementById('relatorioCarteiraCard');
+  carteiraCard.classList.toggle('hidden', !r.porCarteira.length);
+  if (r.porCarteira.length) {
+    document.getElementById('relatorioCarteiraBody').innerHTML = r.porCarteira.map(c => `
       <tr>
-        <td>${escapeHtml(forma)}</td>
-        <td>${r.porForma[forma].count}</td>
-        <td>${formatCurrency(r.porForma[forma].total)}</td>
+        <td>${escapeHtml(c.nome)}</td>
+        <td data-rotulo="Contratos">${c.contratos}</td>
+        <td data-rotulo="Recebido (líquido)" class="text-success">${formatCurrency(c.liquido)}</td>
+        <td data-rotulo="Despesas">${formatCurrency(c.despesas)}</td>
+        <td data-rotulo="Em atraso" class="${c.atraso > 0 ? 'text-danger' : ''}">${formatCurrency(c.atraso)}</td>
+        <td data-rotulo="Resultado" class="${c.resultado < 0 ? 'text-danger' : 'text-success'}">${formatCurrency(c.resultado)}</td>
       </tr>
     `).join('');
   }
 
-  // Comissão de corretores: o card inteiro some quando nenhum contrato tem corretor
+  /* ---- mês a mês ---- */
+  document.getElementById('relatorioTabelaBody').innerHTML = r.linhas.map((l, i) => `
+    <tr class="${String(i) === String(mes) ? 'is-current' : ''}">
+      <td>${l.nomeMes}</td>
+      <td data-rotulo="Recebido (bruto)">${formatCurrency(l.totalBruto)}</td>
+      <td data-rotulo="Recebido (líquido)" class="text-success">${formatCurrency(l.totalPago)}</td>
+      <td data-rotulo="Descontos">${formatCurrency(l.totalDesconto)}</td>
+      <td data-rotulo="Despesas">${formatCurrency(l.totalDespesas)}</td>
+      <td data-rotulo="Em atraso" class="${l.totalAtraso > 0 ? 'text-danger' : ''}">${formatCurrency(l.totalAtraso)}</td>
+      <td data-rotulo="Contratos">${l.contratos}</td>
+      <td data-rotulo="Dívidas">${l.dividas}</td>
+    </tr>
+  `).join('');
+
+  /* ---- por forma ---- */
+  const formaBody = document.getElementById('relatorioFormaPagamentoBody');
+  const formas = Object.keys(r.porForma);
+  if (!formas.length) {
+    formaBody.innerHTML = '<tr><td colspan="4">Nenhum pagamento registrado neste ano.</td></tr>';
+  } else {
+    formaBody.innerHTML = formas.map(forma => `
+      <tr>
+        <td>${escapeHtml(forma)}</td>
+        <td data-rotulo="Quantidade">${r.porForma[forma].count}</td>
+        <td data-rotulo="Recebido (bruto)">${formatCurrency(r.porForma[forma].bruto)}</td>
+        <td data-rotulo="Recebido (líquido)" class="text-success">${formatCurrency(r.porForma[forma].total)}</td>
+      </tr>
+    `).join('');
+  }
+
+  /* ---- comissão de corretores (some quando nenhum contrato tem corretor) ---- */
   const corretorCard = document.getElementById('relatorioCorretorCard');
   corretorCard.classList.toggle('hidden', !r.corretores.length);
   if (r.corretores.length) {
     document.getElementById('relatorioCorretorBody').innerHTML = r.corretores.map(x => `
       <tr>
         <td>${escapeHtml(x.nome)}</td>
-        <td>${x.contratos}</td>
-        <td>${x.dividas}</td>
-        <td>${formatCurrency(x.total)}</td>
+        <td data-rotulo="Contratos">${x.contratos}</td>
+        <td data-rotulo="Dívidas">${x.dividas}</td>
+        <td data-rotulo="Comissão" class="text-warn">${formatCurrency(x.total)}</td>
       </tr>
     `).join('') + `
       <tr class="is-current">
@@ -4591,11 +4859,16 @@ function renderRelatorios() {
     `;
   }
 
-  renderComparativoAnual(ano);
+  renderComparativoAnual(ano, mes);
 }
 
-function calcularComparativoAnual() {
+function calcularComparativo(mes) {
   const dividas = todasDividas();
+  const filtraMes = mes !== '' && mes !== null && mes !== undefined;
+  const dentro = (dataStr, ano) => {
+    const dt = parseDate(dataStr);
+    return dt.getFullYear() === ano && (!filtraMes || dt.getMonth() === Number(mes));
+  };
   const anos = new Set(dividas.map(d => parseDate(d.vencimento).getFullYear()));
   dividas.forEach(d => d.pagamentos.forEach(p => anos.add(parseDate(p.data).getFullYear())));
   anos.add(new Date().getFullYear());
@@ -4603,83 +4876,212 @@ function calcularComparativoAnual() {
 
   return sorted.map(ano => {
     const totalPago = dividas.reduce((sum, d) => {
-      const pagoNoAno = d.pagamentos
-        .filter(p => parseDate(p.data).getFullYear() === ano)
+      const pagoNoPeriodo = d.pagamentos
+        .filter(p => dentro(p.data, ano))
         .reduce((s, p) => s + valorLiquidoPagamento(d, d, p), 0);
-      return sum + pagoNoAno;
+      return sum + pagoNoPeriodo;
     }, 0);
 
-    const dividasAno = dividas.filter(d => parseDate(d.vencimento).getFullYear() === ano);
+    const dividasAno = dividas.filter(d => dentro(d.vencimento, ano));
     const totalAtraso = dividasAno
       .filter(d => getStatus(d) === 'atrasado')
       .reduce((sum, d) => sum + d.total + calcAtrasoAtual(d), 0);
 
     const totalDespesas = despesasVisiveis()
-      .filter(d => parseDate(d.data).getFullYear() === ano)
+      .filter(d => dentro(d.data, ano))
       .reduce((sum, d) => sum + d.valor, 0);
 
-    return { ano, totalPago, totalAtraso, totalDespesas, count: dividasAno.length };
+    return {
+      ano, totalPago, totalAtraso, totalDespesas,
+      contratos: new Set(dividasAno.map(d => d.contratoId)).size,
+      dividas: dividasAno.length,
+    };
   });
 }
 
-function renderComparativoAnual(anoSelecionado) {
-  document.getElementById('comparativoAnualBody').innerHTML = calcularComparativoAnual().map(l => `
+function renderComparativoAnual(anoSelecionado, mes) {
+  const temMes = mes !== '' && mes !== null && mes !== undefined;
+  document.getElementById('comparativoTitulo').textContent = temMes
+    ? `Comparativo de ${MESES_PT[Number(mes)]} entre os anos`
+    : 'Comparativo anual';
+  document.getElementById('comparativoSubtitulo').textContent = temMes
+    ? `O mesmo mês em cada ano, lado a lado — dá para ver se ${MESES_PT[Number(mes)]} melhorou ou piorou de um ano para o outro.`
+    : 'Totais de cada ano lado a lado, para comparar a evolução ano a ano.';
+
+  document.getElementById('comparativoAnualBody').innerHTML = calcularComparativo(mes).map(l => {
+    const resultado = l.totalPago - l.totalDespesas;
+    return `
     <tr class="${l.ano === anoSelecionado ? 'is-current' : ''}">
       <td>${l.ano}</td>
-      <td>${formatCurrency(l.totalPago)}</td>
-      <td>${formatCurrency(l.totalDespesas)}</td>
-      <td class="${l.totalAtraso > 0 ? 'text-danger' : ''}">${formatCurrency(l.totalAtraso)}</td>
-      <td>${l.count}</td>
+      <td data-rotulo="Recebido (líquido)" class="text-success">${formatCurrency(l.totalPago)}</td>
+      <td data-rotulo="Despesas">${formatCurrency(l.totalDespesas)}</td>
+      <td data-rotulo="Resultado" class="${resultado < 0 ? 'text-danger' : ''}">${formatCurrency(resultado)}</td>
+      <td data-rotulo="Em atraso" class="${l.totalAtraso > 0 ? 'text-danger' : ''}">${formatCurrency(l.totalAtraso)}</td>
+      <td data-rotulo="Contratos">${l.contratos}</td>
+      <td data-rotulo="Dívidas">${l.dividas}</td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 }
 
-/* ---- Exportação do relatório do ano (CSV com todas as seções da tela) ---- */
+/* ---- Exportação do relatório do ano ----
+ * CSV e PDF saem do MESMO cálculo que desenha a tela (calcularRelatorio /
+ * calcularComparativo), então nunca divergem do que está sendo exibido —
+ * e ambos respeitam a carteira ativa, como todo o resto do sistema.
+ */
+
+// Seções do relatório, na mesma ordem da tela. Cada seção é uma tabela com
+// título, cabeçalho e linhas — o CSV e o PDF só as formatam de jeitos
+// diferentes, em vez de cada um montar o relatório por conta própria.
+function secoesRelatorio(r) {
+  const secoes = [];
+  const periodo = rotuloPeriodo(r.ano, r.mes, true);
+
+  secoes.push({
+    titulo: 'Como se chega ao recebido líquido',
+    linhas: [
+      ['Recebido (bruto)', r.totalBrutoAno],
+      ['− Comissão do corretor', r.totalComissaoAno],
+      ['− Condomínio repassado', r.totalCondominioAno],
+      ['= Recebido (líquido)', r.totalPagoAno],
+      ['− Despesas', r.totalDespesasAno],
+      [`= Lucro líquido ${periodo}`, r.totalPagoAno - r.totalDespesasAno],
+    ],
+    destaqueUltima: true,
+  });
+
+  secoes.push({
+    titulo: `Resumo ${periodo}`,
+    linhas: [
+      ['Pagamentos registrados', r.qtdPagamentosAno, 'inteiro'],
+      ['Descontos concedidos', r.totalDescontoAno],
+      ['Total em atraso (aluguel + juros/multa)', r.totalAtrasoAno],
+      ['Comissão de corretores a pagar', r.totalCorretorAno],
+    ],
+  });
+
+  if (r.porCarteira.length) {
+    secoes.push({
+      titulo: `Por carteira ${periodo}`,
+      cabecalho: ['Carteira', 'Contratos', 'Recebido (líquido)', 'Despesas', 'Em atraso', 'Resultado'],
+      colunas: r.porCarteira.map(c => [c.nome, c.contratos, c.liquido, c.despesas, c.atraso, c.resultado]),
+      numericas: [2, 3, 4, 5],
+    });
+  }
+
+  secoes.push({
+    titulo: `Pagamentos por forma ${periodo}`,
+    cabecalho: ['Forma', 'Quantidade', 'Recebido (bruto)', 'Recebido (líquido)'],
+    colunas: Object.keys(r.porForma).length
+      ? Object.keys(r.porForma).map(f => [f, r.porForma[f].count, r.porForma[f].bruto, r.porForma[f].total])
+      : [['Nenhum pagamento registrado neste ano', '', '', '']],
+    numericas: [2, 3],
+  });
+
+  if (r.corretores.length) {
+    secoes.push({
+      titulo: `Comissão de corretores ${periodo} (base: só o aluguel de cada dívida)`,
+      cabecalho: ['Corretor', 'Contratos', 'Dívidas', 'Comissão no ano'],
+      colunas: r.corretores.map(x => [x.nome, x.contratos, x.dividas, x.total])
+        .concat([['Total', '', '', r.totalCorretorAno]]),
+      numericas: [3],
+    });
+  }
+
+  secoes.push({
+    titulo: `Mês a mês — ${r.ano}`,
+    cabecalho: ['Mês', 'Recebido (bruto)', 'Recebido (líquido)', 'Descontos', 'Despesas',
+      'Total em atraso', 'Contratos', 'Dívidas'],
+    colunas: r.linhas.map(l => [l.nomeMes, l.totalBruto, l.totalPago, l.totalDesconto,
+      l.totalDespesas, l.totalAtraso, l.contratos, l.dividas]),
+    numericas: [1, 2, 3, 4, 5],
+  });
+
+  secoes.push({
+    titulo: r.mes === '' ? 'Comparativo anual' : `Comparativo de ${MESES_PT[r.mes]} entre os anos`,
+    cabecalho: ['Ano', 'Recebido (líquido)', 'Despesas', 'Resultado', 'Total em atraso', 'Contratos', 'Dívidas'],
+    colunas: calcularComparativo(r.mes).map(l => [l.ano, l.totalPago, l.totalDespesas,
+      l.totalPago - l.totalDespesas, l.totalAtraso, l.contratos, l.dividas]),
+    numericas: [1, 2, 3, 4],
+  });
+
+  return secoes;
+}
+
 document.getElementById('btnExportRelatorio').addEventListener('click', () => {
-  const ano = Number(document.getElementById('relatorioAno').value);
-  const r = calcularRelatorioAnual(ano);
+  const { ano, mes } = lerPeriodoRelatorio();
+  const r = calcularRelatorio(ano, mes);
   const v = (n) => (Number(n) || 0).toFixed(2);
 
   const rows = [
-    [`Relatório anual — ${ano}`],
-    [`Gerado em`, formatDate(todayStr())],
-    ['Observação', 'Valores recebidos são líquidos: já descontam a comissão do corretor (quando houver) e o condomínio.'],
-    [],
-    ['RESUMO DO ANO'],
-    ['Recebido no ano (líquido)', v(r.totalPagoAno)],
-    ['Total em atraso no ano (aluguel + juros/multa)', v(r.totalAtrasoAno)],
-    ['Descontos concedidos no ano', v(r.totalDescontoAno)],
-    ['Despesas no ano', v(r.totalDespesasAno)],
-    ['Lucro líquido no ano (pago − despesas)', v(r.totalPagoAno - r.totalDespesasAno)],
-    [],
-    ['PAGAMENTOS POR FORMA'],
-    ['Forma', 'Quantidade', 'Total recebido (líquido)'],
+    [`Relatório — ${rotuloPeriodo(ano, mes)}`],
+    ['Gerado em', formatDate(todayStr())],
+    ['Carteira', carteiraAtiva ? carteiraNome(carteiraAtiva) : 'Todas as carteiras'],
+    ['Observação', 'Valores "líquidos" já descontam a comissão do corretor e o condomínio repassado.'],
   ];
 
-  const formas = Object.keys(r.porForma);
-  if (!formas.length) rows.push(['Nenhum pagamento registrado neste ano', '', '']);
-  else formas.forEach(f => rows.push([f, r.porForma[f].count, v(r.porForma[f].total)]));
-
-  if (r.corretores.length) {
+  secoesRelatorio(r).forEach(secao => {
     rows.push([]);
-    rows.push(['COMISSÃO DE CORRETORES (base: só o aluguel de cada dívida)']);
-    rows.push(['Corretor', 'Contratos', 'Dívidas', 'Comissão no ano']);
-    r.corretores.forEach(x => rows.push([x.nome, x.contratos, x.dividas, v(x.total)]));
-    rows.push(['Total', '', '', v(r.totalCorretorAno)]);
+    rows.push([secao.titulo.toUpperCase()]);
+    if (secao.cabecalho) {
+      rows.push(secao.cabecalho);
+      secao.colunas.forEach(linha => {
+        rows.push(linha.map((celula, i) => secao.numericas.includes(i) ? v(celula) : celula));
+      });
+    } else {
+      secao.linhas.forEach(([rotulo, valor, tipo]) => rows.push([rotulo, tipo === 'inteiro' ? valor : v(valor)]));
+    }
+  });
+
+  const sufixo = mes === '' ? `${ano}` : `${ano}_${String(Number(mes) + 1).padStart(2, '0')}`;
+  downloadCsvRows(`relatorio_${sufixo}_${todayStr()}.csv`, rows);
+  showToast(`Relatório de ${rotuloPeriodo(ano, mes)} exportado em CSV.`, 'success');
+});
+
+document.getElementById('btnExportRelatorioPDF').addEventListener('click', () => {
+  const { ano, mes } = lerPeriodoRelatorio();
+  const r = calcularRelatorio(ano, mes);
+
+  const corpo = `
+    <div class="doc-head">
+      <h1>Relatório de aluguéis — ${escapeHtml(rotuloPeriodo(ano, mes))}</h1>
+      <p class="meta">Gerado em <strong>${formatDate(todayStr())}</strong>
+         · Carteira: <strong>${escapeHtml(carteiraAtiva ? carteiraNome(carteiraAtiva) : 'todas')}</strong>
+         · <strong>${r.qtdPagamentosAno}</strong> pagamento(s) no período</p>
+    </div>
+
+    ${secoesRelatorio(r).map(secao => `
+      <section class="contrato">
+        <div class="contrato-head"><h2>${escapeHtml(secao.titulo)}</h2></div>
+        <table>
+          ${secao.cabecalho ? `<thead><tr>${secao.cabecalho.map((c, i) =>
+            `<th class="${secao.numericas.includes(i) || i > 0 ? '' : 'txt'}">${escapeHtml(c)}</th>`).join('')}</tr></thead>` : ''}
+          <tbody>
+            ${secao.cabecalho
+              ? secao.colunas.map(linha => `<tr>${linha.map((celula, i) =>
+                  secao.numericas.includes(i)
+                    ? celulaValor(celula)
+                    : `<td class="${i === 0 ? 'txt' : ''}">${escapeHtml(String(celula))}</td>`).join('')}</tr>`).join('')
+              : secao.linhas.map(([rotulo, valor, tipo], i) => `
+                  <tr class="${secao.destaqueUltima && String(rotulo).startsWith('=') ? 'is-total' : ''}">
+                    <td class="txt">${escapeHtml(rotulo)}</td>
+                    ${tipo === 'inteiro' ? `<td>${valor}</td>` : celulaValor(valor)}
+                  </tr>`).join('')}
+          </tbody>
+        </table>
+      </section>
+    `).join('')}
+
+    <p class="rodape">
+      Valores em R$. "Recebido líquido" é o que sobra para o proprietário: o valor pago menos a
+      comissão do corretor e menos o condomínio repassado. "Total em atraso" é o valor cheio
+      devido (aluguel + juros/multa), calculado até a data de emissão deste relatório.
+    </p>
+  `;
+
+  if (abrirJanelaImpressao(`Relatório ${rotuloPeriodo(ano, mes)}`, ESTILO_RELATORIO, corpo)) {
+    showToast('Relatório gerado. Use "Salvar como PDF" na janela de impressão.', 'success');
   }
-
-  rows.push([]);
-  rows.push(['MÊS A MÊS']);
-  rows.push(['Mês', 'Recebido (líquido)', 'Despesas', 'Total em atraso', 'Contratos no período']);
-  r.linhas.forEach(l => rows.push([l.nomeMes, v(l.totalPago), v(l.totalDespesas), v(l.totalAtraso), l.count]));
-
-  rows.push([]);
-  rows.push(['COMPARATIVO ANUAL']);
-  rows.push(['Ano', 'Recebido (líquido)', 'Despesas', 'Total em atraso', 'Contratos no ano']);
-  calcularComparativoAnual().forEach(l => rows.push([l.ano, v(l.totalPago), v(l.totalDespesas), v(l.totalAtraso), l.count]));
-
-  downloadCsvRows(`relatorio_${ano}_${todayStr()}.csv`, rows);
-  showToast(`Relatório de ${ano} exportado com sucesso.`, 'success');
 });
 
 /* ===================== RENDER: AUDITORIA ===================== */
@@ -4742,6 +5144,7 @@ function renderAuditoria() {
 }
 
 document.getElementById('relatorioAno').addEventListener('change', renderRelatorios);
+document.getElementById('relatorioMes').addEventListener('change', renderRelatorios);
 
 ['auditoriaFiltroAno', 'auditoriaFiltroMes', 'auditoriaFiltroUsuario'].forEach(id => {
   document.getElementById(id).addEventListener('change', renderAuditoria);
@@ -4756,6 +5159,41 @@ function dateStrLocal(ano, mes, dia) {
   return `${ano}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
 }
 
+// Resumo do mês que está na tela. Segue a navegação de mês e a carteira ativa
+// (todasDividas() já vem filtrada), e usa as mesmas convenções do resto do
+// sistema: "a cobrar" é o que o inquilino deve, "recebido" é líquido, e
+// "vencido e não pago" é o valor cheio devido.
+function resumoMesCalendario(ano, mes, dividas) {
+  const doMes = dividas.filter(d => {
+    const v = parseDate(d.vencimento);
+    return v.getFullYear() === ano && v.getMonth() === mes;
+  });
+  const atrasadas = doMes.filter(d => getStatus(d) === 'atrasado');
+
+  let recebido = 0;
+  let qtdPagamentos = 0;
+  dividas.forEach(d => (d.pagamentos || []).forEach(p => {
+    const dt = parseDate(p.data);
+    if (dt.getFullYear() === ano && dt.getMonth() === mes) {
+      recebido += valorLiquidoPagamento(d, d, p);
+      qtdPagamentos++;
+    }
+  }));
+
+  return {
+    aCobrar: doMes.reduce((soma, d) => soma + (Number(d.total) || 0), 0),
+    qtdVencimentos: doMes.length,
+    recebido,
+    qtdPagamentos,
+    atraso: atrasadas.reduce((soma, d) => soma + d.total + calcAtrasoAtual(d), 0),
+    qtdAtrasadas: atrasadas.length,
+  };
+}
+
+function plural(n, singular, plural_) {
+  return `${n} ${n === 1 ? singular : plural_}`;
+}
+
 function renderCalendario() {
   const ano = calendarioAtual.getFullYear();
   const mes = calendarioAtual.getMonth();
@@ -4766,6 +5204,17 @@ function renderCalendario() {
   const diasNoMesAnterior = new Date(ano, mes, 0).getDate();
   const hojeStr = todayStr();
   const dividas = todasDividas();
+
+  /* ---- resumo do mês ---- */
+  const resumo = resumoMesCalendario(ano, mes, dividas);
+  document.getElementById('calAVencer').textContent = formatCurrency(resumo.aCobrar);
+  document.getElementById('calAVencerHint').textContent = plural(resumo.qtdVencimentos, 'vencimento', 'vencimentos');
+  document.getElementById('calRecebido').textContent = formatCurrency(resumo.recebido);
+  document.getElementById('calRecebidoHint').textContent = plural(resumo.qtdPagamentos, 'pagamento', 'pagamentos');
+  document.getElementById('calAtraso').textContent = formatCurrency(resumo.atraso);
+  document.getElementById('calAtrasoHint').textContent = resumo.qtdAtrasadas
+    ? plural(resumo.qtdAtrasadas, 'dívida vencida', 'dívidas vencidas')
+    : 'Nenhuma dívida vencida neste mês';
 
   // A grade sempre fecha semanas completas: começa com os últimos dias do mês
   // anterior e termina com os primeiros dias do mês seguinte, numerados de
@@ -4785,12 +5234,12 @@ function renderCalendario() {
   const grid = document.getElementById('calendarioGrid');
   grid.innerHTML = celulas.map(c => {
     if (c.outside) {
-      return `<div class="calendar-day is-outside"><span class="calendar-day-number">${c.dia}</span></div>`;
+      return `<div class="calendar-day is-outside" aria-hidden="true"><span class="calendar-day-number">${c.dia}</span></div>`;
     }
     const dataStr = dateStrLocal(ano, mes, c.dia);
     const vencimentos = dividas.filter(d => d.vencimento === dataStr);
     const pagamentosNoDia = [];
-    dividas.forEach(d => d.pagamentos.forEach(p => { if (p.data === dataStr) pagamentosNoDia.push(p); }));
+    dividas.forEach(d => (d.pagamentos || []).forEach(p => { if (p.data === dataStr) pagamentosNoDia.push(p); }));
 
     const classes = ['calendar-day'];
     if (dataStr === hojeStr) classes.push('is-today');
@@ -4812,17 +5261,27 @@ function renderCalendario() {
     });
     pagamentosNoDia.forEach(() => dots.push('<span class="calendar-dot bg-success"></span>'));
 
-    const totalVencimentos = vencimentos.reduce((sum, d) => sum + d.total, 0);
+    const totalVencimentos = vencimentos.reduce((sum, d) => sum + (Number(d.total) || 0), 0);
     const valorLabel = totalVencimentos > 0
       ? `<div class="calendar-day-valor">${formatCurrency(totalVencimentos)}</div>`
       : '';
 
+    // Descrição para leitor de tela e para o tooltip: o resumo do dia em texto,
+    // já que a informação visual está em cor e em bolinhas.
+    const partes = [];
+    if (vencimentos.length) partes.push(`${plural(vencimentos.length, 'vencimento', 'vencimentos')} — ${formatCurrency(totalVencimentos)}`);
+    if (pagamentosNoDia.length) partes.push(plural(pagamentosNoDia.length, 'pagamento recebido', 'pagamentos recebidos'));
+    const descricao = `${formatDate(dataStr)}${partes.length ? ': ' + partes.join(', ') : ' — nada neste dia'}`;
+
+    // Botão de verdade: navegável por teclado e anunciado como clicável.
     return `
-      <div class="${classes.join(' ')}" data-data="${dataStr}">
+      <button type="button" class="${classes.join(' ')}" data-data="${dataStr}"
+              title="${escapeHtml(descricao)}" aria-label="${escapeHtml(descricao)}"
+              aria-pressed="${dataStr === calendarioDiaSelecionado}">
         <span class="calendar-day-number">${c.dia}</span>
         ${valorLabel}
-        <div class="calendar-day-dots">${dots.join('')}</div>
-      </div>
+        <span class="calendar-day-dots">${dots.join('')}</span>
+      </button>
     `;
   }).join('');
 
@@ -4833,17 +5292,46 @@ function renderCalendario() {
       renderCalendarioDetalhe(el.dataset.data);
     });
   });
+
+  // Abrir o calendário no mês corrente já mostra o dia de hoje, em vez de uma
+  // grade colorida sem nada embaixo esperando um clique.
+  if (!calendarioDiaSelecionado) {
+    const hoje = new Date();
+    if (hoje.getFullYear() === ano && hoje.getMonth() === mes) {
+      calendarioDiaSelecionado = hojeStr;
+      renderCalendario();
+      renderCalendarioDetalhe(hojeStr);
+    }
+  }
 }
+
+const DIAS_SEMANA_PT = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira',
+  'quinta-feira', 'sexta-feira', 'sábado'];
 
 function renderCalendarioDetalhe(dataStr) {
   const card = document.getElementById('calendarioDetalheCard');
   const lista = document.getElementById('calendarioDetalheLista');
   const dividas = todasDividas();
   const vencimentos = dividas.filter(d => d.vencimento === dataStr);
-  const pagamentos = [];
-  dividas.forEach(d => d.pagamentos.forEach(p => { if (p.data === dataStr) pagamentos.push({ ...p, divida: d }); }));
 
-  document.getElementById('calendarioDetalheTitulo').textContent = formatDate(dataStr);
+  // guarda o índice do pagamento dentro da dívida — é ele que identifica o
+  // pagamento na hora de gerar o recibo (pagamentos não têm id próprio)
+  const pagamentos = [];
+  dividas.forEach(d => (d.pagamentos || []).forEach((p, indice) => {
+    if (p.data === dataStr) pagamentos.push({ ...p, divida: d, indice });
+  }));
+
+  const data = parseDate(dataStr);
+  document.getElementById('calendarioDetalheTitulo').textContent =
+    `${formatDate(dataStr)} · ${DIAS_SEMANA_PT[data.getDay()]}`;
+
+  const totalDia = vencimentos.reduce((s, d) => s + (Number(d.total) || 0), 0);
+  const recebidoDia = pagamentos.reduce((s, p) => s + (Number(p.valor) || 0), 0);
+  const resumoPartes = [];
+  if (vencimentos.length) resumoPartes.push(`${plural(vencimentos.length, 'vencimento', 'vencimentos')} · ${formatCurrency(totalDia)} a cobrar`);
+  if (pagamentos.length) resumoPartes.push(`${plural(pagamentos.length, 'pagamento recebido', 'pagamentos recebidos')} · ${formatCurrency(recebidoDia)}`);
+  document.getElementById('calendarioDetalheResumo').textContent = resumoPartes.join(' · ');
+
   card.classList.remove('hidden');
 
   if (!vencimentos.length && !pagamentos.length) {
@@ -4851,34 +5339,53 @@ function renderCalendarioDetalhe(dataStr) {
     return;
   }
 
-  const itensVencimento = vencimentos.map(d => {
-    const status = getStatus(d);
-    return `
-      <div class="card">
-        <div class="contrato-top">
-          <div>
-            <div class="contrato-title">${escapeHtml(d.imovel)}</div>
-            <div class="contrato-sub">${icon('user')} ${escapeHtml(d.inquilino)} · Vencimento · ${formatCurrency(d.total)}</div>
+  const blocos = [];
+
+  // Vencimentos usam a MESMA tabela de Contratos, Atrasos e Dashboard — com as
+  // mesmas colunas, os mesmos totais e os mesmos botões de ação. Antes eram
+  // cartõezinhos só de leitura: dava para ver o vencimento e não fazer nada.
+  if (vencimentos.length) {
+    blocos.push(`
+      <h4 class="calendar-detalhe-secao">${icon('calendar')} Vencimentos do dia</h4>
+      ${dividasTabelaFlatHtml(vencimentos)}
+    `);
+  }
+
+  if (pagamentos.length) {
+    blocos.push(`
+      <h4 class="calendar-detalhe-secao">${icon('dollar')} Pagamentos recebidos</h4>
+      <div class="cards-list">
+        ${pagamentos.map(p => {
+          const liquido = valorLiquidoPagamento(p.divida, p.divida, p);
+          return `
+          <div class="card">
+            <div class="contrato-top">
+              <div>
+                <div class="contrato-title">#${p.divida.numero || '--'} — ${escapeHtml(p.divida.imovel)}</div>
+                <div class="contrato-sub">${icon('user')} ${escapeHtml(p.divida.inquilino)} · Dívida de ${formatDate(p.divida.vencimento)}</div>
+              </div>
+              <span class="status-badge status-pago">Pago</span>
+            </div>
+            <div class="divida-row-valores">
+              <div class="valor-item"><span>Valor pago</span><strong>${formatCurrency(p.valor)}</strong></div>
+              ${Math.abs(liquido - p.valor) > 0.001 ? `<div class="valor-item is-liquido"><span>Líquido</span><strong>${formatCurrency(liquido)}</strong></div>` : ''}
+              <div class="valor-item"><span>Forma</span><strong>${escapeHtml(p.forma) || '--'}</strong></div>
+              <div class="valor-item"><span>Recebido por</span><strong>${escapeHtml(p.quemRecebeu) || '--'}</strong></div>
+            </div>
+            <div class="contrato-actions">
+              <button type="button" class="btn btn-ghost btn-sm" data-recibo-divida="${p.divida.id}" data-recibo-indice="${p.indice}">${icon('receipt')} Recibo</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-grupo-action="historico" data-contrato-id="${p.divida.contratoId}">${icon('receipt')} Histórico</button>
+            </div>
           </div>
-          <span class="status-badge status-${status}">${statusLabel(status)}</span>
-        </div>
+        `;
+        }).join('')}
       </div>
-    `;
-  });
+    `);
+  }
 
-  const itensPagamento = pagamentos.map(p => `
-    <div class="card">
-      <div class="contrato-top">
-        <div>
-          <div class="contrato-title">${escapeHtml(p.divida.imovel)}</div>
-          <div class="contrato-sub">${icon('user')} ${escapeHtml(p.divida.inquilino)} · Pagamento recebido · ${formatCurrency(p.valor)}</div>
-        </div>
-        <span class="status-badge status-pago">Pago</span>
-      </div>
-    </div>
-  `);
-
-  lista.innerHTML = itensVencimento.join('') + itensPagamento.join('');
+  lista.innerHTML = blocos.join('');
+  bindDividaCardActions(lista);
+  bindReciboButtons(lista);
 }
 
 function mudarMesCalendario(delta) {
@@ -5227,6 +5734,7 @@ const ESTILO_RELATORIO = `
   th { background: #f2f4f7; font-size: 7.5pt; text-transform: uppercase; letter-spacing: .04em; color: #5b6270; }
   th:first-child, td:first-child, th.txt, td.txt { text-align: left; }
   tfoot td { font-weight: 700; border-top: 1.5px solid #14161a; border-bottom: 0; background: #f8f9fb; }
+  tr.is-total td { font-weight: 700; background: #f2f4f7; }
   .neg { color: #a8321f; }
   .liq { font-weight: 700; }
   .zero { color: #a6acb8; }
