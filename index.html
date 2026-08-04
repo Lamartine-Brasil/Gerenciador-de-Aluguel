@@ -123,9 +123,17 @@
             <span class="stat-label">Próximo vencimento</span>
           </div>
         </div>
+        <div class="card stat-card stat-warn">
+          <div class="stat-icon"><svg class="icon"><use href="#icon-wallet"></use></svg></div>
+          <div class="stat-info">
+            <span class="stat-value" id="statDespesasMesDashboard">R$ 0,00</span>
+            <span class="stat-label">Despesas no mês</span>
+          </div>
+        </div>
       </div>
 
       <div id="dashboardAlertaVencimento" class="alert-banner hidden"></div>
+      <div id="dashboardAlertaReajuste" class="alert-banner hidden"></div>
 
       <div class="panel-header">
         <h3>Contratos recentes</h3>
@@ -302,6 +310,7 @@
       <div class="panel-header">
         <h2>Gráficos</h2>
       </div>
+      <p class="modal-subtitle">Os valores recebidos aqui são líquidos: já descontam a comissão do corretor (quando houver) e o condomínio, mesma convenção usada em Relatórios.</p>
       <div class="charts-grid">
         <div class="card chart-card">
           <h3>Contratos por status</h3>
@@ -309,7 +318,7 @@
           <div class="chart-legend" id="legendStatus"></div>
         </div>
         <div class="card chart-card">
-          <h3>Pagamentos por forma</h3>
+          <h3>Pagamentos por forma (líquido)</h3>
           <canvas id="chartFormaPagamento" height="220"></canvas>
           <div class="chart-legend" id="legendFormaPagamento"></div>
         </div>
@@ -318,8 +327,22 @@
           <canvas id="chartAtrasoEvolucao" height="220"></canvas>
         </div>
         <div class="card chart-card">
-          <h3>Receita mensal (últimos 6 meses)</h3>
+          <h3>Receita mensal líquida (últimos 6 meses)</h3>
           <canvas id="chartReceitaMensal" height="220"></canvas>
+        </div>
+        <div class="card chart-card">
+          <h3>Despesas mensais (últimos 6 meses)</h3>
+          <canvas id="chartDespesasMensal" height="220"></canvas>
+        </div>
+        <div class="card chart-card">
+          <div class="panel-header" style="margin:0 0 8px;">
+            <h3>Inadimplência — quem mais atrasa</h3>
+            <select id="inadimplenciaAgrupador" class="input select">
+              <option value="inquilino">Por inquilino</option>
+              <option value="imovel">Por imóvel</option>
+            </select>
+          </div>
+          <canvas id="chartInadimplencia" height="220"></canvas>
         </div>
       </div>
     </section>
@@ -330,12 +353,13 @@
         <h2>Relatórios</h2>
         <select id="relatorioAno" class="input select"></select>
       </div>
+      <p class="modal-subtitle">Os valores recebidos mostrados aqui são líquidos: já descontam a comissão do corretor (quando houver) e o condomínio, já que nenhum dos dois fica com o proprietário.</p>
       <div class="cards-grid">
         <div class="card stat-card stat-success">
           <div class="stat-icon"><svg class="icon"><use href="#icon-dollar"></use></svg></div>
           <div class="stat-info">
             <span class="stat-value" id="relatorioTotalPagoAno">R$ 0,00</span>
-            <span class="stat-label">Total pago no ano</span>
+            <span class="stat-label">Total recebido no ano (líquido — já descontando corretor e condomínio)</span>
           </div>
         </div>
         <div class="card stat-card stat-danger">
@@ -352,12 +376,26 @@
             <span class="stat-label">Total de descontos concedidos no ano</span>
           </div>
         </div>
+        <div class="card stat-card stat-warn">
+          <div class="stat-icon"><svg class="icon"><use href="#icon-wallet"></use></svg></div>
+          <div class="stat-info">
+            <span class="stat-value" id="relatorioTotalDespesasAno">R$ 0,00</span>
+            <span class="stat-label">Total de despesas no ano</span>
+          </div>
+        </div>
+        <div class="card stat-card stat-success">
+          <div class="stat-icon"><svg class="icon"><use href="#icon-dollar"></use></svg></div>
+          <div class="stat-info">
+            <span class="stat-value" id="relatorioLucroLiquidoAno">R$ 0,00</span>
+            <span class="stat-label">Lucro líquido no ano (pago − despesas)</span>
+          </div>
+        </div>
       </div>
       <div class="card table-card">
         <h3>Pagamentos por forma no ano</h3>
         <table class="report-table">
           <thead>
-            <tr><th>Forma</th><th>Quantidade</th><th>Total recebido</th></tr>
+            <tr><th>Forma</th><th>Quantidade</th><th>Total recebido (líquido)</th></tr>
           </thead>
           <tbody id="relatorioFormaPagamentoBody"></tbody>
         </table>
@@ -365,7 +403,7 @@
       <div class="card table-card">
         <table class="report-table">
           <thead>
-            <tr><th>Mês</th><th>Total pago</th><th>Total em atraso (aluguel + juros/multa)</th><th>Contratos no período</th></tr>
+            <tr><th>Mês</th><th>Recebido (líquido)</th><th>Despesas</th><th>Total em atraso (aluguel + juros/multa)</th><th>Contratos no período</th></tr>
           </thead>
           <tbody id="relatorioTabelaBody"></tbody>
         </table>
@@ -376,7 +414,7 @@
         <p class="modal-subtitle">Totais de cada ano lado a lado, para comparar a evolução ano a ano.</p>
         <table class="report-table">
           <thead>
-            <tr><th>Ano</th><th>Total pago</th><th>Total em atraso (aluguel + juros/multa)</th><th>Contratos no ano</th></tr>
+            <tr><th>Ano</th><th>Recebido (líquido)</th><th>Despesas</th><th>Total em atraso (aluguel + juros/multa)</th><th>Contratos no ano</th></tr>
           </thead>
           <tbody id="comparativoAnualBody"></tbody>
         </table>
@@ -452,6 +490,19 @@
           </label>
           <button type="submit" class="btn btn-primary">Salvar valores padrão</button>
           <p id="configPadraoSaved" class="success-msg hidden">Valores padrão salvos!</p>
+        </form>
+      </div>
+
+      <div class="card">
+        <h3>Reajuste sugerido</h3>
+        <p class="modal-subtitle">Um contrato "vence" para reajuste 1 ano depois do último reajuste (ou do início, se nunca foi reajustado). O Dashboard avisa quando isso acontece, sugerindo um novo valor com base no percentual abaixo — o sistema não consulta nenhum índice externo real (IGP-M/IPCA) automaticamente, já que não tem acesso à internet; ajuste esse percentual manualmente conforme o índice vigente.</p>
+        <form id="configReajusteForm" class="config-form">
+          <label class="field">
+            <span>Percentual de reajuste sugerido (%)</span>
+            <input type="number" id="configPercentualReajusteSugerido" step="0.01" min="0" required>
+          </label>
+          <button type="submit" class="btn btn-primary">Salvar</button>
+          <p id="configReajusteSaved" class="success-msg hidden">Percentual salvo!</p>
         </form>
       </div>
 
@@ -785,6 +836,7 @@
       <input type="hidden" id="reajusteContratoId">
       <p class="modal-subtitle" id="reajusteContratoInfo"></p>
       <p class="modal-subtitle">Atualiza o valor padrão do contrato (usado em novas dívidas) e também todas as dívidas ainda não pagas. Dívidas já pagas não são alteradas.</p>
+      <p class="modal-subtitle hidden" id="reajusteSugestaoHint"></p>
       <div class="total-preview">
         <span>Aluguel atual:</span>
         <strong id="reajusteValorAtual">R$ 0,00</strong>
@@ -796,6 +848,37 @@
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
         <button type="submit" class="btn btn-primary">Aplicar reajuste</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== MODAL: DEVOLUÇÃO DE CAUÇÃO ===================== -->
+<div id="modalDevolucaoCaucao" class="modal-overlay hidden">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h3>Devolver caução</h3>
+      <button class="modal-close" data-close>&times;</button>
+    </div>
+    <form id="formDevolucaoCaucao" class="modal-body">
+      <input type="hidden" id="devCaucaoContratoId">
+      <p class="modal-subtitle" id="devCaucaoInfo"></p>
+      <p class="modal-subtitle">Só registra que a caução foi devolvida (data e valor) — não soma nem subtrai de nenhum total.</p>
+      <label class="field">
+        <span>Data da devolução *</span>
+        <input type="date" id="devCaucaoData" required>
+      </label>
+      <label class="field">
+        <span>Valor devolvido (R$) *</span>
+        <input type="number" id="devCaucaoValor" step="0.01" min="0" required>
+      </label>
+      <label class="field">
+        <span>Observação</span>
+        <textarea id="devCaucaoObservacao" rows="2" placeholder="Observação (opcional)"></textarea>
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Confirmar devolução</button>
       </div>
     </form>
   </div>

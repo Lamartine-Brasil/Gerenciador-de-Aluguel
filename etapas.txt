@@ -38,7 +38,10 @@ Contratos.
 - [x] Card: total em atraso (R$) — soma só o componente de juros/multa (resumo rápido,
       diferente da convenção "valor cheio" usada em Atrasos/Relatórios — decisão consciente)
 - [x] Card: próximo vencimento
+- [x] Card: total de despesas lançadas no mês atual
 - [x] Alerta de dívidas vencendo nos próximos 5 dias
+- [x] Alerta de contratos no "aniversário" de reajuste (1 ano desde o último reajuste, ou
+      desde o início se nunca foi reajustado), com o valor sugerido para cada um
 - [x] Lista das dívidas mais recentes
 
 ### Cadastros — Imóveis
@@ -129,6 +132,20 @@ Contratos.
       contrato". É só uma anotação informativa exibida no card do contrato — nunca
       soma em nenhum total, dívida, atraso ou relatório, já que em teoria é devolvida
       ao inquilino no final
+- [x] Devolução de caução: botão "Devolver caução" (visível quando o contrato tem
+      caução) abre um modal para registrar data, valor devolvido e observação — só um
+      registro informativo, não soma nem subtrai de nenhum total. Depois de registrada,
+      o botão vira "Editar devolução da caução" para corrigir data/valor se necessário.
+      Fica registrado na Auditoria (`caucao_devolvida`)
+- [x] Reajuste sugerido: cada contrato tem um "aniversário" de reajuste — 1 ano após o
+      último reajuste aplicado (`dataUltimoReajuste`, atualizado toda vez que "Reajustar"
+      é usado), ou após a data de início se nunca foi reajustado. Contratos ativos que já
+      passaram do aniversário mostram um aviso no card e no Dashboard, com um valor de
+      aluguel sugerido calculado a partir do "Percentual de reajuste sugerido" configurável
+      em Configurações (não há consulta a nenhum índice externo real como IGP-M/IPCA — o
+      sistema não tem acesso à internet; o percentual é só uma estimativa ajustada
+      manualmente). Ao abrir "Reajustar" num contrato nessa situação, o valor sugerido já
+      vem pré-preenchido, com uma explicação do cálculo
 - [x] Encerrar contrato: botão "Encerrar contrato" marca o contrato como encerrado (com
       confirmação) — diferente de excluir, NÃO apaga nada: todas as dívidas e o
       histórico de pagamentos continuam existindo e visíveis normalmente, só faz o
@@ -185,12 +202,22 @@ Contratos.
       anualmente
 - [x] Lista das despesas do período filtrado, mais recente primeiro, com botão excluir
       por item
+- [x] Despesas também aparecem fora da própria aba: card "Despesas no mês" no Dashboard,
+      coluna "Despesas" e card "Total de despesas no ano"/"Lucro líquido no ano" em
+      Relatórios, e gráfico "Despesas mensais" em Gráficos (ver abaixo)
 
 ### Análises — Gráficos
 - [x] Donut "Contratos por status" (ativos/atrasados/pagos), com legenda e total no centro
-- [x] Donut "Pagamentos por forma" (Dinheiro/Pix/Não informado), por valor total recebido
-- [x] Linha "Evolução do total em atraso" (últimos 6 meses), com gridlines e área preenchida
-- [x] Linha "Receita mensal" (últimos 6 meses, total efetivamente pago)
+- [x] Donut "Pagamentos por forma (líquido)" (Dinheiro/Pix/Não informado), por valor
+      líquido recebido — já descontando corretor e condomínio, mesma convenção de
+      Relatórios (usa `valorLiquidoPagamento()`)
+- [x] Linha "Evolução do total em atraso" (últimos 6 meses), com gridlines e área
+      preenchida — continua com o valor cheio devido (não é receita, é dívida em aberto)
+- [x] Linha "Receita mensal líquida" (últimos 6 meses, valor líquido efetivamente
+      recebido, já descontando corretor e condomínio)
+- [x] Linha "Despesas mensais" (últimos 6 meses, mesmo estilo da receita mensal)
+- [x] Barras horizontais "Inadimplência — quem mais atrasa": ranking (top 6) por total em
+      atraso (aluguel + juros/multa), com seletor para agrupar por inquilino ou por imóvel
 - [x] Layout em grade de 2 colunas (`charts-grid`), responsivo
 - [x] Cores lidas das variáveis CSS do tema (`cssVar()`) — os gráficos se redesenham
       automaticamente ao trocar entre tema claro/escuro, para nunca ficar com cores do
@@ -198,18 +225,28 @@ Contratos.
 
 ### Análises — Relatórios
 - [x] Aba "Relatórios" com seletor de ano
-- [x] Tabela mensal: total pago, total em atraso, contratos no período
+- [x] Todos os valores "recebido"/"pago" desta aba (card do ano, tabela mensal,
+      comparativo anual e tabela por forma de pagamento) são **líquidos**: já descontam
+      a comissão do corretor (% sobre o aluguel, quando houver) e o condomínio de cada
+      pagamento, já que nenhum dos dois fica com o proprietário — mesma convenção e
+      mesma função (`valorLiquidoPagamento()`) usada no Histórico. Diferente do
+      Histórico, aqui só o valor líquido é mostrado (não lado a lado com o bruto), já
+      que o objetivo do relatório é refletir o que de fato sobra
+- [x] Tabela mensal: recebido (líquido), despesas, total em atraso, contratos no período
 - [x] Totais anuais somados
-- [x] Comparativo anual: tabela com todos os anos que têm dados lado a lado (total pago,
-      total em atraso, contratos no ano), para comparar a evolução de um ano para o outro
-      sem precisar trocar o seletor repetidamente
+- [x] Comparativo anual: tabela com todos os anos que têm dados lado a lado (recebido
+      líquido, despesas, total em atraso, contratos no ano), para comparar a evolução de
+      um ano para o outro sem precisar trocar o seletor repetidamente
 - [x] "Total em atraso" (card do ano, tabela mensal e comparativo anual) é o valor cheio
       devido — aluguel + juros/multa — e não só o componente de juros/multa. Mesma
       convenção usada na aba Atrasos. Só o card "Total em atraso" do Dashboard continua
       somando apenas juros/multa (decisão consciente, mantido como resumo rápido)
 - [x] Card "Total de descontos concedidos no ano"
-- [x] Tabela "Pagamentos por forma no ano": quantidade e total recebido por forma de
-      pagamento (Dinheiro/Pix/Não informado), para o ano selecionado
+- [x] Card "Total de despesas no ano" e card "Lucro líquido no ano" (recebido líquido
+      menos total de despesas do ano — já líquido de corretor/condomínio duas vezes,
+      então é o valor mais próximo do que efetivamente sobra)
+- [x] Tabela "Pagamentos por forma no ano": quantidade e total recebido líquido por
+      forma de pagamento (Dinheiro/Pix/Não informado), para o ano selecionado
 
 ### Análises — Calendário
 - [x] Aba dedicada com grade mensal (estilo calendário), navegação entre meses
@@ -222,9 +259,14 @@ Contratos.
 ### Sistema — Auditoria
 - [x] Aba dedicada com o histórico dos eventos principais do sistema — cada entrada
       mostra o quê, quem fez e quando. Tipos de evento registrados: contrato criado,
-      editado, excluído, reajustado, encerrado ou reaberto; dívida editada ou excluída;
-      pagamento registrado; despesa criada ou excluída; usuário administrador
-      adicionado ou removido; chave `COOKIE_SECRET` regenerada
+      editado, excluído, reajustado, encerrado ou reaberto; caução devolvida; dívida
+      editada ou excluída; pagamento registrado; despesa criada ou excluída; usuário
+      administrador adicionado ou removido; chave `COOKIE_SECRET` regenerada
+- [x] Diff campo a campo: edições de contrato (imóvel, inquilino, quem recebe, corretor,
+      caução), de dívida (vencimento, valores, observação) e de reajuste (aluguel antigo
+      → novo) mostram uma lista "campo: valor antigo → valor novo" logo abaixo da
+      descrição do evento, sempre que houver algo de fato alterado (campos iguais não
+      aparecem no diff)
 - [x] Lista ordenada do mais recente para o mais antigo, mantendo os últimos 300 eventos
 
 ### Sistema — Configurações
@@ -232,6 +274,8 @@ Contratos.
       automático de atraso dos contratos vencidos, e também como percentual padrão dos
       campos "Juros"/"Multa" ao criar um novo contrato
 - [x] Percentual padrão do corretor (%, padrão 5%) para pré-preencher novos contratos
+- [x] Percentual de reajuste sugerido (%) — usado para calcular o valor de aluguel
+      sugerido quando um contrato chega no aniversário de reajuste (ver seção Contratos)
 - [x] Cadastro de "Pessoas (recebedores/corretores)": lista reutilizável de nomes
       (adicionar/remover), usada como seletor tanto no campo "Quem recebe" (contrato e
       pagamento) quanto no campo "Corretor" — evita digitar o nome toda vez, e um
@@ -324,17 +368,10 @@ Contratos.
    de contratos
 3. Geração automática de recibo em PDF por pagamento individual (hoje o PDF é só o
    relatório geral de contratos)
-4. Renovação de contrato com um clique (duplica o contrato para o próximo período,
-   mantendo inquilino/imóvel/valores)
-5. Suporte a pagamento parcial (registrar um valor menor que o total, mantendo o
-   contrato em aberto com saldo restante)
-6. Mais formas de pagamento além de Dinheiro/Pix (ex: Boleto, Transferência, Cartão)
+
 7. Notificação dentro do navegador (Web Push) para avisos de vencimento, sem precisar
    de e-mail/SMTP
-8. Exportação de relatórios também em Excel (.xlsx), além de CSV e PDF
-9. Gráfico de inadimplência por inquilino/imóvel (quem mais atrasa)
-10. Lembrete automático de reajuste na data de aniversário do contrato, com sugestão de
-    valor por índice (ex: IGP-M/IPCA) — hoje o reajuste já existe, mas é sempre manual
+
 11. Modo multi-imóvel/multi-proprietário — separar contratos por carteira, útil para
     quem administra imóveis de terceiros
 12. Backup automático agendado (ex: gerar e salvar um `.json` de backup toda semana
@@ -344,10 +381,6 @@ Contratos.
 14. Papéis de permissão distintos entre usuários administradores (ex: um usuário só de
     visualização/relatórios, sem poder excluir dados) — hoje todos os usuários têm
     acesso total e igual
-15. Auditoria em nível de campo (diff campo a campo, com valor antigo e novo) — hoje o
-    log de auditoria registra só o evento principal (o quê, quem, quando), sem detalhar
-    exatamente o que mudou em cada edição
-16. Devolução de caução: hoje a caução é só uma anotação informativa — poderia ganhar um
-    botão "Devolver caução" que registra a devolução (data, valor) sem afetar totais
-17. Vincular despesas a relatórios/gráficos (hoje despesas são só um registro à parte,
-    sem aparecer em Relatórios/Gráficos/Dashboard)
+18. Índice de reajuste (IGP-M/IPCA) consultado automaticamente — hoje o percentual
+    sugerido é digitado manualmente em Configurações, já que o sistema não tem acesso à
+    internet (nenhuma dependência externa é uma decisão de arquitetura deste projeto)

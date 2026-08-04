@@ -4,16 +4,10 @@
         "taxaJurosMensal": 1,
         "taxaMultaPercent": 2,
         "corretorPercentualPadrao": 5,
-        "jurosPadrao": 0,
-        "multaPadrao": 0
+        "percentualReajusteSugerido": 5
     },
     "auditoria": [],
-    "pessoas": [
-        {
-            "id": "c_msdz8j1c_9gjzqve",
-            "nome": "Lamartine"
-        }
-    ],
+    "pessoas": [],
     "despesas": [],
     "imoveis": []
 }

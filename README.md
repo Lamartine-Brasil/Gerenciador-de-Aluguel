@@ -85,7 +85,8 @@ navegação):
 **Visão Geral**
 
 - **Dashboard** — quantas dívidas estão ativas, quanto está em atraso no total, próximo
-  vencimento, e um alerta para dívidas que vencem nos próximos 5 dias
+  vencimento, despesas lançadas no mês, um alerta para dívidas que vencem nos próximos 5
+  dias e um alerta para contratos no "aniversário" de reajuste (com o valor sugerido)
 
 **Cadastros**
 
@@ -105,11 +106,15 @@ navegação):
   — o valor aparece em cada dívida só como cálculo informativo, sem mudar o total cobrado
   do inquilino. Também é possível informar uma caução (valor retido do inquilino) — fica só
   como anotação visível no card, nunca soma em nenhum total, já que em teoria é devolvida no
-  final. Um botão "Atualizar dívidas" (individual ou global, no topo do sistema) gera o
-  próximo mês de cada contrato — roda sozinho, silenciosamente, toda vez que o sistema é
-  aberto, então as dívidas ficam sempre em dia sem precisar clicar em nada. Quando um
-  inquilino deixa o imóvel, "Encerrar contrato" para a geração automática de novas dívidas
-  mensais sem apagar nada do histórico (pode ser revertido depois)
+  final; um botão "Devolver caução" registra quando isso acontece (data e valor), também sem
+  afetar nenhum total. Um botão "Atualizar dívidas" (individual ou global, no topo do
+  sistema) gera o próximo mês de cada contrato — roda sozinho, silenciosamente, toda vez que
+  o sistema é aberto, então as dívidas ficam sempre em dia sem precisar clicar em nada.
+  Contratos ativos que passaram 1 ano desde o último reajuste (ou desde o início, se nunca
+  reajustados) mostram um aviso de "reajuste sugerido" com um valor calculado a partir de um
+  percentual configurável (sem consultar nenhum índice real como IGP-M/IPCA — o sistema não
+  acessa a internet). Quando um inquilino deixa o imóvel, "Encerrar contrato" para a geração
+  automática de novas dívidas mensais sem apagar nada do histórico (pode ser revertido depois)
 
 **Financeiro**
 
@@ -119,25 +124,34 @@ navegação):
   contrato tem corretor e/ou condomínio, mostra também o "valor líquido" (o que
   efetivamente fica com o proprietário, descontando o que só passa pela mão dele)
 - **Despesas** — cadastro simples de despesas (data, descrição, valor), opcionalmente
-  ligadas a um contrato ou avulsas, consultáveis por mês e por ano
+  ligadas a um contrato ou avulsas, consultáveis por mês e por ano. Também aparecem no
+  Dashboard, em Relatórios (com "lucro líquido" = pago menos despesas) e em Gráficos
 
 **Análises**
 
 - **Gráficos** — contratos por status, pagamentos por forma (Dinheiro/Pix), evolução do
-  atraso e da receita nos últimos 6 meses. Cores adaptadas ao tema claro/escuro
+  atraso, da receita e das despesas nos últimos 6 meses, e um ranking de inadimplência
+  (top 6 por inquilino ou por imóvel, à sua escolha). Cores adaptadas ao tema claro/escuro.
+  Os valores de "recebido" (pagamentos por forma e receita mensal) são líquidos, mesma
+  convenção usada em Relatórios — a evolução do atraso continua com o valor cheio devido,
+  já que é dívida em aberto, não receita
 - **Relatórios** — totais mês a mês e no ano, comparativo com todos os anos lado a lado,
-  total de descontos concedidos e quebra de pagamentos por forma no ano
+  total de descontos concedidos, total de despesas e lucro líquido, e quebra de
+  pagamentos por forma no ano. Todo valor "recebido" mostrado aqui é líquido — já
+  descontando a comissão do corretor e o condomínio de cada pagamento
 - **Calendário** — grade mensal mostrando vencimentos e pagamentos dia a dia
 
 **Sistema**
 
 - **Auditoria** — histórico dos eventos principais (contrato criado/editado/excluído/
-  encerrado, pagamento registrado, despesa lançada, usuário adicionado/removido, chave de
-  segurança regenerada), com quem fez e quando
-- **Configurações** — taxas de juros/multa, valores padrão, cadastro de pessoas
-  (recebedores/corretores), conta do administrador, geração de uma nova chave
-  `COOKIE_SECRET` pelo próprio site, outros usuários administradores, backup completo
-  (exportar/importar) e zona de perigo (excluir todos os dados)
+  encerrado, caução devolvida, pagamento registrado, despesa lançada, usuário
+  adicionado/removido, chave de segurança regenerada), com quem fez e quando. Edições de
+  contrato, dívida e reajuste mostram um diff campo a campo (valor antigo → novo)
+- **Configurações** — taxas de juros/multa, valores padrão, percentual de reajuste
+  sugerido, cadastro de pessoas (recebedores/corretores), conta do administrador,
+  geração de uma nova chave `COOKIE_SECRET` pelo próprio site, outros usuários
+  administradores, backup completo (exportar/importar) e zona de perigo (excluir todos
+  os dados)
 
 **Recursos gerais**
 
@@ -180,6 +194,14 @@ o formulário avisa e não deixa salvar.
 **A caução entra em algum cálculo?**
 Não. É só uma anotação visível no card do contrato — nunca soma em nenhum total, dívida,
 atraso ou relatório, já que em teoria é devolvida ao inquilino no final do contrato.
+Quando isso acontece de verdade, o botão "Devolver caução" só registra data e valor,
+também sem afetar nenhum total.
+
+**O "reajuste sugerido" usa o IGP-M/IPCA de verdade?**
+Não. O sistema não tem acesso à internet, então não consulta nenhum índice real. A
+sugestão usa um percentual fixo configurado por você em **Configurações → Reajuste
+sugerido** — ajuste esse número manualmente conforme o índice vigente que você
+acompanha, e o sistema calcula o valor sugerido a partir dele.
 
 ## Para quem quer entender o código
 
@@ -275,6 +297,10 @@ vez de criar vários contratos separados.
 | `corretorNome`   | string             | Nome do corretor associado a este contrato (vazio = sem corretor) |
 | `corretorPercentual` | number         | Percentual do aluguel considerado repasse ao corretor — só informativo, não altera `total` de nenhuma dívida (mesma lógica do `condominio`: passa pela mão do proprietário, mas não é receita dele) |
 | `caucao`         | number             | Valor de caução retido (opcional) — só informativo, nunca entra em nenhum cálculo/total |
+| `caucaoDevolvida` | boolean           | Se a caução já foi devolvida (registrado pelo botão "Devolver caução") |
+| `dataCaucaoDevolvida` | string `AAAA-MM-DD` ou null | Data da devolução, ou `null` |
+| `valorCaucaoDevolvida` | number ou null | Valor devolvido (pode ser diferente do `caucao` original), ou `null` |
+| `dataUltimoReajuste` | string `AAAA-MM-DD` | Data do último reajuste aplicado (ou `dataInicio`, se nunca reajustado) — usada para calcular o "aniversário" de reajuste sugerido (1 ano depois) |
 | `encerrado`      | boolean            | Se `true`, o sistema não gera mais novas dívidas mensais para este contrato (nem manual nem automaticamente), mas nada é apagado — histórico e dívidas existentes continuam intactos |
 | `dataEncerramento` | string `AAAA-MM-DD` ou null | Data em que o contrato foi encerrado, ou `null` |
 | `criadoEm`       | number (timestamp) | Data de criação do contrato                                  |
@@ -314,9 +340,12 @@ não existe — cada dívida tem o seu.
 | `quemRecebeu` | string | Quem recebeu — nome escolhido da lista de "pessoas" (ou vazio) |
 | `observacao`  | string | Observação do pagamento                       |
 
-O "valor líquido" exibido no Histórico (`valorLiquidoPagamento()` em `index.js`) não é
-salvo — é calculado na hora: `valor - (aluguel da dívida × corretorPercentual/100, se
-houver corretor) - condominio da dívida`.
+O "valor líquido" (`valorLiquidoPagamento()` em `index.js`) não é salvo — é calculado na
+hora: `valor - (aluguel da dívida × corretorPercentual/100, se houver corretor) -
+condominio da dívida`. No Histórico aparece ao lado do valor bruto; em Relatórios e nos
+gráficos "Pagamentos por forma" e "Receita mensal", todo valor "recebido" já é esse valor
+líquido (não mostra o bruto separadamente). A "Evolução do total em atraso" é a exceção —
+continua com o valor cheio devido, já que representa dívida em aberto, não receita.
 
 #### Migração automática de formatos antigos
 
@@ -336,6 +365,7 @@ manual e sem perder informação:
 | `taxaJurosMensal`   | 1 (%)  | Taxa de juros mensal aplicada sobre o total em atraso, e também percentual padrão do campo "Juros" ao criar um novo contrato |
 | `taxaMultaPercent`  | 2 (%)  | Multa fixa aplicada uma vez que o contrato atrasa, e também percentual padrão do campo "Multa" ao criar um novo contrato |
 | `corretorPercentualPadrao` | 5 (%) | Percentual do corretor pré-preenchido ao criar um novo contrato |
+| `percentualReajusteSugerido` | 5 (%) | Usado para calcular o valor de aluguel sugerido quando um contrato chega no aniversário de reajuste (sem consultar índice externo real) |
 
 Cálculo do atraso atual (função `calcAtrasoAtual` em `index.js`): se o contrato já está
 atrasado, soma `valorAtrasoBase` + (`total` × `taxaJurosMensal`/100 × meses de atraso)
@@ -378,11 +408,16 @@ total ou receita. Consultáveis por mês e por ano na aba "Despesas".
 | `usuario`   | string             | Nome do usuário logado que realizou a ação              |
 | `acao`      | string             | Tipo do evento — ver lista abaixo                       |
 | `descricao` | string             | Texto legível do evento, mostrado na aba Auditoria      |
+| `alteracoes` | array             | Diff campo a campo desta edição (ver abaixo) — `[]` quando não se aplica |
 
 Tipos de `acao` registrados: `contrato_criado`, `contrato_editado`, `contrato_excluido`,
-`contrato_reajustado`, `contrato_encerrado`, `contrato_reaberto`, `divida_editada`,
-`divida_excluida`, `pagamento_registrado`, `despesa_criada`, `despesa_excluida`,
-`usuario_adicionado`, `usuario_removido`, `cookie_secret_regenerado`.
+`contrato_reajustado`, `contrato_encerrado`, `contrato_reaberto`, `caucao_devolvida`,
+`divida_editada`, `divida_excluida`, `pagamento_registrado`, `despesa_criada`,
+`despesa_excluida`, `usuario_adicionado`, `usuario_removido`, `cookie_secret_regenerado`.
+
+Cada item de `alteracoes` é `{ campo, de, para }` — o valor antigo e o novo de um campo
+que realmente mudou (função `diffCampos()` em `index.js`). Usado nas edições de contrato,
+dívida e reajuste, para detalhar exatamente o que mudou, além da descrição em texto.
 
 Mantém só os últimos 300 eventos — os mais antigos são descartados automaticamente.
 

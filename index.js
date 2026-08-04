@@ -13,7 +13,7 @@ const DIAS_ALERTA_VENCIMENTO = 5;
  * contrato antigo já nascer com várias dívidas em aberto (uma por mês em
  * atraso), em vez de virar vários "contratos" separados.
  */
-let state = { contratos: [], config: { taxaJurosMensal: 1, taxaMultaPercent: 2, corretorPercentualPadrao: 5 }, auditoria: [], pessoas: [], despesas: [], imoveis: [] };
+let state = { contratos: [], config: { taxaJurosMensal: 1, taxaMultaPercent: 2, corretorPercentualPadrao: 5, percentualReajusteSugerido: 5 }, auditoria: [], pessoas: [], despesas: [], imoveis: [] };
 let currentUsername = '';
 
 function setCurrentUsername(username) {
@@ -76,7 +76,7 @@ async function fetchState() {
   if (!res.ok) throw new Error('Falha ao carregar dados do servidor.');
   const data = await res.json();
   data.contratos = data.contratos || [];
-  data.config = Object.assign({ taxaJurosMensal: 1, taxaMultaPercent: 2, corretorPercentualPadrao: 5 }, data.config || {});
+  data.config = Object.assign({ taxaJurosMensal: 1, taxaMultaPercent: 2, corretorPercentualPadrao: 5, percentualReajusteSugerido: 5 }, data.config || {});
   data.auditoria = data.auditoria || [];
   // pessoas substitui o antigo cadastro "corretores" (agora serve tanto para
   // quem recebe quanto para corretor) — migra dados antigos automaticamente.
@@ -103,7 +103,10 @@ function uuid() {
 
 const AUDITORIA_MAX = 300;
 
-function registrarAuditoria(acao, descricao) {
+// `alteracoes` (opcional) é uma lista de { campo, de, para } — o diff campo a
+// campo de uma edição, exibido em detalhe na aba Auditoria. Chamadas que não
+// passam esse argumento continuam funcionando normalmente (viram []).
+function registrarAuditoria(acao, descricao, alteracoes) {
   state.auditoria = state.auditoria || [];
   state.auditoria.push({
     id: uuid(),
@@ -111,10 +114,34 @@ function registrarAuditoria(acao, descricao) {
     usuario: currentUsername || '--',
     acao,
     descricao,
+    alteracoes: alteracoes || [],
   });
   if (state.auditoria.length > AUDITORIA_MAX) {
     state.auditoria = state.auditoria.slice(-AUDITORIA_MAX);
   }
+}
+
+// Compara um objeto "antes" e "depois" campo a campo (só os campos listados
+// em `labels`, um mapa campo -> rótulo legível) e devolve só os que
+// realmente mudaram — usado para montar o diff da Auditoria.
+function diffCampos(antes, depois, labels) {
+  const alteracoes = [];
+  Object.keys(labels).forEach(campo => {
+    const de = antes[campo];
+    const para = depois[campo];
+    if (de !== para) {
+      alteracoes.push({ campo: labels[campo], de, para });
+    }
+  });
+  return alteracoes;
+}
+
+// Formata um valor de diff para exibição — cai para "vazio" strings em
+// branco/undefined, e usa a mesma formatação de moeda/data quando o rótulo
+// indicar isso (evita "1000" cru quando o campo é um valor em R$).
+function formatDiffValor(valor) {
+  if (valor === '' || valor === undefined || valor === null) return '(vazio)';
+  return String(valor);
 }
 
 function parseDate(dateStr) {
@@ -147,6 +174,26 @@ function addMonthsClamped(dateStr, n) {
   const diasNoMesAlvo = new Date(targetYear, targetMonth + 1, 0).getDate();
   const targetDay = Math.min(d, diasNoMesAlvo);
   return `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+}
+
+// Data do próximo "aniversário" de reajuste de um contrato: 1 ano após o
+// último reajuste (ou após o início do contrato, se nunca foi reajustado).
+function dataAniversarioReajuste(c) {
+  return addMonthsClamped(c.dataUltimoReajuste || c.dataInicio, 12);
+}
+
+// Um contrato "precisa" de reajuste quando já passou (ou é hoje) o
+// aniversário e ele ainda está ativo (não encerrado). Não há índice externo
+// (IGP-M/IPCA) real consultado — o sistema não tem acesso à internet — então
+// a sugestão usa um percentual configurável em Configurações como estimativa.
+function precisaReajuste(c) {
+  if (c.encerrado || !c.dataInicio) return false;
+  return dataAniversarioReajuste(c) <= todayStr();
+}
+
+function valorReajusteSugerido(c) {
+  const percentual = state.config.percentualReajusteSugerido || 0;
+  return c.aluguel * (1 + percentual / 100);
 }
 
 // A partir de um vencimento inicial, gera a lista de vencimentos mensais
@@ -342,6 +389,8 @@ function todasDividas() {
         anexoContrato: c.anexoContrato,
         dataInicio: c.dataInicio,
         diaPagamento: c.diaPagamento,
+        corretorNome: c.corretorNome,
+        corretorPercentual: c.corretorPercentual,
       });
     });
   });
@@ -527,6 +576,12 @@ document.addEventListener('keydown', (e) => {
 /* ===================== CONTRATO / DÍVIDA FORM ===================== */
 const formContrato = document.getElementById('formContrato');
 
+const LABELS_DIVIDA = {
+  vencimento: 'Vencimento', aluguel: 'Aluguel (R$)', desconto: 'Desconto (R$)',
+  juros: 'Juros (R$)', multa: 'Multa (R$)', condominio: 'Condomínio (R$)',
+  valorAtrasoBase: 'Valor em atraso (R$)', observacao: 'Observação',
+};
+
 // Na criação, Juros/Multa são digitados em % (do aluguel) e convertidos para
 // R$ aqui só para a prévia; na edição de uma dívida já existente, são digitados
 // direto em R$ (valor fixo daquele mês).
@@ -670,9 +725,11 @@ formContrato.addEventListener('submit', (e) => {
     const achado = encontrarDivida(dividaId);
     if (!achado) return;
     const { contrato: c, divida: d } = achado;
+    const antes = Object.assign({}, d);
     d.vencimento = document.getElementById('fVencimento').value;
     Object.assign(d, camposDivida);
-    registrarAuditoria('divida_editada', `Dívida editada: ${c.imovel} - ${c.inquilino} (${formatDate(d.vencimento)})`);
+    const alteracoes = diffCampos(antes, d, LABELS_DIVIDA);
+    registrarAuditoria('divida_editada', `Dívida editada: ${c.imovel} - ${c.inquilino} (${formatDate(d.vencimento)})`, alteracoes);
     showToast('Dívida atualizada com sucesso.', 'success');
   } else {
     const imovel = document.getElementById('fImovel').value.trim();
@@ -740,6 +797,10 @@ formContrato.addEventListener('submit', (e) => {
       corretorNome,
       corretorPercentual,
       caucao,
+      dataUltimoReajuste: dataInicio,
+      caucaoDevolvida: false,
+      dataCaucaoDevolvida: null,
+      valorCaucaoDevolvida: null,
       encerrado: false,
       dataEncerramento: null,
       criadoEm: Date.now(),
@@ -928,11 +989,19 @@ function atualizarValorCorretorInfo() {
 
 document.getElementById('infoCorretorPercentual').addEventListener('input', atualizarValorCorretorInfo);
 
+const LABELS_CONTRATO_INFO = {
+  imovel: 'Imóvel', inquilino: 'Inquilino', quemRecebeu: 'Quem recebe',
+  corretorNome: 'Corretor', corretorPercentual: 'Percentual do corretor (%)',
+  caucao: 'Caução (R$)',
+};
+
 formContratoInfo.addEventListener('submit', (e) => {
   e.preventDefault();
   const id = document.getElementById('infoContratoId').value;
   const c = state.contratos.find(x => x.id === id);
   if (!c) return;
+  const antes = Object.assign({}, c);
+
   c.imovel = document.getElementById('infoImovel').value.trim();
   c.inquilino = document.getElementById('infoInquilino').value.trim();
   c.quemRecebeu = document.getElementById('infoQuemRecebeu').value.trim();
@@ -940,7 +1009,8 @@ formContratoInfo.addEventListener('submit', (e) => {
   c.corretorPercentual = Number(document.getElementById('infoCorretorPercentual').value) || 0;
   c.caucao = Number(document.getElementById('infoCaucao').value) || 0;
 
-  registrarAuditoria('contrato_editado', `Contrato editado: ${c.imovel} - ${c.inquilino}`);
+  const alteracoes = diffCampos(antes, c, LABELS_CONTRATO_INFO);
+  registrarAuditoria('contrato_editado', `Contrato editado: ${c.imovel} - ${c.inquilino}`, alteracoes);
   saveState();
   closeModal('modalContratoInfo');
   renderAll();
@@ -1025,7 +1095,16 @@ function openReajuste(contratoId) {
   document.getElementById('reajusteContratoId').value = c.id;
   document.getElementById('reajusteContratoInfo').textContent = `${c.imovel} — ${c.inquilino}`;
   document.getElementById('reajusteValorAtual').textContent = formatCurrency(c.aluguel);
-  document.getElementById('reajusteNovoValor').value = '';
+  const sugerido = precisaReajuste(c);
+  document.getElementById('reajusteSugestaoHint').classList.toggle('hidden', !sugerido);
+  if (sugerido) {
+    const valorSugerido = valorReajusteSugerido(c);
+    document.getElementById('reajusteSugestaoHint').textContent =
+      `Este contrato está no aniversário de reajuste. Sugestão (${state.config.percentualReajusteSugerido || 0}%): ${formatCurrency(valorSugerido)}.`;
+    document.getElementById('reajusteNovoValor').value = valorSugerido.toFixed(2);
+  } else {
+    document.getElementById('reajusteNovoValor').value = '';
+  }
   openModal('modalReajuste');
 }
 
@@ -1039,6 +1118,7 @@ formReajuste.addEventListener('submit', (e) => {
   if (novoValor <= 0) return;
 
   c.aluguel = novoValor;
+  c.dataUltimoReajuste = todayStr();
   let dividasAtualizadas = 0;
   c.dividas.forEach(d => {
     if (!d.pago) {
@@ -1048,11 +1128,46 @@ formReajuste.addEventListener('submit', (e) => {
     }
   });
 
-  registrarAuditoria('contrato_reajustado', `Aluguel reajustado: ${c.imovel} - ${c.inquilino} de ${formatCurrency(valorAntigo)} para ${formatCurrency(novoValor)} (${dividasAtualizadas} dívida(s) em aberto atualizada(s))`);
+  const alteracoes = [{ campo: 'Aluguel (R$)', de: valorAntigo, para: novoValor }];
+  registrarAuditoria('contrato_reajustado', `Aluguel reajustado: ${c.imovel} - ${c.inquilino} de ${formatCurrency(valorAntigo)} para ${formatCurrency(novoValor)} (${dividasAtualizadas} dívida(s) em aberto atualizada(s))`, alteracoes);
   saveState();
   closeModal('modalReajuste');
   renderAll();
   showToast('Reajuste aplicado com sucesso.', 'success');
+});
+
+/* ===================== DEVOLUÇÃO DE CAUÇÃO ===================== */
+const formDevolucaoCaucao = document.getElementById('formDevolucaoCaucao');
+
+// Reabrir o modal depois de já ter devolvido só permite corrigir data/valor
+// registrados — não existe estado "parcialmente devolvido".
+function abrirDevolucaoCaucao(contratoId) {
+  const c = state.contratos.find(x => x.id === contratoId);
+  if (!c) return;
+  document.getElementById('devCaucaoContratoId').value = c.id;
+  document.getElementById('devCaucaoInfo').textContent = `${c.imovel} — ${c.inquilino} — Caução: ${formatCurrency(c.caucao)}`;
+  document.getElementById('devCaucaoData').value = c.dataCaucaoDevolvida || todayStr();
+  document.getElementById('devCaucaoValor').value = c.valorCaucaoDevolvida != null ? c.valorCaucaoDevolvida : c.caucao;
+  document.getElementById('devCaucaoObservacao').value = '';
+  openModal('modalDevolucaoCaucao');
+}
+
+formDevolucaoCaucao.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const id = document.getElementById('devCaucaoContratoId').value;
+  const c = state.contratos.find(x => x.id === id);
+  if (!c) return;
+
+  c.caucaoDevolvida = true;
+  c.dataCaucaoDevolvida = document.getElementById('devCaucaoData').value;
+  c.valorCaucaoDevolvida = Number(document.getElementById('devCaucaoValor').value) || 0;
+  const observacao = document.getElementById('devCaucaoObservacao').value.trim();
+
+  registrarAuditoria('caucao_devolvida', `Caução devolvida: ${c.imovel} - ${c.inquilino} (${formatCurrency(c.valorCaucaoDevolvida)} em ${formatDate(c.dataCaucaoDevolvida)})${observacao ? ' — ' + observacao : ''}`);
+  saveState();
+  closeModal('modalDevolucaoCaucao');
+  renderAll();
+  showToast('Devolução de caução registrada.', 'success');
 });
 
 /* ===================== PAGAMENTO ===================== */
@@ -1281,7 +1396,8 @@ function contratoGrupoHtml(c) {
           <div class="contrato-sub">${icon('user')} ${escapeHtml(c.inquilino)} · ${c.dividas.length} dívida(s)${pendentes ? `, ${pendentes} em aberto` : ' — tudo pago'}</div>
           ${c.quemRecebeu ? `<div class="contrato-sub">Recebedor padrão: ${escapeHtml(c.quemRecebeu)}</div>` : ''}
           ${c.corretorNome ? `<div class="contrato-sub">${icon('user')} Corretor: ${escapeHtml(c.corretorNome)} (${c.corretorPercentual}% do aluguel — não somado ao total)</div>` : ''}
-          ${c.caucao ? `<div class="contrato-sub">${icon('wallet')} Caução retida: ${formatCurrency(c.caucao)} (não somada a nenhum total)</div>` : ''}
+          ${c.caucao ? `<div class="contrato-sub">${icon('wallet')} Caução retida: ${formatCurrency(c.caucao)} (não somada a nenhum total)${c.caucaoDevolvida ? ` — devolvida em ${formatDate(c.dataCaucaoDevolvida)} (${formatCurrency(c.valorCaucaoDevolvida)})` : ''}</div>` : ''}
+          ${!c.encerrado && precisaReajuste(c) ? `<div class="contrato-sub">${icon('trending-up')} Reajuste sugerido: ${formatCurrency(valorReajusteSugerido(c))}</div>` : ''}
           ${c.encerrado ? `<div class="contrato-sub">Encerrado em ${formatDate(c.dataEncerramento)}</div>` : ''}
         </div>
         <div class="contrato-actions">
@@ -1290,6 +1406,7 @@ function contratoGrupoHtml(c) {
           ${c.anexoContrato ? `<a class="btn btn-ghost btn-sm" href="api/anexo.php?file=${encodeURIComponent(c.anexoContrato)}" target="_blank">${icon('paperclip')} Anexo</a>` : ''}
           <button class="btn btn-ghost btn-sm" data-grupo-action="historico" data-contrato-id="${c.id}">${icon('receipt')} Histórico</button>
           <button class="btn btn-ghost btn-sm" data-grupo-action="editar" data-contrato-id="${c.id}">${icon('pencil')} Editar contrato</button>
+          ${c.caucao ? `<button class="btn btn-ghost btn-sm" data-grupo-action="devolver-caucao" data-contrato-id="${c.id}">${icon('wallet')} ${c.caucaoDevolvida ? 'Editar devolução da caução' : 'Devolver caução'}</button>` : ''}
           ${c.encerrado
             ? `<button class="btn btn-ghost btn-sm" data-grupo-action="reabrir" data-contrato-id="${c.id}">${icon('trending-up')} Reabrir contrato</button>`
             : `<button class="btn btn-ghost btn-sm" data-grupo-action="encerrar" data-contrato-id="${c.id}">${icon('clock')} Encerrar contrato</button>`}
@@ -1315,6 +1432,7 @@ function bindGrupoActions(container) {
       else if (action === 'atualizar') atualizarDividas(contratoId);
       else if (action === 'encerrar') encerrarContrato(contratoId);
       else if (action === 'reabrir') reabrirContrato(contratoId);
+      else if (action === 'devolver-caucao') abrirDevolucaoCaucao(contratoId);
     });
   });
   bindDividaRowActions(container);
@@ -1418,7 +1536,14 @@ function renderDashboard() {
   const proximo = pendentes.slice().sort((a, b) => parseDate(a.vencimento) - parseDate(b.vencimento))[0];
   document.getElementById('statProximo').textContent = proximo ? formatDate(proximo.vencimento) : '--';
 
+  const hoje = new Date();
+  const despesasMes = state.despesas
+    .filter(d => { const dt = parseDate(d.data); return dt.getFullYear() === hoje.getFullYear() && dt.getMonth() === hoje.getMonth(); })
+    .reduce((sum, d) => sum + d.valor, 0);
+  document.getElementById('statDespesasMesDashboard').textContent = formatCurrency(despesasMes);
+
   renderAlertaVencimento(ativos);
+  renderAlertaReajuste();
 
   const recentes = dividas.slice().sort((a, b) => b.criadoEm - a.criadoEm).slice(0, 5);
   const recentList = document.getElementById('dashboardRecentList');
@@ -1445,6 +1570,25 @@ function renderAlertaVencimento(ativos) {
 
   const itens = vencendo.map(d => `${escapeHtml(d.imovel)} (${escapeHtml(d.inquilino)}) — ${formatDate(d.vencimento)}`).join(' · ');
   banner.innerHTML = `<strong>${icon('alert-triangle')} ${vencendo.length} dívida(s) vencendo nos próximos ${DIAS_ALERTA_VENCIMENTO} dias</strong><span>${itens}</span>`;
+  banner.classList.remove('hidden');
+}
+
+// Contratos ativos (não encerrados) que já passaram do "aniversário" de 1 ano
+// desde o último reajuste (ou desde o início, se nunca reajustado) — sugestão
+// baseada no percentual configurável em Configurações, sem consulta a nenhum
+// índice externo real (o sistema não tem acesso à internet).
+function renderAlertaReajuste() {
+  const banner = document.getElementById('dashboardAlertaReajuste');
+  const pendentes = state.contratos.filter(precisaReajuste);
+
+  if (!pendentes.length) {
+    banner.classList.add('hidden');
+    banner.innerHTML = '';
+    return;
+  }
+
+  const itens = pendentes.map(c => `${escapeHtml(c.imovel)} (${escapeHtml(c.inquilino)}) — sugestão: ${formatCurrency(valorReajusteSugerido(c))}`).join(' · ');
+  banner.innerHTML = `<strong>${icon('trending-up')} ${pendentes.length} contrato(s) com reajuste sugerido</strong><span>${itens}</span>`;
   banner.classList.remove('hidden');
 }
 
@@ -1628,6 +1772,7 @@ function renderConfig() {
   document.getElementById('configTaxaJuros').value = state.config.taxaJurosMensal;
   document.getElementById('configTaxaMulta').value = state.config.taxaMultaPercent;
   document.getElementById('configCorretorPercentualPadrao').value = state.config.corretorPercentualPadrao || 0;
+  document.getElementById('configPercentualReajusteSugerido').value = state.config.percentualReajusteSugerido || 0;
   document.getElementById('accUsername').value = currentUsername;
   renderPessoasConfig();
 }
@@ -1653,6 +1798,18 @@ configPadraoForm.addEventListener('submit', (e) => {
   msg.classList.remove('hidden');
   setTimeout(() => msg.classList.add('hidden'), 2200);
   showToast('Valores padrão salvos com sucesso.', 'success');
+});
+
+const configReajusteForm = document.getElementById('configReajusteForm');
+configReajusteForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  state.config.percentualReajusteSugerido = Number(document.getElementById('configPercentualReajusteSugerido').value) || 0;
+  saveState();
+  const msg = document.getElementById('configReajusteSaved');
+  msg.classList.remove('hidden');
+  setTimeout(() => msg.classList.add('hidden'), 2200);
+  renderAll();
+  showToast('Percentual de reajuste salvo com sucesso.', 'success');
 });
 
 /* ===================== PESSOAS (cadastro reutilizável: recebedores/corretores) ===================== */
@@ -2017,7 +2174,7 @@ document.getElementById('btnDeleteDatabase').addEventListener('click', async () 
     showToast('Exclusão cancelada.', 'error');
     return;
   }
-  state = { contratos: [], config: { taxaJurosMensal: 1, taxaMultaPercent: 2, corretorPercentualPadrao: 5 }, auditoria: [], pessoas: [], despesas: [], imoveis: [] };
+  state = { contratos: [], config: { taxaJurosMensal: 1, taxaMultaPercent: 2, corretorPercentualPadrao: 5, percentualReajusteSugerido: 5 }, auditoria: [], pessoas: [], despesas: [], imoveis: [] };
   await saveState();
   renderAll();
   showToast('Todos os dados foram excluídos.', 'success');
@@ -2059,6 +2216,8 @@ function renderCharts() {
   renderFormaPagamentoChart();
   renderAtrasoEvolucaoChart();
   renderReceitaMensalChart();
+  renderDespesasMensalChart();
+  renderInadimplenciaChart();
 }
 
 /* ---- Donut chart genérico (legenda renderizada em HTML ao lado) ---- */
@@ -2131,7 +2290,7 @@ function renderFormaPagamentoChart() {
   const totais = {};
   todasDividas().forEach(d => d.pagamentos.forEach(p => {
     const forma = p.forma || 'Não informado';
-    totais[forma] = (totais[forma] || 0) + p.valor;
+    totais[forma] = (totais[forma] || 0) + valorLiquidoPagamento(d, d, p);
   }));
 
   const palette = [cssVar('--success'), cssVar('--accent'), cssVar('--warn'), cssVar('--danger')];
@@ -2226,6 +2385,8 @@ function renderAtrasoEvolucaoChart() {
   renderTrendChart('chartAtrasoEvolucao', months, values, '--danger');
 }
 
+// Valores líquidos (já descontando corretor e condomínio), mesma convenção usada em
+// Relatórios — o que efetivamente fica com o proprietário, não o valor bruto cobrado.
 function renderReceitaMensalChart() {
   const months = ultimosMeses(6);
   const dividas = todasDividas();
@@ -2235,11 +2396,79 @@ function renderReceitaMensalChart() {
         const dt = parseDate(p.data);
         return dt.getFullYear() === m.year && dt.getMonth() === m.month;
       })
-      .reduce((s, p) => s + p.valor, 0);
+      .reduce((s, p) => s + valorLiquidoPagamento(d, d, p), 0);
     return sum + pagoNoMes;
   }, 0));
   renderTrendChart('chartReceitaMensal', months, values, '--success');
 }
+
+function renderDespesasMensalChart() {
+  const months = ultimosMeses(6);
+  const values = months.map(m => state.despesas.reduce((sum, d) => {
+    const dt = parseDate(d.data);
+    return (dt.getFullYear() === m.year && dt.getMonth() === m.month) ? sum + d.valor : sum;
+  }, 0));
+  renderTrendChart('chartDespesasMensal', months, values, '--warn');
+}
+
+/* ---- Barras horizontais genérico (ranking, ex: quem mais atrasa) ---- */
+function renderHorizontalBarChart(canvasId, entries, colorVarName) {
+  const canvas = document.getElementById(canvasId);
+  const { ctx, w, h } = setupCanvas(canvas);
+  const color = cssVar(colorVarName);
+  const textColor = cssVar('--text-dim');
+  const valueColor = cssVar('--text');
+
+  if (!entries.length) {
+    drawChartEmptyState(ctx, w, h, 'Nenhuma dívida em atraso');
+    return;
+  }
+
+  const max = Math.max(...entries.map(en => en.value));
+  const paddingTop = 8;
+  const barGap = 10;
+  const labelWidth = 110;
+  const barHeight = Math.max(10, Math.min(26, (h - paddingTop) / entries.length - barGap));
+
+  ctx.font = '12px sans-serif';
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+
+  entries.forEach((entry, i) => {
+    const y = paddingTop + i * (barHeight + barGap);
+    ctx.fillStyle = textColor;
+    ctx.fillText(truncateText(ctx, entry.label, labelWidth - 8), 0, y + barHeight / 2);
+
+    const barX = labelWidth;
+    const barMaxWidth = w - barX - 70;
+    const barWidth = max > 0 ? (entry.value / max) * barMaxWidth : 0;
+
+    ctx.fillStyle = color;
+    ctx.fillRect(barX, y, Math.max(barWidth, 2), barHeight);
+
+    ctx.fillStyle = valueColor;
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillText(formatCurrency(entry.value).replace('R$', '').trim(), barX + barWidth + 8, y + barHeight / 2);
+    ctx.font = '12px sans-serif';
+  });
+}
+
+function renderInadimplenciaChart() {
+  const agrupador = document.getElementById('inadimplenciaAgrupador').value;
+  const atrasadas = todasDividas().filter(d => getStatus(d) === 'atrasado');
+  const totais = {};
+  atrasadas.forEach(d => {
+    const chave = agrupador === 'imovel' ? d.imovel : d.inquilino;
+    totais[chave] = (totais[chave] || 0) + d.total + calcAtrasoAtual(d);
+  });
+  const entries = Object.keys(totais)
+    .map(label => ({ label, value: totais[label] }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 6);
+  renderHorizontalBarChart('chartInadimplencia', entries, '--danger');
+}
+
+document.getElementById('inadimplenciaAgrupador').addEventListener('change', renderInadimplenciaChart);
 
 window.addEventListener('resize', () => {
   const graficosTab = document.getElementById('tab-graficos');
@@ -2266,15 +2495,18 @@ function renderRelatorios() {
 
   let totalPagoAno = 0;
   let totalAtrasoAno = 0;
+  let totalDespesasAno = 0;
 
   const linhas = MESES_PT.map((nomeMes, mesIndex) => {
+    // Valor líquido = valor pago - comissão do corretor (se houver) - condomínio,
+    // já que nenhum dos dois fica com o proprietário (mesma convenção do Histórico).
     const totalPago = dividas.reduce((sum, d) => {
       const pagoNoMes = d.pagamentos
         .filter(p => {
           const dt = parseDate(p.data);
           return dt.getFullYear() === ano && dt.getMonth() === mesIndex;
         })
-        .reduce((s, p) => s + p.valor, 0);
+        .reduce((s, p) => s + valorLiquidoPagamento(d, d, p), 0);
       return sum + pagoNoMes;
     }, 0);
 
@@ -2287,19 +2519,27 @@ function renderRelatorios() {
       .filter(d => getStatus(d) === 'atrasado')
       .reduce((sum, d) => sum + d.total + calcAtrasoAtual(d), 0);
 
+    const totalDespesas = state.despesas
+      .filter(d => { const dt = parseDate(d.data); return dt.getFullYear() === ano && dt.getMonth() === mesIndex; })
+      .reduce((sum, d) => sum + d.valor, 0);
+
     totalPagoAno += totalPago;
     totalAtrasoAno += totalAtraso;
+    totalDespesasAno += totalDespesas;
 
-    return { nomeMes, totalPago, totalAtraso, count: dividasPeriodo.length };
+    return { nomeMes, totalPago, totalAtraso, totalDespesas, count: dividasPeriodo.length };
   });
 
   document.getElementById('relatorioTotalPagoAno').textContent = formatCurrency(totalPagoAno);
   document.getElementById('relatorioTotalAtrasoAno').textContent = formatCurrency(totalAtrasoAno);
+  document.getElementById('relatorioTotalDespesasAno').textContent = formatCurrency(totalDespesasAno);
+  document.getElementById('relatorioLucroLiquidoAno').textContent = formatCurrency(totalPagoAno - totalDespesasAno);
 
   document.getElementById('relatorioTabelaBody').innerHTML = linhas.map(l => `
     <tr>
       <td>${l.nomeMes}</td>
       <td>${formatCurrency(l.totalPago)}</td>
+      <td>${formatCurrency(l.totalDespesas)}</td>
       <td style="${l.totalAtraso > 0 ? 'color:var(--danger)' : ''}">${formatCurrency(l.totalAtraso)}</td>
       <td>${l.count}</td>
     </tr>
@@ -2307,7 +2547,7 @@ function renderRelatorios() {
 
   const pagamentosDoAno = [];
   dividas.forEach(d => d.pagamentos.forEach(p => {
-    if (parseDate(p.data).getFullYear() === ano) pagamentosDoAno.push(p);
+    if (parseDate(p.data).getFullYear() === ano) pagamentosDoAno.push({ ...p, valorLiquido: valorLiquidoPagamento(d, d, p) });
   }));
 
   const totalDescontoAno = pagamentosDoAno.reduce((sum, p) => sum + (p.desconto || 0), 0);
@@ -2318,7 +2558,7 @@ function renderRelatorios() {
     const forma = p.forma || 'Não informado';
     if (!porForma[forma]) porForma[forma] = { count: 0, total: 0 };
     porForma[forma].count++;
-    porForma[forma].total += p.valor;
+    porForma[forma].total += p.valorLiquido;
   });
 
   const formaBody = document.getElementById('relatorioFormaPagamentoBody');
@@ -2349,7 +2589,7 @@ function renderComparativoAnual(anoSelecionado) {
     const totalPago = dividas.reduce((sum, d) => {
       const pagoNoAno = d.pagamentos
         .filter(p => parseDate(p.data).getFullYear() === ano)
-        .reduce((s, p) => s + p.valor, 0);
+        .reduce((s, p) => s + valorLiquidoPagamento(d, d, p), 0);
       return sum + pagoNoAno;
     }, 0);
 
@@ -2358,13 +2598,18 @@ function renderComparativoAnual(anoSelecionado) {
       .filter(d => getStatus(d) === 'atrasado')
       .reduce((sum, d) => sum + d.total + calcAtrasoAtual(d), 0);
 
-    return { ano, totalPago, totalAtraso, count: dividasAno.length };
+    const totalDespesas = state.despesas
+      .filter(d => parseDate(d.data).getFullYear() === ano)
+      .reduce((sum, d) => sum + d.valor, 0);
+
+    return { ano, totalPago, totalAtraso, totalDespesas, count: dividasAno.length };
   });
 
   document.getElementById('comparativoAnualBody').innerHTML = linhas.map(l => `
     <tr style="${l.ano === anoSelecionado ? 'font-weight:600;' : ''}">
       <td>${l.ano}</td>
       <td>${formatCurrency(l.totalPago)}</td>
+      <td>${formatCurrency(l.totalDespesas)}</td>
       <td style="${l.totalAtraso > 0 ? 'color:var(--danger)' : ''}">${formatCurrency(l.totalAtraso)}</td>
       <td>${l.count}</td>
     </tr>
@@ -2389,6 +2634,11 @@ function renderAuditoria() {
           <div class="contrato-sub">${icon('user')} ${escapeHtml(e.usuario)} · ${formatDateTime(e.timestamp)}</div>
         </div>
       </div>
+      ${e.alteracoes && e.alteracoes.length ? `
+        <ul class="auditoria-diff">
+          ${e.alteracoes.map(a => `<li><strong>${escapeHtml(a.campo)}:</strong> ${escapeHtml(formatDiffValor(a.de))} → ${escapeHtml(formatDiffValor(a.para))}</li>`).join('')}
+        </ul>
+      ` : ''}
     </div>
   `).join('');
 }
@@ -2687,6 +2937,7 @@ document.getElementById('inputImportCSV').addEventListener('change', (e) => {
         diaPagamento: parseDate(vencimento).getDate(),
         aluguel, desconto, juros, multa, condominio,
         anexoContrato: null,
+        dataUltimoReajuste: vencimento,
         encerrado: false,
         dataEncerramento: null,
         criadoEm: Date.now(),
