@@ -80,7 +80,21 @@
 .login-sub { color: var(--text-dim); font-size: var(--text-md); margin-bottom: var(--space-6); }
 .login-card form { display: flex; flex-direction: column; gap: var(--space-4); }
 .login-card .btn { padding: 11px var(--space-4); margin-top: var(--space-1); }
-.login-foot { margin-top: var(--space-6); font-size: var(--text-xs); color: var(--text-faint); }
+.login-foot { margin-top: var(--space-6); font-size: var(--text-xs); color: var(--text-faint); line-height: 1.5; }
+.login-foot a { color: var(--text-dim); font-weight: 600; }
+.login-foot a:hover { color: var(--accent); }
+
+/* Crédito de autoria — presente, mas sem competir com o formulário. */
+.login-credit {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-2xs);
+  color: var(--text-faint);
+  letter-spacing: 0.01em;
+}
+.login-credit a { color: var(--text-dim); font-weight: 600; text-decoration: none; }
+.login-credit a:hover { color: var(--accent); text-decoration: underline; }
 
 @media (min-width: 940px) {
   .login-screen { grid-template-columns: 1.1fr 1fr; }
@@ -142,6 +156,9 @@
   grid-template-columns: repeat(auto-fit, minmax(240px, 360px));
   justify-content: start;
 }
+/* São 5 indicadores: com uma coluna mínima menor eles cabem todos na mesma
+   linha em telas largas, em vez de sobrar um sozinho na linha de baixo. */
+#tab-relatorios .cards-grid { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
 
 .stat-danger  .stat-value { color: var(--danger); }
 .stat-success .stat-value { color: var(--success); }
@@ -556,6 +573,8 @@
 }
 @media (min-width: 900px) {
   .charts-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* Gráficos com 12 meses ou ranking de nomes precisam da largura toda. */
+  .chart-card-wide { grid-column: 1 / -1; }
 }
 
 .chart-card { display: flex; flex-direction: column; }
@@ -641,13 +660,11 @@
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 .calendar-day:hover { background: var(--surface-3); border-color: var(--border-strong); }
+/* Dias do mês anterior/seguinte: visíveis mas discretos, só para fechar a
+   semana — não recebem cor de status nem são clicáveis. */
 .calendar-day.is-outside { cursor: default; background: transparent; border-color: transparent; }
 .calendar-day.is-outside:hover { background: transparent; border-color: transparent; }
-/* Os dias fora do mês são apenas preenchimento da grade. O número deles é
-   omitido de propósito: o `renderCalendario()` do index.js numera as células
-   finais com o índice do array (aparecia "37, 38, 39..." no fim do mês), então
-   mostrar esse número exibiria informação errada. Ver README para a correção. */
-.calendar-day.is-outside .calendar-day-number { visibility: hidden; }
+.calendar-day.is-outside .calendar-day-number { color: var(--text-faint); font-weight: 500; opacity: 0.6; }
 .calendar-day.is-today { border-color: var(--accent); }
 .calendar-day.is-today .calendar-day-number {
   background: var(--accent);

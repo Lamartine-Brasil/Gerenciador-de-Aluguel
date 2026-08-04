@@ -1361,6 +1361,7 @@ function dividaRowHtml(c, d) {
       <div class="divida-row-valores">
         <div><span>Total</span><strong>${formatCurrency(d.total)}</strong></div>
         ${status === 'atrasado' ? `<div><span>Em atraso</span><strong class="text-danger">${formatCurrency(atrasoAtual)}</strong></div>` : ''}
+        ${status === 'atrasado' ? `<div><span>Dias</span><strong class="text-danger">${diasAtraso(d)}</strong></div>` : ''}
         ${d.juros ? `<div><span>Juros</span><strong>${formatCurrency(d.juros)}</strong></div>` : ''}
         ${d.multa ? `<div><span>Multa</span><strong>${formatCurrency(d.multa)}</strong></div>` : ''}
         ${c.corretorNome ? `<div><span>Corretor (${c.corretorPercentual}%)</span><strong>${formatCurrency(d.aluguel * c.corretorPercentual / 100)}</strong></div>` : ''}
@@ -1461,6 +1462,7 @@ function dividaCardHtml(item) {
       <div class="contrato-grid">
         <div><span>Total</span><strong>${formatCurrency(item.total)}</strong></div>
         ${status === 'atrasado' ? `<div><span>Em atraso</span><strong class="text-danger">${formatCurrency(atrasoAtual)}</strong></div>` : ''}
+        ${status === 'atrasado' ? `<div><span>Dias em atraso</span><strong class="text-danger">${diasAtraso(item)} dia${diasAtraso(item) === 1 ? '' : 's'}</strong></div>` : ''}
         ${item.quemRecebeu ? `<div><span>Quem recebe</span><strong>${escapeHtml(item.quemRecebeu)}</strong></div>` : ''}
       </div>
       ${item.observacao ? `<div class="contrato-sub">${icon('file-text')} ${escapeHtml(item.observacao)}</div>` : ''}
@@ -1639,22 +1641,54 @@ function populateHistoricoFilter() {
   select.innerHTML = '<option value="">Todos os contratos</option>' +
     state.contratos.map(c => `<option value="${c.id}">${escapeHtml(c.imovel)} — ${escapeHtml(c.inquilino)}</option>`).join('');
   select.value = current || '';
+
+  const selectAno = document.getElementById('historicoFiltroAno');
+  const anos = new Set();
+  state.contratos.forEach(c => c.dividas.forEach(d => d.pagamentos.forEach(p => anos.add(parseDate(p.data).getFullYear()))));
+  const ordenados = Array.from(anos).sort((a, b) => b - a);
+  const anoAtual = selectAno.value;
+  selectAno.innerHTML = '<option value="">Todos os anos</option>' + ordenados.map(a => `<option value="${a}">${a}</option>`).join('');
+  selectAno.value = ordenados.map(String).includes(anoAtual) ? anoAtual : '';
+}
+
+// Lista de pagamentos que atende aos filtros da aba (contrato, ano e busca por
+// texto), já ordenada do mais recente para o mais antigo. É a MESMA fonte usada
+// para desenhar a tela e para exportar o CSV, então os dois nunca divergem.
+function historicoFiltrado() {
+  const filtroId = document.getElementById('historicoFiltroContrato').value;
+  const filtroAno = document.getElementById('historicoFiltroAno').value;
+  const busca = document.getElementById('historicoSearch').value.trim().toLowerCase();
+
+  const entries = [];
+  state.contratos.forEach(c => {
+    if (filtroId && c.id !== filtroId) return;
+    c.dividas.forEach(d => d.pagamentos.forEach(p => {
+      if (filtroAno && parseDate(p.data).getFullYear() !== Number(filtroAno)) return;
+      if (busca) {
+        const alvo = [c.imovel, c.inquilino, p.forma, p.quemRecebeu, p.observacao, p.motivoDesconto, '#' + (c.numero || '')]
+          .join(' ').toLowerCase();
+        if (!alvo.includes(busca)) return;
+      }
+      entries.push({ ...p, contrato: c, divida: d });
+    }));
+  });
+  entries.sort((a, b) => parseDate(b.data) - parseDate(a.data));
+  return entries;
 }
 
 function renderHistorico() {
   populateHistoricoFilter();
-  const filtroId = document.getElementById('historicoFiltroContrato').value;
   const list = document.getElementById('historicoList');
+  const entries = historicoFiltrado();
 
-  let entries = [];
-  state.contratos.forEach(c => {
-    if (filtroId && c.id !== filtroId) return;
-    c.dividas.forEach(d => d.pagamentos.forEach(p => entries.push({ ...p, contrato: c, divida: d })));
-  });
-  entries.sort((a, b) => parseDate(b.data) - parseDate(a.data));
+  const contador = document.getElementById('historicoCount');
+  const totalRecebido = entries.reduce((sum, e) => sum + (Number(e.valor) || 0), 0);
+  contador.textContent = entries.length === 1
+    ? `1 pagamento · ${formatCurrency(totalRecebido)}`
+    : `${entries.length} pagamentos · ${formatCurrency(totalRecebido)}`;
 
   if (!entries.length) {
-    list.innerHTML = '<div class="empty-state">Nenhum pagamento registrado ainda.</div>';
+    list.innerHTML = '<div class="empty-state">Nenhum pagamento encontrado para esses filtros.</div>';
     return;
   }
 
@@ -1684,7 +1718,36 @@ function renderHistorico() {
   }).join('');
 }
 
-document.getElementById('historicoFiltroContrato').addEventListener('change', renderHistorico);
+['historicoFiltroContrato', 'historicoFiltroAno'].forEach(id => {
+  document.getElementById(id).addEventListener('change', renderHistorico);
+});
+document.getElementById('historicoSearch').addEventListener('input', renderHistorico);
+
+document.getElementById('btnExportHistorico').addEventListener('click', () => {
+  const entries = historicoFiltrado();
+  if (!entries.length) { showToast('Nenhum pagamento para exportar.', 'error'); return; }
+
+  const headers = ['Nº Contrato', 'Imóvel', 'Inquilino', 'Dívida (Vencimento)', 'Data do Pagamento',
+    'Valor Pago', 'Valor Líquido', 'Desconto', 'Motivo do Desconto', 'Forma de Pagamento',
+    'Quem Recebeu', 'Observação'];
+  const rows = entries.map(e => [
+    e.contrato.numero || '',
+    e.contrato.imovel,
+    e.contrato.inquilino,
+    formatDate(e.divida.vencimento),
+    formatDate(e.data),
+    (Number(e.valor) || 0).toFixed(2),
+    valorLiquidoPagamento(e.contrato, e.divida, e).toFixed(2),
+    (e.desconto || 0).toFixed(2),
+    e.motivoDesconto || '',
+    e.forma || '',
+    e.quemRecebeu || '',
+    e.observacao || '',
+  ]);
+
+  downloadCsv(`historico_pagamentos_${todayStr()}.csv`, headers, rows);
+  showToast(`${entries.length} pagamento(s) exportado(s).`, 'success');
+});
 
 /* ===================== DESPESAS =====================
  * Lançamentos simples de despesa (data, descrição, valor), opcionalmente
@@ -1716,6 +1779,22 @@ function despesaContratoLabel(contratoId) {
   return c ? `${c.imovel} — ${c.inquilino}` : 'Contrato removido';
 }
 
+// Gráfico de barras com o total de despesas de cada mês do ano selecionado no
+// filtro desta aba (mesma fonte de dados da lista logo abaixo).
+function renderDespesasAnoChart() {
+  const select = document.getElementById('despesaFiltroAno');
+  const ano = Number(select && select.value) || new Date().getFullYear();
+  document.getElementById('despesasChartAno').textContent = String(ano);
+  const months = mesesDoAno(ano);
+  renderColumnChart(
+    'chartDespesasAno',
+    months.map(m => m.label),
+    despesasPorMes(months),
+    '--warn',
+    'Nenhuma despesa registrada em ' + ano
+  );
+}
+
 function renderDespesas() {
   if (!document.getElementById('despData').value) document.getElementById('despData').value = todayStr();
   populateDespesaContratoSelect();
@@ -1723,6 +1802,8 @@ function renderDespesas() {
 
   const ano = Number(document.getElementById('despesaFiltroAno').value);
   const mes = document.getElementById('despesaFiltroMes').value;
+
+  renderDespesasAnoChart();
 
   const doAno = state.despesas.filter(d => parseDate(d.data).getFullYear() === ano);
   const totalAno = doAno.reduce((sum, d) => sum + d.valor, 0);
@@ -2293,33 +2374,62 @@ document.getElementById('btnDeleteDatabase').addEventListener('click', async () 
   showToast('Todos os dados foram excluídos.', 'success');
 });
 
-/* ===================== CHARTS (canvas nativo) ===================== */
-// O canvas não lê as variáveis de font-size do CSS — por isso os tamanhos de
-// fonte dos gráficos ficam centralizados aqui (mesma escala usada no resto do
-// site: 13px = --text-sm, o piso de legibilidade adotado nos gráficos).
-const CHART_FONT = '13px sans-serif';
-const CHART_FONT_BOLD = 'bold 13px sans-serif';
-const CHART_FONT_LG_BOLD = 'bold 22px sans-serif';
+/* ===================== CHARTS (canvas nativo) =====================
+ * Nenhuma biblioteca: tudo desenhado à mão no <canvas>. As cores vêm das
+ * variáveis do CSS (cssVar), então os gráficos acompanham o tema claro/escuro
+ * automaticamente; o canvas, porém, não lê font-size do CSS, então os tamanhos
+ * e a família de fonte ficam centralizados aqui, espelhando o design system.
+ */
+const CHART_FONT_FAMILY = "'Inter','Inter var',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+const CHART_FONT = '12px ' + CHART_FONT_FAMILY;
+const CHART_FONT_SM = '11px ' + CHART_FONT_FAMILY;
+const CHART_FONT_BOLD = '600 12px ' + CHART_FONT_FAMILY;
+const CHART_FONT_LG_BOLD = '700 24px ' + CHART_FONT_FAMILY;
 
 function cssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-function ultimosMeses(n) {
-  const now = new Date();
-  const months = [];
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push({ year: d.getFullYear(), month: d.getMonth(), label: MESES_PT[d.getMonth()].slice(0, 3) + '/' + String(d.getFullYear()).slice(2) });
-  }
-  return months;
+// Os 12 meses do ano escolhido no filtro da aba Gráficos.
+function mesesDoAno(ano) {
+  return MESES_PT.map((nome, i) => ({ year: ano, month: i, label: nome.slice(0, 3) }));
 }
 
+// Ano selecionado na aba Gráficos (padrão: ano atual).
+function anoGraficoSelecionado() {
+  const select = document.getElementById('graficoAno');
+  return Number(select && select.value) || new Date().getFullYear();
+}
+
+function populateGraficoAnoFilter() {
+  const select = document.getElementById('graficoAno');
+  if (!select) return;
+  const dividas = todasDividas();
+  const anos = new Set(dividas.map(d => parseDate(d.vencimento).getFullYear()));
+  dividas.forEach(d => d.pagamentos.forEach(p => anos.add(parseDate(p.data).getFullYear())));
+  state.despesas.forEach(d => anos.add(parseDate(d.data).getFullYear()));
+  anos.add(new Date().getFullYear());
+  const sorted = Array.from(anos).sort((a, b) => b - a);
+  const current = select.value;
+  select.innerHTML = sorted.map(a => `<option value="${a}">${a}</option>`).join('');
+  select.value = sorted.map(String).includes(current) ? current : String(new Date().getFullYear());
+}
+
+// Prepara o canvas para desenhar: ajusta a resolução real ao devicePixelRatio
+// (sem isso os gráficos ficam borrados em telas retina) e devolve o contexto já
+// escalado, junto das dimensões LÓGICAS usadas para posicionar tudo.
 function setupCanvas(canvas) {
+  const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth || 600;
-  const h = canvas.height;
-  canvas.width = w;
+  // A altura lógica vem do atributo `height` do HTML; como passamos a
+  // sobrescrever esse atributo com a resolução física, ela é memorizada.
+  if (!canvas.dataset.alturaLogica) canvas.dataset.alturaLogica = String(canvas.height || 220);
+  const h = Number(canvas.dataset.alturaLogica);
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  canvas.style.height = h + 'px';
   const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
   return { ctx, w, h };
 }
@@ -2328,61 +2438,152 @@ function drawChartEmptyState(ctx, w, h, texto) {
   ctx.fillStyle = cssVar('--text-faint');
   ctx.font = CHART_FONT;
   ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
   ctx.fillText(texto, w / 2, h / 2);
 }
 
-function renderCharts() {
-  renderStatusChart();
-  renderFormaPagamentoChart();
-  renderAtrasoEvolucaoChart();
-  renderReceitaMensalChart();
-  renderDespesasMensalChart();
-  renderInadimplenciaChart();
+// Retângulo com cantos arredondados, com queda para o retângulo comum em
+// navegadores sem `roundRect`.
+// `r` pode ser um número (todos os cantos) ou uma lista no formato do roundRect
+// nativo ([sup-esq, sup-dir, inf-dir, inf-esq]) — usada nas colunas, que só
+// arredondam em cima para assentarem na linha de base.
+function pathRoundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  if (typeof ctx.roundRect === 'function') {
+    const limite = Math.min(Math.abs(w) / 2, Math.abs(h) / 2);
+    const raio = Array.isArray(r)
+      ? r.map(v => Math.max(0, Math.min(v, limite)))
+      : Math.max(0, Math.min(r, limite));
+    ctx.roundRect(x, y, w, h, raio);
+  } else {
+    ctx.rect(x, y, w, h);
+  }
 }
 
-/* ---- Donut chart genérico (legenda renderizada em HTML ao lado) ---- */
+// Escolhe um "passo" redondo (1, 2, 5, 10, 20, 50...) para as linhas de grade,
+// para o eixo não ficar com números quebrados tipo 3.271,40.
+function passoRedondo(bruto) {
+  if (!(bruto > 0)) return 1;
+  const expoente = Math.pow(10, Math.floor(Math.log10(bruto)));
+  const n = bruto / expoente;
+  const mult = n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10;
+  return mult * expoente;
+}
+
+// Valores curtos para caber no eixo: 12500 -> "12,5 mil".
+function formatCompacto(v) {
+  const abs = Math.abs(v);
+  if (abs >= 1000000) return (v / 1000000).toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' mi';
+  if (abs >= 1000) return (v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mil';
+  return v.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+}
+
+// Caixinha que aparece ao passar o mouse sobre um ponto/barra. `linhas` é uma
+// lista de { valor, cor } — mais de uma quando o gráfico tem várias séries.
+function drawChartTooltip(ctx, w, x, y, titulo, linhas) {
+  ctx.textBaseline = 'middle';
+  ctx.font = CHART_FONT_SM;
+  let larguraTexto = ctx.measureText(titulo).width;
+  ctx.font = CHART_FONT_BOLD;
+  linhas.forEach(l => {
+    larguraTexto = Math.max(larguraTexto, ctx.measureText(l.valor).width + (l.cor ? 16 : 0));
+  });
+
+  const cx = larguraTexto + 24;
+  const cy = 24 + linhas.length * 17;
+  const bx = Math.max(4, Math.min(x - cx / 2, w - cx - 4));
+  const by = Math.max(4, y - cy - 14);
+
+  ctx.fillStyle = cssVar('--surface-3');
+  ctx.strokeStyle = cssVar('--border-strong');
+  ctx.lineWidth = 1;
+  pathRoundedRect(ctx, bx, by, cx, cy, 8);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = cssVar('--text-faint');
+  ctx.font = CHART_FONT_SM;
+  ctx.fillText(titulo, bx + 12, by + 13);
+
+  linhas.forEach((l, i) => {
+    const ly = by + 30 + i * 17;
+    let tx = bx + 12;
+    if (l.cor) {
+      ctx.fillStyle = l.cor;
+      ctx.beginPath();
+      ctx.arc(bx + 16, ly, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      tx = bx + 26;
+    }
+    ctx.fillStyle = cssVar('--text');
+    ctx.font = CHART_FONT_BOLD;
+    ctx.fillText(l.valor, tx, ly);
+  });
+}
+
+function renderCharts() {
+  populateGraficoAnoFilter();
+  const ano = anoGraficoSelecionado();
+  renderStatusChart(ano);
+  renderFormaPagamentoChart(ano);
+  renderReceitaMensalChart(ano);
+  renderAtrasoEvolucaoChart(ano);
+  renderDespesasMensalChart(ano);
+  renderInadimplenciaChart(ano);
+}
+
+/* ---- Donut chart genérico (legenda renderizada em HTML ao lado) ----
+ * Desenhado como um arco grosso (stroke) em vez de fatias de pizza recortadas:
+ * permite um respiro entre as fatias e pontas arredondadas, sem depender do
+ * truque de `destination-out` para furar o meio.
+ */
 function renderDonutChart(canvasId, legendId, data, centerValue, centerLabel) {
   const canvas = document.getElementById(canvasId);
   const legendEl = document.getElementById(legendId);
   const { ctx, w, h } = setupCanvas(canvas);
 
-  const total = data.reduce((sum, d) => sum + d.value, 0);
+  const positivos = data.filter(d => d.value > 0);
+  const total = positivos.reduce((sum, d) => sum + d.value, 0);
   if (total <= 0) {
-    drawChartEmptyState(ctx, w, h, 'Sem dados ainda');
+    drawChartEmptyState(ctx, w, h, 'Sem dados neste ano');
     legendEl.innerHTML = '';
     return;
   }
 
   const cx = w / 2;
   const cy = h / 2;
-  const outerR = Math.min(w, h) / 2 - 10;
-  const innerR = outerR * 0.62;
+  const espessura = Math.max(14, Math.min(30, Math.min(w, h) * 0.13));
+  const raio = Math.min(w, h) / 2 - espessura / 2 - 6;
+  const vao = positivos.length > 1 ? 0.03 : 0; // respiro entre as fatias, em radianos
 
-  let anguloAtual = -Math.PI / 2;
-  data.filter(d => d.value > 0).forEach(d => {
+  // trilho de fundo
+  ctx.beginPath();
+  ctx.arc(cx, cy, raio, 0, Math.PI * 2);
+  ctx.strokeStyle = cssVar('--surface-3');
+  ctx.lineWidth = espessura;
+  ctx.stroke();
+
+  let angulo = -Math.PI / 2;
+  positivos.forEach(d => {
     const fatia = (d.value / total) * Math.PI * 2;
     ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, outerR, anguloAtual, anguloAtual + fatia);
-    ctx.closePath();
-    ctx.fillStyle = d.color;
-    ctx.fill();
-    anguloAtual += fatia;
+    ctx.arc(cx, cy, raio, angulo + vao / 2, angulo + fatia - vao / 2);
+    ctx.strokeStyle = d.color;
+    ctx.lineWidth = espessura;
+    ctx.lineCap = 'butt';
+    ctx.stroke();
+    angulo += fatia;
   });
 
-  ctx.globalCompositeOperation = 'destination-out';
-  ctx.beginPath();
-  ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.globalCompositeOperation = 'source-over';
-
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
   ctx.fillStyle = cssVar('--text');
   ctx.font = CHART_FONT_LG_BOLD;
-  ctx.textAlign = 'center';
-  ctx.fillText(centerValue, cx, cy - 2);
-  ctx.fillStyle = cssVar('--text-dim');
-  ctx.font = CHART_FONT;
-  ctx.fillText(centerLabel, cx, cy + 18);
+  ctx.fillText(centerValue, cx, cy - 6);
+  ctx.fillStyle = cssVar('--text-faint');
+  ctx.font = CHART_FONT_SM;
+  ctx.fillText(centerLabel, cx, cy + 16);
 
   legendEl.innerHTML = data.map(d => `
     <div class="chart-legend-item">
@@ -2392,23 +2593,24 @@ function renderDonutChart(canvasId, legendId, data, centerValue, centerLabel) {
   `).join('');
 }
 
-function renderStatusChart() {
-  const dividas = todasDividas();
+function renderStatusChart(ano) {
+  const dividas = todasDividas().filter(d => parseDate(d.vencimento).getFullYear() === ano);
   const counts = { ativo: 0, atrasado: 0, pago: 0 };
   dividas.forEach(d => counts[getStatus(d)]++);
   const total = counts.ativo + counts.atrasado + counts.pago;
 
   const data = [
-    { label: 'Ativos', value: counts.ativo, color: cssVar('--accent'), displayValue: String(counts.ativo) },
-    { label: 'Atrasados', value: counts.atrasado, color: cssVar('--danger'), displayValue: String(counts.atrasado) },
-    { label: 'Pagos', value: counts.pago, color: cssVar('--success'), displayValue: String(counts.pago) },
+    { label: 'Ativas', value: counts.ativo, color: cssVar('--accent'), displayValue: String(counts.ativo) },
+    { label: 'Atrasadas', value: counts.atrasado, color: cssVar('--danger'), displayValue: String(counts.atrasado) },
+    { label: 'Pagas', value: counts.pago, color: cssVar('--success'), displayValue: String(counts.pago) },
   ];
   renderDonutChart('chartStatus', 'legendStatus', data, String(total), total === 1 ? 'dívida' : 'dívidas');
 }
 
-function renderFormaPagamentoChart() {
+function renderFormaPagamentoChart(ano) {
   const totais = {};
   todasDividas().forEach(d => d.pagamentos.forEach(p => {
+    if (parseDate(p.data).getFullYear() !== ano) return;
     const forma = p.forma || 'Não informado';
     totais[forma] = (totais[forma] || 0) + valorLiquidoPagamento(d, d, p);
   }));
@@ -2421,96 +2623,191 @@ function renderFormaPagamentoChart() {
     displayValue: formatCurrency(totais[forma]),
   }));
   const totalGeral = data.reduce((sum, d) => sum + d.value, 0);
-  renderDonutChart('chartFormaPagamento', 'legendFormaPagamento', data, formatCurrency(totalGeral).replace('R$', '').trim(), 'recebido');
+  renderDonutChart('chartFormaPagamento', 'legendFormaPagamento', data, formatCompacto(totalGeral), 'recebido no ano');
 }
 
-/* ---- Trend chart genérico (linha + área, com gridlines) ---- */
-function renderTrendChart(canvasId, months, values, colorVarName) {
+/* ---- Gráfico de linhas genérico (uma ou mais séries) ----
+ * `series` é uma lista de { label, values, colorVar }. Desenha grade e eixo Y
+ * com valores redondos, área com degradê sob cada linha e, ao passar o mouse,
+ * uma guia vertical com os valores daquele mês. Os rótulos dos meses das pontas
+ * são alinhados para dentro, para nunca ficarem cortados na borda do canvas.
+ */
+function renderLineChart(canvasId, months, series, legendId) {
   const canvas = document.getElementById(canvasId);
-  const { ctx, w, h } = setupCanvas(canvas);
-  const color = cssVar(colorVarName);
-  const gridColor = cssVar('--border');
-  const textColor = cssVar('--text-dim');
+  if (!canvas) return;
 
-  const paddingLeft = 8;
-  const paddingRight = 8;
-  const paddingTop = 24;
-  const paddingBottom = 34;
-  const chartW = w - paddingLeft - paddingRight;
-  const chartH = h - paddingTop - paddingBottom;
-  const max = Math.max(1, ...values);
+  function desenhar(hoverIdx) {
+    const { ctx, w, h } = setupCanvas(canvas);
+    const cores = series.map(s => cssVar(s.colorVar));
+    const eixoColor = cssVar('--text-faint');
+    const gridColor = cssVar('--border-subtle');
 
-  ctx.strokeStyle = gridColor;
-  ctx.lineWidth = 1;
-  const gridLines = 4;
-  for (let i = 0; i <= gridLines; i++) {
-    const y = paddingTop + (chartH / gridLines) * i;
-    ctx.beginPath();
-    ctx.moveTo(paddingLeft, y);
-    ctx.lineTo(w - paddingRight, y);
-    ctx.stroke();
-  }
+    const maxValor = series.reduce((m, s) => Math.max(m, ...s.values), 0);
+    const linhas = 4;
+    const passo = passoRedondo(maxValor / linhas);
+    const topo = passo * linhas;
 
-  const stepX = values.length > 1 ? chartW / (values.length - 1) : 0;
-  const points = values.map((v, i) => ({
-    x: paddingLeft + stepX * i,
-    y: paddingTop + chartH - (v / max) * chartH,
-    v,
-  }));
-
-  if (points.length) {
-    ctx.beginPath();
-    ctx.moveTo(points[0].x, paddingTop + chartH);
-    points.forEach(p => ctx.lineTo(p.x, p.y));
-    ctx.lineTo(points[points.length - 1].x, paddingTop + chartH);
-    ctx.closePath();
-    ctx.fillStyle = color + '26';
-    ctx.fill();
-  }
-
-  ctx.beginPath();
-  points.forEach((p, i) => { i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); });
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2.5;
-  ctx.lineJoin = 'round';
-  ctx.stroke();
-
-  points.forEach((p, i) => {
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-
-    ctx.font = CHART_FONT;
-    ctx.textAlign = 'center';
-    if (p.v > 0) {
-      ctx.fillStyle = textColor;
-      ctx.fillText(formatCurrency(p.v).replace('R$', '').trim(), p.x, Math.max(p.y - 10, 12));
+    ctx.font = CHART_FONT_SM;
+    ctx.textBaseline = 'middle';
+    let padLeft = 0;
+    for (let i = 0; i <= linhas; i++) {
+      padLeft = Math.max(padLeft, ctx.measureText(formatCompacto(topo - passo * i)).width);
     }
-    ctx.fillStyle = textColor;
-    ctx.fillText(months[i].label, p.x, h - 10);
-  });
+    padLeft += 16;
+    const padRight = 12;
+    const padTop = 16;
+    const padBottom = 26;
+    const chartW = Math.max(10, w - padLeft - padRight);
+    const chartH = Math.max(10, h - padTop - padBottom);
+
+    for (let i = 0; i <= linhas; i++) {
+      const y = Math.round(padTop + (chartH / linhas) * i) + 0.5;
+      ctx.strokeStyle = gridColor;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padLeft, y);
+      ctx.lineTo(w - padRight, y);
+      ctx.stroke();
+      ctx.fillStyle = eixoColor;
+      ctx.textAlign = 'right';
+      ctx.fillText(formatCompacto(topo - passo * i), padLeft - 8, y);
+    }
+
+    const stepX = months.length > 1 ? chartW / (months.length - 1) : 0;
+    const pontos = series.map(s => s.values.map((v, i) => ({
+      x: padLeft + stepX * i,
+      y: padTop + chartH - (topo > 0 ? (v / topo) * chartH : 0),
+      v,
+    })));
+
+    if (hoverIdx != null && pontos[0] && pontos[0][hoverIdx]) {
+      const x = pontos[0][hoverIdx].x;
+      ctx.strokeStyle = cssVar('--border-strong');
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(x, padTop);
+      ctx.lineTo(x, padTop + chartH);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    series.forEach((s, si) => {
+      const pts = pontos[si];
+      const cor = cores[si];
+      if (!pts.length) return;
+
+      const degrade = ctx.createLinearGradient(0, padTop, 0, padTop + chartH);
+      degrade.addColorStop(0, cor + '3d');
+      degrade.addColorStop(1, cor + '00');
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, padTop + chartH);
+      pts.forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.lineTo(pts[pts.length - 1].x, padTop + chartH);
+      ctx.closePath();
+      ctx.fillStyle = degrade;
+      ctx.fill();
+
+      ctx.beginPath();
+      pts.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+      ctx.strokeStyle = cor;
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.stroke();
+
+      pts.forEach((p, i) => {
+        const destaque = i === hoverIdx;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, destaque ? 4.5 : 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = destaque ? cor : cssVar('--bg-card');
+        ctx.strokeStyle = cor;
+        ctx.lineWidth = 2;
+        ctx.fill();
+        ctx.stroke();
+      });
+    });
+
+    ctx.font = CHART_FONT_SM;
+    ctx.fillStyle = eixoColor;
+    const cabemTodos = stepX >= 24;
+    months.forEach((m, i) => {
+      if (!cabemTodos && i % 2 !== 0 && i !== months.length - 1) return;
+      const x = padLeft + stepX * i;
+      ctx.textAlign = i === 0 ? 'left' : i === months.length - 1 ? 'right' : 'center';
+      ctx.fillText(m.label, x, h - 12);
+    });
+
+    if (hoverIdx != null && pontos[0] && pontos[0][hoverIdx]) {
+      const alvoY = Math.min(...pontos.map(p => p[hoverIdx].y));
+      drawChartTooltip(
+        ctx, w, pontos[0][hoverIdx].x, alvoY,
+        months[hoverIdx].label,
+        series.map((s, si) => ({ valor: formatCurrency(s.values[hoverIdx]), cor: series.length > 1 ? cores[si] : null }))
+      );
+    }
+
+    canvas.__geo = { padLeft, stepX, n: months.length };
+  }
+
+  // `onmousemove` (propriedade, não addEventListener) para não empilhar
+  // handlers a cada re-render do gráfico.
+  canvas.onmousemove = (e) => {
+    const geo = canvas.__geo;
+    if (!geo || geo.n < 2) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    let idx = Math.round((x - geo.padLeft) / geo.stepX);
+    idx = Math.max(0, Math.min(idx, geo.n - 1));
+    if (canvas.__hover !== idx) {
+      canvas.__hover = idx;
+      desenhar(idx);
+    }
+  };
+  canvas.onmouseleave = () => {
+    if (canvas.__hover == null) return;
+    canvas.__hover = null;
+    desenhar(null);
+  };
+
+  canvas.__hover = null;
+  desenhar(null);
+
+  if (legendId) {
+    const legendEl = document.getElementById(legendId);
+    if (legendEl) {
+      legendEl.innerHTML = series.map((s, i) => `
+        <div class="chart-legend-item">
+          <span class="chart-legend-dot" style="background:${cssVar(s.colorVar)}"></span>
+          <span>${escapeHtml(s.label)}: <strong>${formatCurrency(s.values.reduce((a, b) => a + b, 0))}</strong></span>
+        </div>
+      `).join('');
+    }
+  }
 }
 
-function renderAtrasoEvolucaoChart() {
-  const months = ultimosMeses(6);
+// Atalho para os gráficos de uma série só.
+function renderTrendChart(canvasId, months, values, colorVarName, label) {
+  renderLineChart(canvasId, months, [{ label: label || '', values, colorVar: colorVarName }]);
+}
+
+// Total em atraso mês a mês (aluguel + juros/multa acumulados), pelo vencimento.
+function atrasoPorMes(months) {
   const dividas = todasDividas();
-  const values = months.map(m => dividas.reduce((sum, d) => {
+  return months.map(m => dividas.reduce((sum, d) => {
     const venc = parseDate(d.vencimento);
     if (venc.getFullYear() === m.year && venc.getMonth() === m.month && getStatus(d) === 'atrasado') {
       return sum + d.total + calcAtrasoAtual(d);
     }
     return sum;
   }, 0));
-  renderTrendChart('chartAtrasoEvolucao', months, values, '--danger');
 }
 
 // Valores líquidos (já descontando corretor e condomínio), mesma convenção usada em
 // Relatórios — o que efetivamente fica com o proprietário, não o valor bruto cobrado.
-function renderReceitaMensalChart() {
-  const months = ultimosMeses(6);
+function receitaLiquidaPorMes(months) {
   const dividas = todasDividas();
-  const values = months.map(m => dividas.reduce((sum, d) => {
+  return months.map(m => dividas.reduce((sum, d) => {
     const pagoNoMes = d.pagamentos
       .filter(p => {
         const dt = parseDate(p.data);
@@ -2519,16 +2816,33 @@ function renderReceitaMensalChart() {
       .reduce((s, p) => s + valorLiquidoPagamento(d, d, p), 0);
     return sum + pagoNoMes;
   }, 0));
-  renderTrendChart('chartReceitaMensal', months, values, '--success');
 }
 
-function renderDespesasMensalChart() {
-  const months = ultimosMeses(6);
-  const values = months.map(m => state.despesas.reduce((sum, d) => {
+function despesasPorMes(months) {
+  return months.map(m => state.despesas.reduce((sum, d) => {
     const dt = parseDate(d.data);
     return (dt.getFullYear() === m.year && dt.getMonth() === m.month) ? sum + d.valor : sum;
   }, 0));
-  renderTrendChart('chartDespesasMensal', months, values, '--warn');
+}
+
+function renderAtrasoEvolucaoChart(ano) {
+  const months = mesesDoAno(ano);
+  renderTrendChart('chartAtrasoEvolucao', months, atrasoPorMes(months), '--danger');
+}
+
+// Receita e despesa no mesmo gráfico: é a comparação que interessa de fato
+// (quanto entrou x quanto saiu em cada mês do ano).
+function renderReceitaMensalChart(ano) {
+  const months = mesesDoAno(ano);
+  renderLineChart('chartReceitaMensal', months, [
+    { label: 'Recebido (líquido)', values: receitaLiquidaPorMes(months), colorVar: '--success' },
+    { label: 'Despesas', values: despesasPorMes(months), colorVar: '--warn' },
+  ], 'legendReceitaMensal');
+}
+
+function renderDespesasMensalChart(ano) {
+  const months = mesesDoAno(ano);
+  renderTrendChart('chartDespesasMensal', months, despesasPorMes(months), '--warn');
 }
 
 /* ---- Barras horizontais genérico (ranking, ex: quem mais atrasa) ---- */
@@ -2536,46 +2850,55 @@ function renderHorizontalBarChart(canvasId, entries, colorVarName) {
   const canvas = document.getElementById(canvasId);
   const { ctx, w, h } = setupCanvas(canvas);
   const color = cssVar(colorVarName);
-  const textColor = cssVar('--text-dim');
-  const valueColor = cssVar('--text');
 
   if (!entries.length) {
-    drawChartEmptyState(ctx, w, h, 'Nenhuma dívida em atraso');
+    drawChartEmptyState(ctx, w, h, 'Nenhuma dívida em atraso neste ano');
     return;
   }
 
   const max = Math.max(...entries.map(en => en.value));
-  const paddingTop = 8;
-  const barGap = 10;
-  const labelWidth = 110;
-  const barHeight = Math.max(10, Math.min(26, (h - paddingTop) / entries.length - barGap));
+  const padTop = 6;
+  const vao = 12;
+  const larguraRotulo = Math.min(180, Math.max(96, w * 0.26));
+  const larguraValor = 84;
+  const alturaBarra = Math.max(12, Math.min(26, (h - padTop * 2) / entries.length - vao));
 
-  ctx.font = CHART_FONT;
   ctx.textBaseline = 'middle';
-  ctx.textAlign = 'left';
 
   entries.forEach((entry, i) => {
-    const y = paddingTop + i * (barHeight + barGap);
-    ctx.fillStyle = textColor;
-    ctx.fillText(truncateText(ctx, entry.label, labelWidth - 8), 0, y + barHeight / 2);
+    const y = padTop + i * (alturaBarra + vao);
+    const meio = y + alturaBarra / 2;
 
-    const barX = labelWidth;
-    const barMaxWidth = w - barX - 70;
-    const barWidth = max > 0 ? (entry.value / max) * barMaxWidth : 0;
+    ctx.font = CHART_FONT;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = cssVar('--text-dim');
+    ctx.fillText(truncateText(ctx, entry.label, larguraRotulo - 10), 0, meio);
+
+    const barX = larguraRotulo;
+    const larguraMax = Math.max(10, w - barX - larguraValor);
+    const largura = max > 0 ? (entry.value / max) * larguraMax : 0;
+
+    // trilho, para dar noção da escala mesmo nas barras curtas
+    ctx.fillStyle = cssVar('--surface-3');
+    pathRoundedRect(ctx, barX, y, larguraMax, alturaBarra, alturaBarra / 2);
+    ctx.fill();
 
     ctx.fillStyle = color;
-    ctx.fillRect(barX, y, Math.max(barWidth, 2), barHeight);
+    pathRoundedRect(ctx, barX, y, Math.max(largura, alturaBarra), alturaBarra, alturaBarra / 2);
+    ctx.fill();
 
-    ctx.fillStyle = valueColor;
     ctx.font = CHART_FONT_BOLD;
-    ctx.fillText(formatCurrency(entry.value).replace('R$', '').trim(), barX + barWidth + 8, y + barHeight / 2);
-    ctx.font = CHART_FONT;
+    ctx.textAlign = 'right';
+    ctx.fillStyle = cssVar('--text');
+    ctx.fillText(formatCompacto(entry.value), w, meio);
   });
 }
 
-function renderInadimplenciaChart() {
+function renderInadimplenciaChart(ano) {
   const agrupador = document.getElementById('inadimplenciaAgrupador').value;
-  const atrasadas = todasDividas().filter(d => getStatus(d) === 'atrasado');
+  const anoAlvo = ano != null ? ano : anoGraficoSelecionado();
+  const atrasadas = todasDividas().filter(d =>
+    getStatus(d) === 'atrasado' && parseDate(d.vencimento).getFullYear() === anoAlvo);
   const totais = {};
   atrasadas.forEach(d => {
     const chave = agrupador === 'imovel' ? d.imovel : d.inquilino;
@@ -2588,11 +2911,108 @@ function renderInadimplenciaChart() {
   renderHorizontalBarChart('chartInadimplencia', entries, '--danger');
 }
 
-document.getElementById('inadimplenciaAgrupador').addEventListener('change', renderInadimplenciaChart);
+/* ---- Barras verticais genérico (ex: despesas mês a mês) ---- */
+function renderColumnChart(canvasId, labels, values, colorVarName, vazioTexto) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  function desenhar(hoverIdx) {
+    const { ctx, w, h } = setupCanvas(canvas);
+    const cor = cssVar(colorVarName);
+    const eixoColor = cssVar('--text-faint');
+
+    if (!values.some(v => v > 0)) {
+      drawChartEmptyState(ctx, w, h, vazioTexto || 'Sem dados neste período');
+      canvas.__geo = null;
+      return;
+    }
+
+    const linhas = 4;
+    const passo = passoRedondo(Math.max(...values) / linhas);
+    const topo = passo * linhas;
+
+    ctx.font = CHART_FONT_SM;
+    ctx.textBaseline = 'middle';
+    let padLeft = 0;
+    for (let i = 0; i <= linhas; i++) {
+      padLeft = Math.max(padLeft, ctx.measureText(formatCompacto(topo - passo * i)).width);
+    }
+    padLeft += 16;
+    const padRight = 12;
+    const padTop = 16;
+    const padBottom = 26;
+    const chartW = Math.max(10, w - padLeft - padRight);
+    const chartH = Math.max(10, h - padTop - padBottom);
+
+    for (let i = 0; i <= linhas; i++) {
+      const y = Math.round(padTop + (chartH / linhas) * i) + 0.5;
+      ctx.strokeStyle = cssVar('--border-subtle');
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padLeft, y);
+      ctx.lineTo(w - padRight, y);
+      ctx.stroke();
+      ctx.fillStyle = eixoColor;
+      ctx.textAlign = 'right';
+      ctx.fillText(formatCompacto(topo - passo * i), padLeft - 8, y);
+    }
+
+    const faixa = chartW / values.length;
+    const larguraBarra = Math.max(6, Math.min(34, faixa * 0.6));
+
+    values.forEach((v, i) => {
+      const cxBarra = padLeft + faixa * i + faixa / 2;
+      const altura = topo > 0 ? (v / topo) * chartH : 0;
+      const y = padTop + chartH - altura;
+      ctx.fillStyle = i === hoverIdx ? cor : cor + 'cc';
+      pathRoundedRect(ctx, cxBarra - larguraBarra / 2, y, larguraBarra, Math.max(altura, v > 0 ? 3 : 0), [6, 6, 0, 0]);
+      ctx.fill();
+
+      ctx.font = CHART_FONT_SM;
+      ctx.fillStyle = eixoColor;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      if (faixa >= 24 || i % 2 === 0) ctx.fillText(labels[i], cxBarra, h - 10);
+      ctx.textBaseline = 'middle';
+    });
+
+    if (hoverIdx != null && values[hoverIdx] != null) {
+      const cxBarra = padLeft + faixa * hoverIdx + faixa / 2;
+      const altura = topo > 0 ? (values[hoverIdx] / topo) * chartH : 0;
+      drawChartTooltip(ctx, w, cxBarra, padTop + chartH - altura, labels[hoverIdx],
+        [{ valor: formatCurrency(values[hoverIdx]) }]);
+    }
+
+    canvas.__geo = { padLeft, faixa, n: values.length };
+  }
+
+  canvas.onmousemove = (e) => {
+    const geo = canvas.__geo;
+    if (!geo) return;
+    const rect = canvas.getBoundingClientRect();
+    const idx = Math.floor((e.clientX - rect.left - geo.padLeft) / geo.faixa);
+    const valido = idx >= 0 && idx < geo.n ? idx : null;
+    if (canvas.__hover !== valido) {
+      canvas.__hover = valido;
+      desenhar(valido);
+    }
+  };
+  canvas.onmouseleave = () => {
+    if (canvas.__hover == null) return;
+    canvas.__hover = null;
+    desenhar(null);
+  };
+
+  canvas.__hover = null;
+  desenhar(null);
+}
+
+document.getElementById('inadimplenciaAgrupador').addEventListener('change', () => renderInadimplenciaChart());
+document.getElementById('graficoAno').addEventListener('change', renderCharts);
 
 window.addEventListener('resize', () => {
-  const graficosTab = document.getElementById('tab-graficos');
-  if (graficosTab.classList.contains('active')) renderCharts();
+  if (document.getElementById('tab-graficos').classList.contains('active')) renderCharts();
+  if (document.getElementById('tab-despesas').classList.contains('active')) renderDespesasAnoChart();
 });
 
 /* ===================== RELATÓRIOS MENSAIS/ANUAIS ===================== */
@@ -2608,9 +3028,9 @@ function populateRelatorioAnoFilter() {
   select.value = sorted.map(String).includes(current) ? current : String(new Date().getFullYear());
 }
 
-function renderRelatorios() {
-  populateRelatorioAnoFilter();
-  const ano = Number(document.getElementById('relatorioAno').value);
+// Todo o cálculo do relatório de um ano num lugar só — a tela e a exportação
+// em CSV consomem exatamente o mesmo resultado, então nunca divergem.
+function calcularRelatorioAnual(ano) {
   const dividas = todasDividas();
 
   let totalPagoAno = 0;
@@ -2650,28 +3070,12 @@ function renderRelatorios() {
     return { nomeMes, totalPago, totalAtraso, totalDespesas, count: dividasPeriodo.length };
   });
 
-  document.getElementById('relatorioTotalPagoAno').textContent = formatCurrency(totalPagoAno);
-  document.getElementById('relatorioTotalAtrasoAno').textContent = formatCurrency(totalAtrasoAno);
-  document.getElementById('relatorioTotalDespesasAno').textContent = formatCurrency(totalDespesasAno);
-  document.getElementById('relatorioLucroLiquidoAno').textContent = formatCurrency(totalPagoAno - totalDespesasAno);
-
-  document.getElementById('relatorioTabelaBody').innerHTML = linhas.map(l => `
-    <tr>
-      <td>${l.nomeMes}</td>
-      <td>${formatCurrency(l.totalPago)}</td>
-      <td>${formatCurrency(l.totalDespesas)}</td>
-      <td class="${l.totalAtraso > 0 ? 'text-danger' : ''}">${formatCurrency(l.totalAtraso)}</td>
-      <td>${l.count}</td>
-    </tr>
-  `).join('');
-
   const pagamentosDoAno = [];
   dividas.forEach(d => d.pagamentos.forEach(p => {
     if (parseDate(p.data).getFullYear() === ano) pagamentosDoAno.push({ ...p, valorLiquido: valorLiquidoPagamento(d, d, p) });
   }));
 
   const totalDescontoAno = pagamentosDoAno.reduce((sum, p) => sum + (p.desconto || 0), 0);
-  document.getElementById('relatorioTotalDescontoAno').textContent = formatCurrency(totalDescontoAno);
 
   const porForma = {};
   pagamentosDoAno.forEach(p => {
@@ -2681,16 +3085,40 @@ function renderRelatorios() {
     porForma[forma].total += p.valorLiquido;
   });
 
+  return { ano, linhas, totalPagoAno, totalAtrasoAno, totalDespesasAno, totalDescontoAno, porForma };
+}
+
+function renderRelatorios() {
+  populateRelatorioAnoFilter();
+  const ano = Number(document.getElementById('relatorioAno').value);
+  const r = calcularRelatorioAnual(ano);
+
+  document.getElementById('relatorioTotalPagoAno').textContent = formatCurrency(r.totalPagoAno);
+  document.getElementById('relatorioTotalAtrasoAno').textContent = formatCurrency(r.totalAtrasoAno);
+  document.getElementById('relatorioTotalDespesasAno').textContent = formatCurrency(r.totalDespesasAno);
+  document.getElementById('relatorioLucroLiquidoAno').textContent = formatCurrency(r.totalPagoAno - r.totalDespesasAno);
+  document.getElementById('relatorioTotalDescontoAno').textContent = formatCurrency(r.totalDescontoAno);
+
+  document.getElementById('relatorioTabelaBody').innerHTML = r.linhas.map(l => `
+    <tr>
+      <td>${l.nomeMes}</td>
+      <td>${formatCurrency(l.totalPago)}</td>
+      <td>${formatCurrency(l.totalDespesas)}</td>
+      <td class="${l.totalAtraso > 0 ? 'text-danger' : ''}">${formatCurrency(l.totalAtraso)}</td>
+      <td>${l.count}</td>
+    </tr>
+  `).join('');
+
   const formaBody = document.getElementById('relatorioFormaPagamentoBody');
-  const formas = Object.keys(porForma);
+  const formas = Object.keys(r.porForma);
   if (!formas.length) {
     formaBody.innerHTML = '<tr><td colspan="3">Nenhum pagamento registrado neste ano.</td></tr>';
   } else {
     formaBody.innerHTML = formas.map(forma => `
       <tr>
         <td>${escapeHtml(forma)}</td>
-        <td>${porForma[forma].count}</td>
-        <td>${formatCurrency(porForma[forma].total)}</td>
+        <td>${r.porForma[forma].count}</td>
+        <td>${formatCurrency(r.porForma[forma].total)}</td>
       </tr>
     `).join('');
   }
@@ -2698,14 +3126,14 @@ function renderRelatorios() {
   renderComparativoAnual(ano);
 }
 
-function renderComparativoAnual(anoSelecionado) {
+function calcularComparativoAnual() {
   const dividas = todasDividas();
   const anos = new Set(dividas.map(d => parseDate(d.vencimento).getFullYear()));
   dividas.forEach(d => d.pagamentos.forEach(p => anos.add(parseDate(p.data).getFullYear())));
   anos.add(new Date().getFullYear());
   const sorted = Array.from(anos).sort((a, b) => b - a);
 
-  const linhas = sorted.map(ano => {
+  return sorted.map(ano => {
     const totalPago = dividas.reduce((sum, d) => {
       const pagoNoAno = d.pagamentos
         .filter(p => parseDate(p.data).getFullYear() === ano)
@@ -2724,8 +3152,10 @@ function renderComparativoAnual(anoSelecionado) {
 
     return { ano, totalPago, totalAtraso, totalDespesas, count: dividasAno.length };
   });
+}
 
-  document.getElementById('comparativoAnualBody').innerHTML = linhas.map(l => `
+function renderComparativoAnual(anoSelecionado) {
+  document.getElementById('comparativoAnualBody').innerHTML = calcularComparativoAnual().map(l => `
     <tr class="${l.ano === anoSelecionado ? 'is-current' : ''}">
       <td>${l.ano}</td>
       <td>${formatCurrency(l.totalPago)}</td>
@@ -2735,6 +3165,46 @@ function renderComparativoAnual(anoSelecionado) {
     </tr>
   `).join('');
 }
+
+/* ---- Exportação do relatório do ano (CSV com todas as seções da tela) ---- */
+document.getElementById('btnExportRelatorio').addEventListener('click', () => {
+  const ano = Number(document.getElementById('relatorioAno').value);
+  const r = calcularRelatorioAnual(ano);
+  const v = (n) => (Number(n) || 0).toFixed(2);
+
+  const rows = [
+    [`Relatório anual — ${ano}`],
+    [`Gerado em`, formatDate(todayStr())],
+    ['Observação', 'Valores recebidos são líquidos: já descontam a comissão do corretor (quando houver) e o condomínio.'],
+    [],
+    ['RESUMO DO ANO'],
+    ['Recebido no ano (líquido)', v(r.totalPagoAno)],
+    ['Total em atraso no ano (aluguel + juros/multa)', v(r.totalAtrasoAno)],
+    ['Descontos concedidos no ano', v(r.totalDescontoAno)],
+    ['Despesas no ano', v(r.totalDespesasAno)],
+    ['Lucro líquido no ano (pago − despesas)', v(r.totalPagoAno - r.totalDespesasAno)],
+    [],
+    ['PAGAMENTOS POR FORMA'],
+    ['Forma', 'Quantidade', 'Total recebido (líquido)'],
+  ];
+
+  const formas = Object.keys(r.porForma);
+  if (!formas.length) rows.push(['Nenhum pagamento registrado neste ano', '', '']);
+  else formas.forEach(f => rows.push([f, r.porForma[f].count, v(r.porForma[f].total)]));
+
+  rows.push([]);
+  rows.push(['MÊS A MÊS']);
+  rows.push(['Mês', 'Recebido (líquido)', 'Despesas', 'Total em atraso', 'Contratos no período']);
+  r.linhas.forEach(l => rows.push([l.nomeMes, v(l.totalPago), v(l.totalDespesas), v(l.totalAtraso), l.count]));
+
+  rows.push([]);
+  rows.push(['COMPARATIVO ANUAL']);
+  rows.push(['Ano', 'Recebido (líquido)', 'Despesas', 'Total em atraso', 'Contratos no ano']);
+  calcularComparativoAnual().forEach(l => rows.push([l.ano, v(l.totalPago), v(l.totalDespesas), v(l.totalAtraso), l.count]));
+
+  downloadCsvRows(`relatorio_${ano}_${todayStr()}.csv`, rows);
+  showToast(`Relatório de ${ano} exportado com sucesso.`, 'success');
+});
 
 /* ===================== RENDER: AUDITORIA ===================== */
 function populateAuditoriaFiltros() {
@@ -2821,6 +3291,9 @@ function renderCalendario() {
   const hojeStr = todayStr();
   const dividas = todasDividas();
 
+  // A grade sempre fecha semanas completas: começa com os últimos dias do mês
+  // anterior e termina com os primeiros dias do mês seguinte, numerados de
+  // verdade (1, 2, 3...) e não pelo índice da célula.
   const celulas = [];
   for (let i = 0; i < primeiroDiaSemana; i++) {
     celulas.push({ dia: diasNoMesAnterior - primeiroDiaSemana + 1 + i, outside: true });
@@ -2828,8 +3301,9 @@ function renderCalendario() {
   for (let d = 1; d <= diasNoMes; d++) {
     celulas.push({ dia: d, outside: false });
   }
+  let diaProximoMes = 1;
   while (celulas.length % 7 !== 0) {
-    celulas.push({ dia: celulas.length, outside: true });
+    celulas.push({ dia: diaProximoMes++, outside: true });
   }
 
   const grid = document.getElementById('calendarioGrid');
@@ -2949,8 +3423,11 @@ document.getElementById('btnCalendarioHoje').addEventListener('click', () => {
 });
 
 /* ===================== EXPORT CSV ===================== */
-function downloadCsv(filename, headers, rows) {
-  const csvContent = [headers, ...rows]
+// Recebe as linhas já prontas (inclusive linhas em branco, usadas para separar
+// seções num relatório) e gera o arquivo. O BOM no início é o que faz o Excel
+// abrir os acentos corretamente.
+function downloadCsvRows(filename, rows) {
+  const csvContent = rows
     .map(row => row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(';'))
     .join('\r\n');
 
@@ -2961,6 +3438,15 @@ function downloadCsv(filename, headers, rows) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function downloadCsv(filename, headers, rows) {
+  downloadCsvRows(filename, [headers, ...rows]);
+}
+
+// Nome de arquivo seguro a partir de um texto livre.
+function nomeArquivoSeguro(texto) {
+  return String(texto || '').replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '').toLowerCase() || 'export';
 }
 
 document.getElementById('btnExportCSV').addEventListener('click', () => {
@@ -3009,7 +3495,7 @@ document.getElementById('btnExportHistoricoContrato').addEventListener('click', 
     p.observacao || '',
   ]);
 
-  const nomeArquivo = `pagamentos_${c.imovel.replace(/[^a-z0-9]+/gi, '_')}_${todayStr()}.csv`;
+  const nomeArquivo = `pagamentos_${nomeArquivoSeguro(c.imovel)}_${todayStr()}.csv`;
   downloadCsv(nomeArquivo, headers, rows);
   showToast('CSV do contrato exportado com sucesso.', 'success');
 });

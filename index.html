@@ -4,7 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0a0c11">
+<meta name="author" content="Lamartine Barbosa">
+<meta name="description" content="Sistema de gestão de contratos de aluguel: contratos, vencimentos, pagamentos, despesas e relatórios.">
 <title>Gestão de Aluguéis</title>
+<!--
+  Gestão de Aluguéis
+  Software desenvolvido por Lamartine Barbosa — https://github.com/Lamartine-Brasil
+-->
+
 <link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/components.css">
 <link rel="stylesheet" href="css/layout.css">
@@ -54,6 +61,7 @@
     <symbol id="icon-percent" viewBox="0 0 24 24"><path d="m6 18 12-12"/><circle cx="7.5" cy="7.5" r="2.2"/><circle cx="16.5" cy="16.5" r="2.2"/></symbol>
     <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
     <symbol id="icon-inbox" viewBox="0 0 24 24"><path d="M4 13h4l1.5 3h5L16 13h4"/><path d="M5.5 5h13l1.5 8v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-5l1.5-8Z"/></symbol>
+    <symbol id="icon-code" viewBox="0 0 24 24"><path d="m8.5 8.5-4 3.5 4 3.5M15.5 8.5l4 3.5-4 3.5M13.5 5.5l-3 13"/></symbol>
   </defs>
 </svg>
 
@@ -95,6 +103,10 @@
         <button type="submit" class="btn btn-primary btn-block">Entrar</button>
       </form>
       <p class="login-foot">Sessão protegida por cookie assinado. Após 5 tentativas o acesso é bloqueado temporariamente.</p>
+      <p class="login-credit">
+        Software desenvolvido por
+        <a href="https://github.com/Lamartine-Brasil" target="_blank" rel="noopener noreferrer">Lamartine Barbosa</a>
+      </p>
     </div>
   </div>
 
@@ -145,8 +157,11 @@
     </nav>
 
     <div class="sidebar-foot">
-      <svg class="icon"><use href="#icon-shield-check"></use></svg>
-      <span class="sidebar-foot-text">Dados no seu servidor</span>
+      <a class="sidebar-credit" href="https://github.com/Lamartine-Brasil" target="_blank" rel="noopener noreferrer"
+         title="Software desenvolvido por Lamartine Barbosa — abrir GitHub em nova aba">
+        <svg class="icon"><use href="#icon-code"></use></svg>
+        <span class="sidebar-foot-text">Desenvolvido por <strong>Lamartine Barbosa</strong></span>
+      </a>
     </div>
   </aside>
 
@@ -418,12 +433,18 @@
         <div class="toolbar">
           <div class="search-wrap">
             <svg class="icon search-wrap-icon"><use href="#icon-search"></use></svg>
-            <input type="search" id="uiHistoricoSearch" class="input" placeholder="Buscar no histórico..." aria-label="Buscar no histórico">
+            <input type="search" id="historicoSearch" class="input" placeholder="Buscar por imóvel, inquilino, forma..." aria-label="Buscar no histórico">
           </div>
           <select id="historicoFiltroContrato" class="input select" aria-label="Filtrar por contrato">
             <option value="">Todos os contratos</option>
           </select>
-          <span class="list-count" id="uiHistoricoCount"></span>
+          <select id="historicoFiltroAno" class="input select" aria-label="Filtrar histórico por ano">
+            <option value="">Todos os anos</option>
+          </select>
+          <span class="list-count" id="historicoCount"></span>
+          <button type="button" class="btn btn-ghost btn-sm" id="btnExportHistorico">
+            <svg class="icon"><use href="#icon-download"></use></svg> Exportar CSV
+          </button>
         </div>
 
         <div id="historicoList" class="cards-list"></div>
@@ -455,26 +476,35 @@
           </div>
         </div>
 
+        <div class="toolbar">
+          <select id="despesaFiltroAno" class="input select" aria-label="Filtrar despesas por ano"></select>
+          <select id="despesaFiltroMes" class="input select" aria-label="Filtrar despesas por mês">
+            <option value="">Todos os meses</option>
+            <option value="0">Janeiro</option>
+            <option value="1">Fevereiro</option>
+            <option value="2">Março</option>
+            <option value="3">Abril</option>
+            <option value="4">Maio</option>
+            <option value="5">Junho</option>
+            <option value="6">Julho</option>
+            <option value="7">Agosto</option>
+            <option value="8">Setembro</option>
+            <option value="9">Outubro</option>
+            <option value="10">Novembro</option>
+            <option value="11">Dezembro</option>
+          </select>
+          <span class="toolbar-sep"></span>
+          <span class="list-count">O ano escolhido vale para o gráfico e para a lista; o mês filtra só a lista.</span>
+        </div>
+
+        <div class="card chart-card">
+          <!-- Um único filho: o `gap` do flex no h3 separaria o texto do ano. -->
+          <h3><span>Despesas por mês em <span id="despesasChartAno"></span></span></h3>
+          <canvas id="chartDespesasAno" height="240"></canvas>
+        </div>
+
         <div class="split-layout">
           <div>
-            <div class="toolbar">
-              <select id="despesaFiltroAno" class="input select" aria-label="Filtrar despesas por ano"></select>
-              <select id="despesaFiltroMes" class="input select" aria-label="Filtrar despesas por mês">
-                <option value="">Todos os meses</option>
-                <option value="0">Janeiro</option>
-                <option value="1">Fevereiro</option>
-                <option value="2">Março</option>
-                <option value="3">Abril</option>
-                <option value="4">Maio</option>
-                <option value="5">Junho</option>
-                <option value="6">Julho</option>
-                <option value="7">Agosto</option>
-                <option value="8">Setembro</option>
-                <option value="9">Outubro</option>
-                <option value="10">Novembro</option>
-                <option value="11">Dezembro</option>
-              </select>
-            </div>
             <div id="despesasList" class="cards-list"></div>
           </div>
 
@@ -515,34 +545,38 @@
         <div class="panel-header">
           <div class="panel-title-group">
             <h2>Gráficos</h2>
-            <span class="panel-desc">Valores recebidos são líquidos: já descontam a comissão do corretor (quando houver) e o condomínio, mesma convenção usada em Relatórios.</span>
+            <span class="panel-desc">Todos os gráficos abaixo mostram o ano selecionado. Valores recebidos são líquidos: já descontam a comissão do corretor (quando houver) e o condomínio, mesma convenção usada em Relatórios.</span>
+          </div>
+          <div class="panel-actions">
+            <select id="graficoAno" class="input select" aria-label="Ano dos gráficos"></select>
           </div>
         </div>
 
         <div class="charts-grid">
           <div class="card chart-card">
-            <h3>Contratos por status</h3>
-            <canvas id="chartStatus" height="220"></canvas>
+            <h3>Dívidas por status</h3>
+            <canvas id="chartStatus" height="230"></canvas>
             <div class="chart-legend" id="legendStatus"></div>
           </div>
           <div class="card chart-card">
             <h3>Pagamentos por forma (líquido)</h3>
-            <canvas id="chartFormaPagamento" height="220"></canvas>
+            <canvas id="chartFormaPagamento" height="230"></canvas>
             <div class="chart-legend" id="legendFormaPagamento"></div>
           </div>
-          <div class="card chart-card">
-            <h3>Evolução do total em atraso (últimos 6 meses)</h3>
-            <canvas id="chartAtrasoEvolucao" height="220"></canvas>
+          <div class="card chart-card chart-card-wide">
+            <h3>Receita líquida × despesas por mês</h3>
+            <canvas id="chartReceitaMensal" height="260"></canvas>
+            <div class="chart-legend" id="legendReceitaMensal"></div>
           </div>
           <div class="card chart-card">
-            <h3>Receita mensal líquida (últimos 6 meses)</h3>
-            <canvas id="chartReceitaMensal" height="220"></canvas>
+            <h3>Total em atraso por mês</h3>
+            <canvas id="chartAtrasoEvolucao" height="240"></canvas>
           </div>
           <div class="card chart-card">
-            <h3>Despesas mensais (últimos 6 meses)</h3>
-            <canvas id="chartDespesasMensal" height="220"></canvas>
+            <h3>Despesas por mês</h3>
+            <canvas id="chartDespesasMensal" height="240"></canvas>
           </div>
-          <div class="card chart-card">
+          <div class="card chart-card chart-card-wide">
             <div class="panel-header panel-header-tight">
               <h3>Inadimplência — quem mais atrasa</h3>
               <select id="inadimplenciaAgrupador" class="input select" aria-label="Agrupar inadimplência">
@@ -550,7 +584,7 @@
                 <option value="imovel">Por imóvel</option>
               </select>
             </div>
-            <canvas id="chartInadimplencia" height="220"></canvas>
+            <canvas id="chartInadimplencia" height="240"></canvas>
           </div>
         </div>
       </section>
@@ -564,6 +598,9 @@
           </div>
           <div class="panel-actions">
             <select id="relatorioAno" class="input select" aria-label="Ano do relatório"></select>
+            <button type="button" class="btn btn-ghost" id="btnExportRelatorio">
+              <svg class="icon"><use href="#icon-download"></use></svg> Exportar CSV
+            </button>
           </div>
         </div>
 

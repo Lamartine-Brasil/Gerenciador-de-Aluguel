@@ -128,6 +128,8 @@
 }
 .tab-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* Crédito de autoria: discreto no rodapé da sidebar, sem roubar atenção da
+   navegação, mas sempre visível enquanto o sistema estiver aberto. */
 .sidebar-foot {
   flex-shrink: 0;
   padding: var(--space-3) var(--space-4);
@@ -140,7 +142,22 @@
   white-space: nowrap;
   overflow: hidden;
 }
-.sidebar-foot .icon { color: var(--success); }
+/* O link envolve o ícone: com a sidebar recolhida o texto some, mas o crédito
+   continua clicável (e o `title` explica para onde vai). */
+.sidebar-credit {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--text-faint);
+  text-decoration: none;
+  transition: color var(--dur) var(--ease);
+}
+.sidebar-credit .icon { color: inherit; }
+.sidebar-credit strong { color: var(--text-dim); font-weight: 650; }
+.sidebar-credit:hover { color: var(--accent); text-decoration: none; }
+.sidebar-credit:hover strong { color: var(--accent); text-decoration: underline; }
+.sidebar-foot-text { overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- Estado recolhido ---------- */
 :root[data-sidebar="collapsed"] .sidebar { width: var(--sidebar-w-collapsed); }
@@ -277,8 +294,10 @@
 .panel-header h2 { font-size: var(--text-xl); font-weight: 700; }
 .panel-header h3 { font-size: var(--text-md); font-weight: 650; }
 .panel-header-tight { margin-bottom: var(--space-3); }
-.panel-title-group { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.panel-desc { font-size: var(--text-sm); color: var(--text-dim); font-weight: 450; }
+/* `flex: 1 1 320px` mantém as ações (ex: seletor de ano) na direita mesmo com
+   uma descrição longa; abaixo de 320px elas quebram para a linha de baixo. */
+.panel-title-group { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 320px; }
+.panel-desc { font-size: var(--text-sm); color: var(--text-dim); font-weight: 450; max-width: 88ch; }
 .panel-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 
 /* Controles no cabeçalho de um painel são compactos, não ocupam a linha toda

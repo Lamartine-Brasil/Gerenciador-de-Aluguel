@@ -197,10 +197,16 @@ isso aparece logo depois de Contratos.
       atrasadas — valor cheio devido, diferente do card do Dashboard que soma só o
       componente de juros/multa
 - [x] Cálculo automático de juros/multa conforme a taxa configurada
+- [x] "Dias em atraso" exibido em cada dívida vencida (usa `diasAtraso()`), tanto nos
+      cards de Atrasos e do Dashboard quanto nas linhas de dívida dentro de Contratos
 
 ### Financeiro — Histórico de pagamentos
 - [x] Aba geral com todos os pagamentos de todas as dívidas de todos os contratos,
-      filtrável por contrato
+      filtrável por contrato, por ano e por busca de texto (imóvel, inquilino, forma de
+      pagamento, quem recebeu, observação e número do contrato), com contador de
+      quantos pagamentos e o total somado
+- [x] Exportação CSV do histórico completo, respeitando exatamente os filtros da tela —
+      tela e arquivo saem da mesma função (`historicoFiltrado()`), então nunca divergem
 - [x] Modal de histórico por contrato (acessível pelo botão "Histórico"), somando os
       pagamentos de todas as dívidas daquele contrato, mostrando de qual dívida
       (vencimento) veio cada pagamento
@@ -215,8 +221,10 @@ isso aparece logo depois de Contratos.
 
 ### Financeiro — Despesas
 - [x] Aba dedicada para lançar despesas simples (data, descrição, valor), com
-      formulário sempre visível no topo (cadastro rápido, pensado para lançar várias
-      despesas seguidas)
+      formulário sempre visível ao lado da lista (cadastro rápido, pensado para lançar
+      várias despesas seguidas)
+- [x] Gráfico de barras com o total de cada mês do ano selecionado no filtro da própria
+      aba (o ano vale para o gráfico e para a lista; o mês filtra só a lista)
 - [x] Cada despesa pode opcionalmente ser vinculada a um contrato (seletor "Contrato
       relacionado") ou ficar como despesa geral (não afeta cálculo de dívida/receita —
       é só um registro de controle à parte)
@@ -231,18 +239,36 @@ isso aparece logo depois de Contratos.
       Relatórios, e gráfico "Despesas mensais" em Gráficos (ver abaixo)
 
 ### Análises — Gráficos
-- [x] Donut "Contratos por status" (ativos/atrasados/pagos), com legenda e total no centro
+- [x] Seletor de ano (`#graficoAno`) comandando a aba inteira, com o ano atual como
+      padrão — os seis gráficos mostram sempre o ano escolhido (mesma lógica de
+      Relatórios), em vez da janela fixa de "últimos 6 meses" de antes
+- [x] Donut "Dívidas por status" (ativas/atrasadas/pagas), com legenda e total no centro
 - [x] Donut "Pagamentos por forma (líquido)" (Dinheiro/Pix/Não informado), por valor
       líquido recebido — já descontando corretor e condomínio, mesma convenção de
-      Relatórios (usa `valorLiquidoPagamento()`)
-- [x] Linha "Evolução do total em atraso" (últimos 6 meses), com gridlines e área
-      preenchida — continua com o valor cheio devido (não é receita, é dívida em aberto)
-- [x] Linha "Receita mensal líquida" (últimos 6 meses, valor líquido efetivamente
-      recebido, já descontando corretor e condomínio)
-- [x] Linha "Despesas mensais" (últimos 6 meses, mesmo estilo da receita mensal)
+      Relatórios (usa `valorLiquidoPagamento()`). Os dois donuts são desenhados como
+      arco grosso com respiro entre as fatias, sem o antigo recorte por `destination-out`
+- [x] Linha dupla "Receita líquida × despesas por mês": as duas séries no mesmo gráfico,
+      que é a comparação que interessa (quanto entrou x quanto saiu), com legenda e total
+      de cada série
+- [x] Linha "Total em atraso por mês" — continua com o valor cheio devido (não é receita,
+      é dívida em aberto)
+- [x] Linha "Despesas por mês"
 - [x] Barras horizontais "Inadimplência — quem mais atrasa": ranking (top 6) por total em
-      atraso (aluguel + juros/multa), com seletor para agrupar por inquilino ou por imóvel
-- [x] Layout em grade de 2 colunas (`charts-grid`), responsivo
+      atraso (aluguel + juros/multa) no ano, com seletor para agrupar por inquilino ou por
+      imóvel, barras arredondadas sobre um trilho que mostra a escala
+- [x] Eixo Y com linhas de grade e valores redondos (`passoRedondo()`) em formato curto
+      ("12,5 mil", via `formatCompacto()`); rótulos dos meses das pontas alinhados para
+      dentro, para nunca serem cortados na borda do canvas
+- [x] Ao passar o mouse sobre um gráfico de linha ou de barras, aparece uma guia com os
+      valores daquele mês (`canvas.onmousemove`, por propriedade e não `addEventListener`,
+      para os handlers não se acumularem a cada re-render)
+- [x] Canvas em alta resolução: `setupCanvas()` multiplica a resolução pelo
+      `devicePixelRatio` e escala o contexto, para não ficar borrado em tela retina — a
+      altura lógica original fica memorizada em `dataset.alturaLogica`
+- [x] Fonte dos gráficos alinhada ao design system (Inter, com queda para a fonte do
+      sistema), em vez do `sans-serif` genérico
+- [x] Layout em grade de 2 colunas (`charts-grid`), responsivo, com os gráficos de 12
+      meses e o ranking ocupando a largura inteira (`.chart-card-wide`)
 - [x] Cores lidas das variáveis CSS do tema (`cssVar()`) — os gráficos se redesenham
       automaticamente ao trocar entre tema claro/escuro, para nunca ficar com cores do
       tema errado
@@ -271,10 +297,18 @@ isso aparece logo depois de Contratos.
       então é o valor mais próximo do que efetivamente sobra)
 - [x] Tabela "Pagamentos por forma no ano": quantidade e total recebido líquido por
       forma de pagamento (Dinheiro/Pix/Não informado), para o ano selecionado
+- [x] Exportação CSV do relatório do ano com todas as seções da tela (resumo anual,
+      pagamentos por forma, mês a mês e comparativo anual) num arquivo só. O cálculo fica
+      em `calcularRelatorioAnual()` / `calcularComparativoAnual()`, usadas tanto pela tela
+      quanto pela exportação — o arquivo nunca sai diferente do que está sendo exibido
 
 ### Análises — Calendário
 - [x] Aba dedicada com grade mensal (estilo calendário), navegação entre meses
       (anterior/próximo/hoje)
+- [x] A grade fecha semanas completas com os últimos dias do mês anterior e os primeiros
+      do mês seguinte, numerados corretamente (antes as células finais recebiam o índice
+      do array e apareciam como "37, 38, 39..." depois do dia 31). Esses dias de
+      preenchimento ficam esmaecidos, sem cor de status e sem clique
 - [x] Cada dia com vencimento ou pagamento tem o FUNDO da célula inteira colorido
       (não só pontinhos pequenos) conforme o pior status do dia — vermelho se tem algo
       atrasado, azul se tem vencimento ainda ativo, verde se só tem pago/pagamento
@@ -353,6 +387,10 @@ isso aparece logo depois de Contratos.
       busca do header, notificações, abas de Configurações, expandir dívidas de um
       contrato, busca/paginação em listas já renderizadas). Não tem regra de negócio,
       cálculo nem chamada de API — tudo isso continua exclusivamente no `index.js`
+- [x] Crédito de autoria discreto e permanente: rodapé da barra lateral (o ícone continua
+      clicável mesmo com a sidebar recolhida) e rodapé do formulário de login, ambos
+      linkando para github.com/Lamartine-Brasil em nova aba (`rel="noopener noreferrer"`),
+      mais `<meta name="author">` e um comentário de crédito no topo do `index.html`
 - [x] Sistema de ícones em SVG (sprite `<symbol>` inline em `index.html`, sem depender de
       biblioteca externa) — logo, abas de navegação, cards de estatística, botões de
       ação (pagar, editar, excluir, reajustar, anexo, exportar/importar), alternância de

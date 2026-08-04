@@ -1,24 +1,54 @@
 # Sistema de Gerenciamento de Aluguéis
 
 Aplicação web para controlar imóveis, contratos de aluguel, pagamentos, atrasos, despesas e
-relatórios — pensada para donos de imóveis ou pequenas imobiliárias que só precisam de um
-lugar central para acompanhar tudo isso, sem depender de planilhas.
+relatórios — pensada para donos de imóveis ou pequenas imobiliárias que precisam de um lugar
+central para acompanhar tudo isso, sem depender de planilhas.
 
 Não usa nenhuma biblioteca externa, nenhum banco de dados e nenhum framework: é só
 **HTML + CSS + JavaScript** no navegador e **PHP puro** no servidor, salvando tudo em
-arquivos `.json`. Isso significa que dá pra hospedar em qualquer hospedagem compartilhada
-comum (Hostinger, cPanel, etc.) e acessar de qualquer lugar pela internet.
+arquivos `.json`. Dá para hospedar em qualquer hospedagem compartilhada comum (Hostinger,
+cPanel, etc.) e acessar de qualquer lugar pela internet.
 
-![Tela de login](imagens/imagemdologin.png)
+![Painel principal](imagens/dashboard.png)
 
 ## Índice
 
+- [Telas do sistema](#telas-do-sistema)
 - [Acesso padrão (leia antes de usar)](#acesso-padrão-leia-antes-de-usar)
 - [Como rodar no seu computador](#como-rodar-no-seu-computador)
 - [Como colocar no ar (hospedagem)](#como-colocar-no-ar-hospedagem)
 - [O que o sistema faz](#o-que-o-sistema-faz)
 - [Perguntas frequentes](#perguntas-frequentes)
 - [Para quem quer entender o código](#para-quem-quer-entender-o-código)
+- [Autoria](#autoria)
+
+## Telas do sistema
+
+> As imagens abaixo usam dados fictícios, só para demonstração.
+
+**Contratos** — cada contrato reúne todas as dívidas mensais do mesmo imóvel e inquilino,
+com as ações (pagar, editar, reajustar, anexar, encerrar) à mão em cada linha.
+
+![Contratos](imagens/contratos.png)
+
+**Gráficos** — seis gráficos desenhados em `<canvas>` puro, todos referentes ao ano
+escolhido no seletor. Passar o mouse mostra os valores de cada mês.
+
+![Gráficos](imagens/graficos.png)
+
+**Calendário** — vencimentos e pagamentos dia a dia, com o fundo da célula colorido pelo
+status, para dar para escanear o mês inteiro de relance.
+
+![Calendário](imagens/calendario.png)
+
+**Relatórios** — totais do ano, mês a mês e comparativo entre anos, com exportação em CSV.
+Aqui no tema claro, que o sistema inteiro acompanha.
+
+![Relatórios](imagens/relatorios.png)
+
+**Login**
+
+![Tela de login](imagens/login.png)
 
 ## Acesso padrão (leia antes de usar)
 
@@ -79,10 +109,12 @@ Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servid
 
 ## O que o sistema faz
 
-O sistema tem 11 abas, organizadas em 5 grupos (separados por divisores sutis na barra de
-navegação):
+A navegação fica numa **sidebar vertical fixa** (recolhível, e que vira gaveta no celular),
+com as 11 telas agrupadas em 5 blocos. No topo há um **header** com busca global, botão de
+atualizar dívidas, notificações (que espelham os alertas do Dashboard), alternância de tema
+claro/escuro e o menu do usuário.
 
-**Visão Geral**
+**Dashboard**
 
 - **Dashboard** — quantas dívidas estão ativas, quanto está em atraso no total, próximo
   vencimento, despesas lançadas no mês, um alerta (laranja) para dívidas que vencem nos
@@ -120,33 +152,39 @@ navegação):
   acessa a internet). Quando um inquilino deixa o imóvel, "Encerrar contrato" para a geração
   automática de novas dívidas mensais sem apagar nada do histórico (pode ser revertido depois)
 
+  Em cada dívida vencida aparecem o valor em atraso e **há quantos dias** ela está vencida
+
 **Financeiro**
 
-- **Atrasos** — lista separada só das dívidas vencidas, com juros e multa calculados
-  automaticamente conforme a taxa configurada
-- **Histórico** — todos os pagamentos já registrados, com exportação em CSV. Quando o
-  contrato tem corretor e/ou condomínio, mostra também o "valor líquido" (o que
+- **Atrasos** — lista separada só das dívidas vencidas, com juros, multa e dias de atraso
+  calculados automaticamente conforme a taxa configurada
+- **Histórico** — todos os pagamentos já registrados, com busca por texto (imóvel,
+  inquilino, forma de pagamento, quem recebeu, observação), filtro por contrato e por ano,
+  contador com o total somado e **exportação em CSV que respeita exatamente esses filtros**.
+  Quando o contrato tem corretor e/ou condomínio, mostra também o "valor líquido" (o que
   efetivamente fica com o proprietário, descontando o que só passa pela mão dele)
 - **Despesas** — cadastro simples de despesas (data, descrição, valor), opcionalmente
-  ligadas a um contrato ou avulsas, consultáveis por mês e por ano, com edição e exclusão
-  por item. Também aparecem no Dashboard, em Relatórios (com "lucro líquido" = pago menos
-  despesas) e em Gráficos
-
-**Análises**
-
-- **Gráficos** — contratos por status, pagamentos por forma (Dinheiro/Pix), evolução do
-  atraso, da receita e das despesas nos últimos 6 meses, e um ranking de inadimplência
-  (top 6 por inquilino ou por imóvel, à sua escolha). Cores adaptadas ao tema claro/escuro.
-  Os valores de "recebido" (pagamentos por forma e receita mensal) são líquidos, mesma
-  convenção usada em Relatórios — a evolução do atraso continua com o valor cheio devido,
-  já que é dívida em aberto, não receita
+  ligadas a um contrato ou avulsas, com edição e exclusão por item. Um gráfico de barras
+  mostra o total de cada mês do ano selecionado. Também aparecem no Dashboard, em
+  Relatórios (com "lucro líquido" = pago menos despesas) e em Gráficos
+- **Gráficos** — seis gráficos do ano escolhido no seletor (padrão: ano atual): dívidas por
+  status, pagamentos por forma (Dinheiro/Pix), receita líquida × despesas mês a mês, total
+  em atraso por mês, despesas por mês e um ranking de inadimplência (top 6 por inquilino ou
+  por imóvel). Passar o mouse mostra os valores do mês. Os valores de "recebido" são
+  líquidos, mesma convenção de Relatórios — o total em atraso continua com o valor cheio
+  devido, já que é dívida em aberto, não receita
 - **Relatórios** — totais mês a mês e no ano, comparativo com todos os anos lado a lado,
   total de descontos concedidos, total de despesas e lucro líquido, e quebra de
-  pagamentos por forma no ano. Todo valor "recebido" mostrado aqui é líquido — já
-  descontando a comissão do corretor e o condomínio de cada pagamento
+  pagamentos por forma no ano, com exportação de tudo isso em um CSV único. Todo valor
+  "recebido" mostrado aqui é líquido — já descontando a comissão do corretor e o
+  condomínio de cada pagamento
+
+**Agenda**
+
 - **Calendário** — grade mensal mostrando vencimentos e pagamentos dia a dia, com o fundo
   da célula inteira colorido conforme o status do dia (mais fácil de escanear o mês do
-  que só pontinhos pequenos) e o valor total dos vencimentos de cada dia
+  que só pontinhos pequenos) e o valor total dos vencimentos de cada dia. Clicar num dia
+  abre o detalhe do que acontece nele
 
 **Sistema**
 
@@ -163,14 +201,17 @@ navegação):
 
 **Recursos gerais**
 
-- **Exportar/Importar** — contratos em CSV, relatório em PDF (direto do navegador, sem
-  bibliotecas), e backup completo em JSON para copiar todos os dados de um lugar pra outro
+- **Exportar/Importar** — contratos em CSV, histórico de pagamentos em CSV, relatório
+  anual em CSV, relatório em PDF (direto do navegador, sem bibliotecas) e backup completo
+  em JSON para copiar todos os dados de um lugar pra outro
 - **Tema claro/escuro** — segue automaticamente o tema do seu sistema operacional até você
   escolher manualmente; a partir daí fica salvo no navegador
+- **Interface responsiva** — sidebar recolhível no computador (o estado fica salvo) e
+  gaveta no celular; funciona de 360px até telas grandes
 - **Login protegido** — sessão de 30 dias, não desloga ao fechar o navegador. Suporta
   múltiplos usuários administradores, todos com o mesmo nível de acesso
 - **Atalhos de teclado** — `N` abre um novo contrato, `/` foca a busca, `Esc` fecha
-  modais
+  modais e menus
 
 ## Perguntas frequentes
 
@@ -326,22 +367,31 @@ geração de nova chave — são todas ações de alto impacto.
   > `--success`/`--danger`/`--warn` precisam ser **hex de 6 dígitos** — o desenho dos
   > gráficos de linha concatena transparência no fim da cor (`cor + '26'`).
 
-### Pontos conhecidos para corrigir no `index.js`
+### Gráficos
 
-Dois detalhes antigos do `index.js` aparecem na interface e **não dá para resolver só no
-CSS** — ficam registrados aqui porque exigem uma alteração pequena na lógica:
+Todos os gráficos são desenhados à mão em `<canvas>`, sem nenhuma biblioteca. Pontos
+importantes de quem for mexer neles:
 
-1. **Numeração dos dias fora do mês no Calendário.** Em `renderCalendario()`, as células
-   de preenchimento no fim da grade recebem `dia: celulas.length` (o índice do array), o
-   que exibia "37, 38, 39..." depois do dia 31. Como paliativo, o CSS esconde o número
-   dessas células (`.calendar-day.is-outside .calendar-day-number`), para não mostrar
-   informação errada. A correção de verdade é numerar essas células com os primeiros dias
-   do mês seguinte (1, 2, 3...), aí basta remover essa regra do CSS.
-2. **Rótulos dos meses cortados nos gráficos de linha.** Em `renderTrendChart()`, o
-   primeiro e o último ponto ficam a 8px da borda do canvas e o rótulo é desenhado
-   centralizado neles, então metade do texto sai da área visível ("Mar/26" vira "ar/26").
-   Resolve-se aumentando `paddingLeft`/`paddingRight` para ~28px, ou alinhando o primeiro
-   rótulo à esquerda e o último à direita (`ctx.textAlign`).
+- **Um seletor de ano comanda a aba inteira** (`#graficoAno`, padrão = ano atual). Todos os
+  seis gráficos mostram o ano escolhido, igual à aba Relatórios.
+- **Resolução**: `setupCanvas()` multiplica a resolução do canvas pelo `devicePixelRatio` e
+  escala o contexto, para os gráficos não ficarem borrados em tela retina. A altura lógica
+  original do canvas fica memorizada em `dataset.alturaLogica`, já que o atributo `height`
+  passa a guardar a resolução física.
+- **Eixos**: `passoRedondo()` escolhe um passo "bonito" (1, 2, 5, 10, 20, 50...) para as
+  linhas de grade, e `formatCompacto()` encurta os valores ("12,5 mil"). Os rótulos dos
+  meses das pontas são alinhados para dentro, para não serem cortados na borda.
+- **Interação**: passar o mouse sobre um gráfico de linha ou de barras mostra os valores
+  daquele mês. Os handlers usam `canvas.onmousemove = ...` (propriedade, não
+  `addEventListener`) de propósito: o gráfico é redesenhado a cada render, e com
+  `addEventListener` os handlers se acumulariam.
+
+### Calendário
+
+A grade sempre fecha semanas completas: começa com os últimos dias do mês anterior e
+termina com os primeiros dias do mês seguinte. Essas células de preenchimento aparecem
+esmaecidas, numeradas de verdade (1, 2, 3... do mês seguinte) e não são clicáveis nem
+recebem cor de status — só os dias do mês corrente respondem a clique e mostram valores.
 
 ### Modelo de dados
 
@@ -517,8 +567,16 @@ Mantém só os últimos 300 eventos — os mais antigos são descartados automat
 
 - Papéis de permissão distintos entre usuários administradores (hoje todos têm o mesmo
   nível de acesso)
-- Auditoria em nível de campo (valor antigo vs. novo em cada edição)
-- Botão de devolução de caução (registra a devolução sem afetar totais)
-- Despesas aparecerem em Relatórios/Gráficos/Dashboard (hoje ficam só na própria aba)
-- Anexar comprovantes de pagamento, recibo em PDF por pagamento, pagamento parcial, e
-  outras ideias detalhadas em `etapas.txt`
+- Anexar comprovantes por pagamento (hoje só o contrato assinado é anexável)
+- Recibo em PDF por pagamento individual (hoje o PDF é o relatório geral de contratos)
+- Registro de pagamento parcial de uma dívida
+- Telefone/e-mail do inquilino, com atalho para WhatsApp
+- Aplicativo instalável (PWA) com uso básico offline
+- Outras ideias detalhadas em `etapas.txt`
+
+## Autoria
+
+Software desenvolvido por **[Lamartine Barbosa](https://github.com/Lamartine-Brasil)**.
+
+O crédito de autoria aparece de forma discreta dentro do próprio sistema, no rodapé da
+barra lateral e na tela de login, sempre com link para o GitHub do autor.

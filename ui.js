@@ -506,6 +506,10 @@
     aplicar();
   }
 
+  // Só a lista de Imóveis usa este filtro de apresentação. O Histórico filtra de
+  // verdade no index.js (contrato, ano e busca), porque lá o resultado também
+  // alimenta a exportação em CSV — filtrar só escondendo linhas faria o arquivo
+  // exportado sair diferente do que está na tela.
   criarFiltroDeLista({
     listaId: 'imoveisList',
     buscaId: 'uiImoveisSearch',
@@ -514,15 +518,6 @@
     porPagina: IMOVEIS_POR_PAGINA,
     rotuloSingular: 'imóvel',
     rotuloPlural: 'imóveis',
-  });
-
-  criarFiltroDeLista({
-    listaId: 'historicoList',
-    buscaId: 'uiHistoricoSearch',
-    contadorId: 'uiHistoricoCount',
-    porPagina: 0,
-    rotuloSingular: 'pagamento',
-    rotuloPlural: 'pagamentos',
   });
 
 })();
