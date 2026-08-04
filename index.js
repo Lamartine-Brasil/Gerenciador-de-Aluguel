@@ -186,6 +186,29 @@ function dataAniversarioReajuste(c) {
   return addMonthsClamped(c.dataUltimoReajuste || c.dataInicio, 12);
 }
 
+// Quantos anos/meses completos já se passaram desde o início do contrato
+// até hoje (ex: início 10-01-2024, hoje 04-08-2026 -> {anos: 2, meses: 6}).
+function tempoDeContrato(dataInicioStr) {
+  const hoje = new Date();
+  const [y, m, d] = dataInicioStr.split('-').map(Number);
+  const inicio = new Date(y, m - 1, d);
+  let anos = hoje.getFullYear() - inicio.getFullYear();
+  let meses = hoje.getMonth() - inicio.getMonth();
+  if (hoje.getDate() < inicio.getDate()) meses--;
+  if (meses < 0) { anos--; meses += 12; }
+  return { anos, meses };
+}
+
+// Texto pronto para exibição (ex: "2 anos e 6 meses", "1 ano", "8 meses",
+// "recém-iniciado" para menos de 1 mês).
+function formatTempoDeContrato(dataInicioStr) {
+  const { anos, meses } = tempoDeContrato(dataInicioStr);
+  const partes = [];
+  if (anos > 0) partes.push(`${anos} ${anos === 1 ? 'ano' : 'anos'}`);
+  if (meses > 0) partes.push(`${meses} ${meses === 1 ? 'mês' : 'meses'}`);
+  return partes.length ? partes.join(' e ') : 'recém-iniciado (menos de 1 mês)';
+}
+
 // Um contrato "precisa" de reajuste quando já passou (ou é hoje) o
 // aniversário e ele ainda está ativo (não encerrado). Não há índice externo
 // (IGP-M/IPCA) real consultado — o sistema não tem acesso à internet — então
@@ -1404,6 +1427,7 @@ function contratoGrupoHtml(c) {
         <div>
           <div class="contrato-title">#${c.numero || '--'} — ${escapeHtml(c.imovel)}${c.encerrado ? ' <span class="status-badge status-atrasado">Encerrado</span>' : ''}</div>
           <div class="contrato-sub">${icon('user')} ${escapeHtml(c.inquilino)} · ${c.dividas.length} dívida(s)${pendentes ? `, ${pendentes} em aberto` : ' — tudo pago'}</div>
+          ${c.dataInicio ? `<div class="contrato-sub">${icon('calendar')} Início: ${formatDate(c.dataInicio)} · Aniversário: ${formatDate(dataAniversarioReajuste(c))} · ${formatTempoDeContrato(c.dataInicio)} de contrato</div>` : ''}
           ${c.quemRecebeu ? `<div class="contrato-sub">Recebedor padrão: ${escapeHtml(c.quemRecebeu)}</div>` : ''}
           ${c.corretorNome ? `<div class="contrato-sub">${icon('user')} Corretor: ${escapeHtml(c.corretorNome)} (${c.corretorPercentual}% do aluguel — não somado ao total)</div>` : ''}
           ${c.caucao ? `<div class="contrato-sub">${icon('wallet')} Caução retida: ${formatCurrency(c.caucao)} (não somada a nenhum total)${c.caucaoDevolvida ? ` — devolvida em ${formatDate(c.dataCaucaoDevolvida)} (${formatCurrency(c.valorCaucaoDevolvida)})` : ''}</div>` : ''}
