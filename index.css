@@ -262,6 +262,18 @@ a { color: var(--accent); }
 .tab-btn.active { background: var(--accent); color: #fff; }
 .tab-icon { font-size: 15px; }
 
+/* Divide as abas em grupos lógicos (Visão Geral | Cadastros | Financeiro |
+   Análises | Sistema) sem mudar a estrutura de linha única — só uma marca
+   visual sutil para facilitar a leitura com muitas abas. */
+.tabs-divider {
+  width: 1px;
+  height: 20px;
+  align-self: center;
+  margin: 0 6px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
 .content { flex: 1; padding: 24px; max-width: 1100px; width: 100%; margin: 0 auto; }
 
 .tab-panel { display: none; animation: fadeIn .3s var(--ease); }

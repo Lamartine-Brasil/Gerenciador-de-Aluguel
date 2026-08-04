@@ -1,8 +1,8 @@
 # Sistema de Gerenciamento de Aluguéis
 
-Aplicação web simples para controlar contratos de aluguel, pagamentos, atrasos e relatórios —
-pensada para donos de imóveis ou pequenas imobiliárias que só precisam de um lugar central
-para acompanhar tudo isso, sem depender de planilhas.
+Aplicação web para controlar imóveis, contratos de aluguel, pagamentos, atrasos, despesas e
+relatórios — pensada para donos de imóveis ou pequenas imobiliárias que só precisam de um
+lugar central para acompanhar tudo isso, sem depender de planilhas.
 
 Não usa nenhuma biblioteca externa, nenhum banco de dados e nenhum framework: é só
 **HTML + CSS + JavaScript** no navegador e **PHP puro** no servidor, salvando tudo em
@@ -64,15 +64,14 @@ o projeto não tem dependências.
 Este sistema foi feito para hospedagem compartilhada comum com **PHP + Apache** (cPanel,
 Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servidor.
 
-1. **Troque a chave secreta**: depois de logar, vá em Configurações > Segurança e clique
-   em "Gerar novo COOKIE_SECRET" (isso protege o cookie de login contra falsificação).
-   Também dá pra fazer manualmente, abrindo `api/config.php` e trocando o valor de
-   `COOKIE_SECRET` por algo aleatório e único
-2. **Envie os arquivos**: copie a pasta inteira do projeto (`index.html`, `index.css`,
+1. **Envie os arquivos**: copie a pasta inteira do projeto (`index.html`, `index.css`,
    `index.js`, `api/`, `data/`, `contratos/`) para a hospedagem, mantendo a mesma
    organização de pastas
-3. **Acesse pelo navegador** e faça login com `admin` / `123456`
-4. **Troque a senha na hora**, como explicado na seção acima
+2. **Acesse pelo navegador** e faça login com `admin` / `123456`
+3. **Troque a senha na hora**, como explicado na seção acima
+4. **Gere uma chave de segurança própria**: vá em **Configurações → Segurança** e clique em
+   "Gerar novo COOKIE_SECRET" (protege o cookie de login contra falsificação). Também dá
+   pra fazer manualmente, abrindo `api/config.php` e trocando o valor de `COOKIE_SECRET`
 5. **Confirme que os dados estão protegidos**: tente acessar
    `https://seusite.com/data/dados.json` diretamente no navegador — o servidor deve
    recusar o acesso (erro 403). Isso só funciona em Apache com `.htaccess` habilitado
@@ -80,62 +79,81 @@ Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servid
 
 ## O que o sistema faz
 
-- **Dashboard** — visão geral: quantas dívidas estão ativas, quanto está em atraso no
-  total, próximo vencimento, e um alerta para dívidas que vencem nos próximos 5 dias
+O sistema tem 11 abas, organizadas em 5 grupos (separados por divisores sutis na barra de
+navegação):
+
+**Visão Geral**
+
+- **Dashboard** — quantas dívidas estão ativas, quanto está em atraso no total, próximo
+  vencimento, e um alerta para dívidas que vencem nos próximos 5 dias
+
+**Cadastros**
+
 - **Imóveis** — cadastro simples de imóveis (uma lista de descrições, ex: "Apartamento
   302 - Rua das Flores #123"), usado como seletor ao criar/editar um contrato — evita
   digitar o mesmo endereço toda vez e reduz erro de digitação
-- **Contratos** — cada contrato (imóvel + inquilino) aparece como um card com todas as
-  suas dívidas (uma por mês) dentro, identificado por um número sequencial único
-  (`#1`, `#2`...) gerado automaticamente. Ao criar um contrato, informe a data de início e
-  o dia de pagamento (1-31); se a data de início já passou, o sistema gera automaticamente
-  uma dívida para cada mês em atraso até hoje, tudo dentro do mesmo contrato. Registrar
-  pagamento em um clique por dívida, anexar o contrato assinado (PDF/JPG/PNG) e
-  reajustar o valor do aluguel (atualiza as dívidas em aberto, preserva o histórico das
-  já pagas). Os campos Juros e Multa são digitados em percentual (%) do aluguel,
-  pré-preenchidos com a taxa configurada em Configurações, e convertidos para R$ ao
-  salvar. Opcionalmente, associe um corretor (escolhido de uma lista de pessoas
-  cadastrada em Configurações + percentual, padrão 5%) — o valor aparece em cada
-  dívida só como cálculo informativo, sem mudar o total cobrado do inquilino; sem
-  corretor selecionado a comissão simplesmente não existe. Também é possível informar
-  uma caução (valor retido do inquilino) — fica só como anotação visível no card do
-  contrato, nunca soma em nenhum total, já que em teoria é devolvida no final. Quando um
-  inquilino deixa o imóvel, "Encerrar contrato" para a geração automática de novas
-  dívidas mensais sem apagar nada do histórico (pode ser revertido depois)
-- **Atualizar dívidas** — um botão "Atualizar dívidas" no topo do sistema gera o
-  próximo mês de todos os contratos de uma vez (cada contrato também tem seu próprio
-  botão individual); roda sozinho, silenciosamente, toda vez que o sistema é aberto,
-  então as dívidas ficam sempre em dia sem precisar clicar em nada
+- **Contratos** — cada contrato (imóvel + inquilino) aparece como um card, identificado por
+  um número sequencial único (`#1`, `#2`...), com todas as suas dívidas (uma por mês)
+  dentro. Ao criar um contrato, informe a data de início e o dia de pagamento (1-31); se a
+  data de início já passou, o sistema gera automaticamente uma dívida para cada mês em
+  atraso até hoje, tudo dentro do mesmo contrato. Registrar pagamento em um clique por
+  dívida, anexar o contrato assinado (PDF/JPG/PNG) e reajustar o valor do aluguel (atualiza
+  as dívidas em aberto, preserva o histórico das já pagas). Os campos Juros e Multa são
+  digitados em percentual (%) do aluguel, pré-preenchidos com a taxa configurada em
+  Configurações, e convertidos para R$ ao salvar. Opcionalmente, associe um corretor
+  (escolhido de uma lista de pessoas cadastrada em Configurações + percentual, padrão 5%)
+  — o valor aparece em cada dívida só como cálculo informativo, sem mudar o total cobrado
+  do inquilino. Também é possível informar uma caução (valor retido do inquilino) — fica só
+  como anotação visível no card, nunca soma em nenhum total, já que em teoria é devolvida no
+  final. Um botão "Atualizar dívidas" (individual ou global, no topo do sistema) gera o
+  próximo mês de cada contrato — roda sozinho, silenciosamente, toda vez que o sistema é
+  aberto, então as dívidas ficam sempre em dia sem precisar clicar em nada. Quando um
+  inquilino deixa o imóvel, "Encerrar contrato" para a geração automática de novas dívidas
+  mensais sem apagar nada do histórico (pode ser revertido depois)
+
+**Financeiro**
+
 - **Atrasos** — lista separada só das dívidas vencidas, com juros e multa calculados
   automaticamente conforme a taxa configurada
-- **Despesas** — cadastro simples de despesas (data, descrição, valor), opcionalmente
-  ligadas a um contrato ou avulsas, consultáveis por mês e por ano
-- **Calendário** — grade mensal mostrando vencimentos e pagamentos dia a dia
 - **Histórico** — todos os pagamentos já registrados, com exportação em CSV. Quando o
   contrato tem corretor e/ou condomínio, mostra também o "valor líquido" (o que
   efetivamente fica com o proprietário, descontando o que só passa pela mão dele)
+- **Despesas** — cadastro simples de despesas (data, descrição, valor), opcionalmente
+  ligadas a um contrato ou avulsas, consultáveis por mês e por ano
+
+**Análises**
+
 - **Gráficos** — contratos por status, pagamentos por forma (Dinheiro/Pix), evolução do
   atraso e da receita nos últimos 6 meses. Cores adaptadas ao tema claro/escuro
 - **Relatórios** — totais mês a mês e no ano, comparativo com todos os anos lado a lado,
   total de descontos concedidos e quebra de pagamentos por forma no ano
-- **Auditoria** — histórico dos eventos principais (contrato criado/editado/excluído,
-  pagamento registrado, usuário adicionado/removido), com quem fez e quando
+- **Calendário** — grade mensal mostrando vencimentos e pagamentos dia a dia
+
+**Sistema**
+
+- **Auditoria** — histórico dos eventos principais (contrato criado/editado/excluído/
+  encerrado, pagamento registrado, despesa lançada, usuário adicionado/removido, chave de
+  segurança regenerada), com quem fez e quando
+- **Configurações** — taxas de juros/multa, valores padrão, cadastro de pessoas
+  (recebedores/corretores), conta do administrador, geração de uma nova chave
+  `COOKIE_SECRET` pelo próprio site, outros usuários administradores, backup completo
+  (exportar/importar) e zona de perigo (excluir todos os dados)
+
+**Recursos gerais**
+
 - **Exportar/Importar** — contratos em CSV, relatório em PDF (direto do navegador, sem
   bibliotecas), e backup completo em JSON para copiar todos os dados de um lugar pra outro
 - **Tema claro/escuro** — segue automaticamente o tema do seu sistema operacional até você
   escolher manualmente; a partir daí fica salvo no navegador
 - **Login protegido** — sessão de 30 dias, não desloga ao fechar o navegador. Suporta
   múltiplos usuários administradores, todos com o mesmo nível de acesso
-- **Segurança** — em Configurações, um botão gera uma nova chave `COOKIE_SECRET`
-  (que assina o cookie de login) direto pelo site, sem precisar editar nenhum arquivo
-  manualmente. Desconecta os outros usuários logados no momento (a sua sessão continua)
 - **Atalhos de teclado** — `N` abre um novo contrato, `/` foca a busca, `Esc` fecha
   modais
 
 ## Perguntas frequentes
 
 **Preciso de banco de dados (MySQL, etc.)?**
-Não. Tudo é salvo em dois arquivos JSON dentro da pasta `data/`, criados automaticamente.
+Não. Tudo é salvo em arquivos JSON dentro da pasta `data/`, criados automaticamente.
 
 **Posso ter mais de um usuário administrador?**
 Sim. Em **Configurações → Usuários administradores** você adiciona outros usuários (ex:
@@ -153,6 +171,15 @@ Usuários administradores**, remover o seu usuário e cadastrar um novo. Se voc�
 usuário, veja a seção [Acesso padrão](#acesso-padrão-leia-antes-de-usar) acima — apague
 `data/auth.json` no servidor para resetar para o padrão (isso remove **todos** os usuários
 cadastrados, não só o seu).
+
+**Preciso cadastrar o imóvel antes de criar um contrato?**
+Sim. Vá primeiro na aba **Imóveis** e cadastre a descrição do imóvel — depois, ao criar um
+contrato, ele aparece no seletor. Se tentar criar um contrato sem nenhum imóvel cadastrado,
+o formulário avisa e não deixa salvar.
+
+**A caução entra em algum cálculo?**
+Não. É só uma anotação visível no card do contrato — nunca soma em nenhum total, dívida,
+atraso ou relatório, já que em teoria é devolvida ao inquilino no final do contrato.
 
 ## Para quem quer entender o código
 
@@ -180,7 +207,8 @@ api/anexo.php         GET ?file=... baixa/visualiza o anexo; POST (multipart) en
                       novo anexo; POST { action: 'remove', file } remove um anexo
                       (exige autenticação)
 
-data/dados.json      Contratos, pagamentos, configuração e auditoria (criado automaticamente)
+data/dados.json      Imóveis, pessoas, contratos (com dívidas e pagamentos), despesas,
+                      configuração e auditoria (criado automaticamente)
 data/auth.json       Lista de usuários administradores + hash de senha de cada um
                       (criado automaticamente, password_hash)
 data/.htaccess       Bloqueia acesso direto via URL a tudo dentro de data/
@@ -204,15 +232,24 @@ todos com o mesmo nível de acesso. Instalações antigas que tinham só `{ user
 passwordHash }` são migradas automaticamente para o novo formato no primeiro acesso,
 sem exigir nenhuma ação manual.
 
+A chave `COOKIE_SECRET` pode ser regenerada a qualquer momento pela própria interface
+(**Configurações → Segurança**, exige senha atual) — o endpoint `api/regenerate_secret.php`
+reescreve `api/config.php` no servidor com escrita atômica (arquivo temporário + `rename()`)
+e reemite a sessão de quem gerou a chave, mas invalida a sessão de todos os outros usuários
+logados no momento (a assinatura antiga deixa de bater com a chave nova).
+
 ### Arquitetura geral
 
 - **Front-end**: `index.html` + `index.css` + `index.js`. Aplicação de página única (SPA):
-  as "abas" (Dashboard, Contratos, Atrasos, Histórico, Gráficos, Relatórios, Calendário,
-  Auditoria, Configurações) são seções que aparecem/somem no mesmo HTML, sem recarregar
-  a página.
+  as 11 abas (Dashboard, Imóveis, Contratos, Atrasos, Histórico, Despesas, Gráficos,
+  Relatórios, Calendário, Auditoria, Configurações) são seções que aparecem/somem no mesmo
+  HTML, sem recarregar a página. A barra de navegação agrupa essas abas visualmente em 5
+  blocos (Visão Geral, Cadastros, Financeiro, Análises, Sistema) usando divisores simples.
 - **Backend**: PHP puro em `api/`, sem framework. Cada endpoint é um arquivo `.php`
   independente. Toda a comunicação front-end ↔ backend é via `fetch()` com JSON.
-- **Dados**: dois arquivos JSON em `data/`, protegidos contra acesso direto via `.htaccess`.
+- **Dados**: um único arquivo `data/dados.json` com tudo (imóveis, pessoas, contratos,
+  despesas, configuração, auditoria) + `data/auth.json` separado para login, ambos
+  protegidos contra acesso direto via `.htaccess`.
 
 ### Modelo de dados
 
@@ -281,14 +318,16 @@ O "valor líquido" exibido no Histórico (`valorLiquidoPagamento()` em `index.js
 salvo — é calculado na hora: `valor - (aluguel da dívida × corretorPercentual/100, se
 houver corretor) - condominio da dívida`.
 
-#### Migração automática do formato antigo
+#### Migração automática de formatos antigos
 
-Instalações antigas tinham um "contrato" plano por vencimento (sem `dividas`). Na
-primeira vez que os dados são carregados após essa mudança, o front-end migra
-automaticamente: contratos antigos que compartilhavam `imovel` + `inquilino` +
-`dataInicio` + `diaPagamento` são agrupados num único contrato novo com várias dívidas;
-os demais viram um contrato com uma única dívida. Nenhum dado é perdido (pagamentos,
-status, valores) e a migração não se repete depois de feita.
+O front-end migra dados antigos automaticamente ao carregar, sem exigir nenhuma ação
+manual e sem perder informação:
+
+- Contratos "planos" (um vencimento só, sem `dividas`) — agrupados por `imovel` +
+  `inquilino` + `dataInicio` + `diaPagamento` num único contrato com várias dívidas
+- Contratos sem `numero` — recebem um número sequencial, na ordem de criação
+- Array `corretores` antigo — renomeado para `pessoas` (mesmo formato `{ id, nome }`)
+- Ausência de `pessoas`, `despesas` ou `imoveis` — inicializados como listas vazias
 
 #### Configuração (`config` em `data/dados.json`)
 
@@ -300,17 +339,14 @@ status, valores) e a migração não se repete depois de feita.
 
 Cálculo do atraso atual (função `calcAtrasoAtual` em `index.js`): se o contrato já está
 atrasado, soma `valorAtrasoBase` + (`total` × `taxaJurosMensal`/100 × meses de atraso)
-+ (`total` × `taxaMultaPercent`/100). Os campos antigos `jurosPadrao`/`multaPadrao`
-(valores em R$) foram removidos — `taxaJurosMensal`/`taxaMultaPercent` passaram a
-acumular também o papel de valor padrão dos campos Juros/Multa na criação de contrato.
++ (`total` × `taxaMultaPercent`/100).
 
 #### Pessoas (array `pessoas` em `data/dados.json`)
 
 Lista reutilizável de nomes cadastrados (`{ id, nome }`), gerenciada em Configurações.
 Alimenta os seletores "Quem recebe" (contrato e pagamento) e "Corretor" — um mesmo nome
 cadastrado pode ser usado nos dois papéis, evitando digitar toda vez. Remover uma pessoa
-da lista não afeta contratos/pagamentos que já usam aquele nome. Substitui o antigo
-array `corretores`; dados antigos são migrados automaticamente ao carregar.
+da lista não afeta contratos/pagamentos que já usam aquele nome.
 
 #### Imóveis (array `imoveis` em `data/dados.json`)
 
@@ -340,17 +376,22 @@ total ou receita. Consultáveis por mês e por ano na aba "Despesas".
 | `id`        | string             | Identificador único do evento                          |
 | `timestamp` | number (ms)        | Quando o evento aconteceu                               |
 | `usuario`   | string             | Nome do usuário logado que realizou a ação              |
-| `acao`      | string             | Tipo do evento (`contrato_criado`, `contrato_editado`, `contrato_excluido`, `contrato_reajustado`, `divida_editada`, `divida_excluida`, `pagamento_registrado`, `usuario_adicionado`, `usuario_removido`) |
+| `acao`      | string             | Tipo do evento — ver lista abaixo                       |
 | `descricao` | string             | Texto legível do evento, mostrado na aba Auditoria      |
+
+Tipos de `acao` registrados: `contrato_criado`, `contrato_editado`, `contrato_excluido`,
+`contrato_reajustado`, `contrato_encerrado`, `contrato_reaberto`, `divida_editada`,
+`divida_excluida`, `pagamento_registrado`, `despesa_criada`, `despesa_excluida`,
+`usuario_adicionado`, `usuario_removido`, `cookie_secret_regenerado`.
 
 Mantém só os últimos 300 eventos — os mais antigos são descartados automaticamente.
 
 ### Requisitos técnicos
 
 - PHP 7.4+ (testado com PHP 8.5) com suporte a `setcookie()` com array de opções,
-  `password_hash`/`password_verify` e a extensão `fileinfo` (para validar o tipo real
-  dos arquivos anexados aos contratos) — vem habilitada por padrão na grande maioria
-  das hospedagens e instalações de PHP
+  `password_hash`/`password_verify`, `random_bytes` e a extensão `fileinfo` (para validar
+  o tipo real dos arquivos anexados aos contratos) — vem habilitada por padrão na grande
+  maioria das hospedagens e instalações de PHP
 - Apache com `.htaccess` habilitado (`AllowOverride All`) para proteger as pastas
   `data/` e `contratos/`
 - Nenhuma dependência de Node/npm/Composer
@@ -369,5 +410,7 @@ Mantém só os últimos 300 eventos — os mais antigos são descartados automat
 - Papéis de permissão distintos entre usuários administradores (hoje todos têm o mesmo
   nível de acesso)
 - Auditoria em nível de campo (valor antigo vs. novo em cada edição)
+- Botão de devolução de caução (registra a devolução sem afetar totais)
+- Despesas aparecerem em Relatórios/Gráficos/Dashboard (hoje ficam só na própria aba)
 - Anexar comprovantes de pagamento, recibo em PDF por pagamento, pagamento parcial, e
   outras ideias detalhadas em `etapas.txt`
