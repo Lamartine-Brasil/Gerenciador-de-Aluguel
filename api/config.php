@@ -5,7 +5,7 @@
 // existe api/../data/auth.json). Depois disso, o usuário pode alterá-los pela
 // própria tela de Configurações do site, e esses valores abaixo deixam de ter efeito.
 define('DEFAULT_USERNAME', 'admin');
-define('DEFAULT_PASSWORD', '123456');
+define('DEFAULT_PASSWORD', '12345678');
 
 // Chave usada para assinar o cookie de login. TROQUE por um valor aleatório
 // antes de subir para o servidor (ex: gere uma string longa e aleatória).
@@ -21,6 +21,10 @@ define('AUTH_FILE', DATA_DIR . '/auth.json');
 define('CONTRATOS_DIR', __DIR__ . '/../contratos');
 define('ANEXO_TIPOS_PERMITIDOS', ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png']);
 define('ANEXO_TAMANHO_MAXIMO', 15 * 1024 * 1024); // 15MB
+
+define('LOGIN_ATTEMPTS_FILE', DATA_DIR . '/login_attempts.json');
+define('LOGIN_MAX_TENTATIVAS', 5);
+define('LOGIN_BLOQUEIO_SEGUNDOS', 15 * 60); // 15 minutos de bloqueio após esgotar as tentativas
 
 function ensureContratosDir() {
     if (!is_dir(CONTRATOS_DIR)) {
@@ -156,4 +160,61 @@ function findUserById($auth, $id) {
         if ($user['id'] === $id) return $user;
     }
     return null;
+}
+
+// Limita tentativas de login por IP — sem isso, o login ficava aberto a
+// força bruta ilimitada (mais grave ainda com a senha padrão admin/12345678
+// antes de trocada). Guarda só um contador + timestamp por IP, sem dados
+// sensíveis, em data/login_attempts.json (protegido pelo mesmo .htaccess de
+// data/dados.json).
+function clienteIp() {
+    return (string)($_SERVER['REMOTE_ADDR'] ?? 'desconhecido');
+}
+
+function lerTentativasLogin() {
+    if (!file_exists(LOGIN_ATTEMPTS_FILE)) return [];
+    $data = json_decode((string)file_get_contents(LOGIN_ATTEMPTS_FILE), true);
+    return is_array($data) ? $data : [];
+}
+
+function salvarTentativasLogin($tentativas) {
+    if (!is_dir(DATA_DIR)) mkdir(DATA_DIR, 0755, true);
+    $fp = fopen(LOGIN_ATTEMPTS_FILE, 'c+');
+    if ($fp === false) return;
+    flock($fp, LOCK_EX);
+    ftruncate($fp, 0);
+    rewind($fp);
+    fwrite($fp, json_encode($tentativas));
+    fflush($fp);
+    flock($fp, LOCK_UN);
+    fclose($fp);
+}
+
+// Quantos segundos ainda faltam de bloqueio para este IP (0 = pode tentar).
+function segundosBloqueadoLogin($ip) {
+    $tentativas = lerTentativasLogin();
+    if (!isset($tentativas[$ip]) || $tentativas[$ip]['count'] < LOGIN_MAX_TENTATIVAS) return 0;
+    $restante = ($tentativas[$ip]['lastAttempt'] + LOGIN_BLOQUEIO_SEGUNDOS) - time();
+    return $restante > 0 ? $restante : 0;
+}
+
+function registrarTentativaLoginFalha($ip) {
+    $tentativas = lerTentativasLogin();
+    $agora = time();
+    // limpa entradas velhas pra o arquivo não crescer pra sempre
+    foreach ($tentativas as $chave => $t) {
+        if ($agora - $t['lastAttempt'] > LOGIN_BLOQUEIO_SEGUNDOS * 4) unset($tentativas[$chave]);
+    }
+    if (!isset($tentativas[$ip])) $tentativas[$ip] = ['count' => 0, 'lastAttempt' => 0];
+    $tentativas[$ip]['count']++;
+    $tentativas[$ip]['lastAttempt'] = $agora;
+    salvarTentativasLogin($tentativas);
+}
+
+function limparTentativasLogin($ip) {
+    $tentativas = lerTentativasLogin();
+    if (isset($tentativas[$ip])) {
+        unset($tentativas[$ip]);
+        salvarTentativasLogin($tentativas);
+    }
 }

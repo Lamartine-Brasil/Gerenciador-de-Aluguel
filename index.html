@@ -556,8 +556,8 @@
             <input type="password" id="accCurrentPassword" required autocomplete="current-password">
           </label>
           <label class="field">
-            <span>Nova senha (deixe em branco para manter a atual)</span>
-            <input type="password" id="accNewPassword" autocomplete="new-password">
+            <span>Nova senha, mínimo 8 caracteres (deixe em branco para manter a atual)</span>
+            <input type="password" id="accNewPassword" minlength="8" autocomplete="new-password">
           </label>
           <label class="field">
             <span>Confirmar nova senha</span>
@@ -593,13 +593,18 @@
             <input type="text" id="newUserUsername" required autocomplete="off">
           </label>
           <label class="field">
-            <span>Senha *</span>
-            <input type="password" id="newUserPassword" required autocomplete="new-password">
+            <span>Senha (mínimo 8 caracteres) *</span>
+            <input type="password" id="newUserPassword" required minlength="8" autocomplete="new-password">
           </label>
           <label class="field">
             <span>Confirmar senha *</span>
-            <input type="password" id="newUserConfirmPassword" required autocomplete="new-password">
+            <input type="password" id="newUserConfirmPassword" required minlength="8" autocomplete="new-password">
           </label>
+          <label class="field">
+            <span>Confirme sua própria senha atual *</span>
+            <input type="password" id="newUserCurrentPassword" required autocomplete="current-password">
+          </label>
+          <p class="modal-subtitle">Adicionar um novo administrador exige confirmar sua senha, já que dá acesso total ao sistema para outra pessoa.</p>
           <p id="addUserError" class="error-msg hidden"></p>
           <button type="submit" class="btn btn-primary">Adicionar usuário</button>
         </form>

@@ -35,9 +35,9 @@ if ($newUsername === '') {
     exit;
 }
 
-if ($newPassword !== '' && strlen($newPassword) < 4) {
+if ($newPassword !== '' && strlen($newPassword) < 8) {
     http_response_code(400);
-    echo json_encode(['ok' => false, 'error' => 'A nova senha deve ter pelo menos 4 caracteres.']);
+    echo json_encode(['ok' => false, 'error' => 'A nova senha deve ter pelo menos 8 caracteres.']);
     exit;
 }
 

@@ -2168,8 +2168,10 @@ function renderUsers(users) {
 
 async function removeUser(id, username) {
   if (!confirm('Remover este usuário? Ele não vai mais conseguir fazer login no sistema.')) return;
+  const currentPassword = prompt('Confirme sua senha atual para remover este usuário:');
+  if (currentPassword === null) return;
   try {
-    const res = await apiFetch('users.php', { method: 'POST', body: JSON.stringify({ action: 'remove', id }) });
+    const res = await apiFetch('users.php', { method: 'POST', body: JSON.stringify({ action: 'remove', id, currentPassword }) });
     const data = await res.json();
     if (res.ok && data.ok) {
       registrarAuditoria('usuario_removido', `Usuário removido: ${username}`);
@@ -2189,6 +2191,7 @@ addUserForm.addEventListener('submit', async (e) => {
   const username = document.getElementById('newUserUsername').value.trim();
   const password = document.getElementById('newUserPassword').value;
   const confirmPassword = document.getElementById('newUserConfirmPassword').value;
+  const currentPassword = document.getElementById('newUserCurrentPassword').value;
   const errorEl = document.getElementById('addUserError');
   errorEl.classList.add('hidden');
 
@@ -2201,7 +2204,7 @@ addUserForm.addEventListener('submit', async (e) => {
   try {
     const res = await apiFetch('users.php', {
       method: 'POST',
-      body: JSON.stringify({ action: 'add', username, password }),
+      body: JSON.stringify({ action: 'add', username, password, currentPassword }),
     });
     const data = await res.json();
     if (res.ok && data.ok) {

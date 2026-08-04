@@ -26,17 +26,17 @@ Na primeira vez que o sistema roda, ele cria automaticamente um usuário adminis
 
 ```
 Usuário: admin
-Senha:   123456
+Senha:   12345678
 ```
 
 > ⚠️ **Troque essa senha imediatamente após o primeiro login.** Vá em **Configurações →
-> Conta do administrador**, informe a senha atual (`123456`) e cadastre um usuário e senha
+> Conta do administrador**, informe a senha atual (`12345678`) e cadastre um usuário e senha
 > só seus. Enquanto isso não for feito, qualquer pessoa que souber a URL do sistema e essas
 > credenciais padrão consegue entrar.
 
 Não existe recuperação de senha por e-mail (o sistema não envia e-mails). Se esquecer a
 senha depois de trocada, é preciso apagar o arquivo `data/auth.json` no servidor para que
-ele volte a ser recriado com o padrão `admin` / `123456` no próximo acesso.
+ele volte a ser recriado com o padrão `admin` / `12345678` no próximo acesso.
 
 ## Como rodar no seu computador
 
@@ -50,7 +50,7 @@ terminal e digite `php -v`.
    php -S localhost:8000
    ```
 4. Acesse `http://localhost:8000` no navegador
-5. Faça login com `admin` / `123456` (veja o aviso acima)
+5. Faça login com `admin` / `12345678` (veja o aviso acima)
 
 Não precisa instalar nada com `npm`, `composer` ou qualquer outro gerenciador de pacotes —
 o projeto não tem dependências.
@@ -67,7 +67,7 @@ Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servid
 1. **Envie os arquivos**: copie a pasta inteira do projeto (`index.html`, `index.css`,
    `index.js`, `api/`, `data/`, `contratos/`) para a hospedagem, mantendo a mesma
    organização de pastas
-2. **Acesse pelo navegador** e faça login com `admin` / `123456`
+2. **Acesse pelo navegador** e faça login com `admin` / `12345678`
 3. **Troque a senha na hora**, como explicado na seção acima
 4. **Gere uma chave de segurança própria**: vá em **Configurações → Segurança** e clique em
    "Gerar novo COOKIE_SECRET" (protege o cookie de login contra falsificação). Também dá
@@ -223,7 +223,8 @@ index.js              Toda a lógica do front-end
 api/config.php       Constantes (usuário/senha padrão, chave do cookie) e funções de
                       leitura/gravação dos arquivos data/dados.json e data/auth.json
 api/auth.php         Emissão e validação do cookie de sessão
-api/login.php        POST { username, password } -> autentica e emite cookie
+api/login.php        POST { username, password } -> autentica e emite cookie; bloqueia
+                      o IP por 15min após 5 tentativas erradas seguidas
 api/logout.php       POST -> limpa o cookie
 api/session.php      GET -> { authenticated, username }
 api/data.php         GET lê / POST grava data/dados.json (exige autenticação)
@@ -231,8 +232,9 @@ api/account.php      POST { currentPassword, newUsername, newPassword } -> troca
                       próprio usuário/senha em data/auth.json (exige senha atual)
 api/regenerate_secret.php  POST { currentPassword } -> gera um novo COOKIE_SECRET
                       aleatório e reescreve api/config.php (exige senha atual)
-api/users.php         GET lista os usuários administradores; POST { action: 'add' | 'remove', ... }
-                      adiciona ou remove outros usuários (exige autenticação)
+api/users.php         GET lista os usuários administradores; POST { action: 'add' | 'remove',
+                      currentPassword, ... } adiciona ou remove outros usuários (exige a
+                      própria senha atual, além de autenticação)
 api/anexo.php         GET ?file=... baixa/visualiza o anexo; POST (multipart) envia um
                       novo anexo; POST { action: 'remove', file } remove um anexo
                       (exige autenticação)
@@ -241,6 +243,8 @@ data/dados.json      Imóveis, pessoas, contratos (com dívidas e pagamentos), d
                       configuração e auditoria (criado automaticamente)
 data/auth.json       Lista de usuários administradores + hash de senha de cada um
                       (criado automaticamente, password_hash)
+data/login_attempts.json  Contador de tentativas de login erradas por IP (criado
+                      automaticamente, fora do controle de versão — puramente temporário)
 data/.htaccess       Bloqueia acesso direto via URL a tudo dentro de data/
 
 contratos/           Arquivos de contrato assinado anexados (PDF/JPG/PNG), renomeados
@@ -267,6 +271,14 @@ A chave `COOKIE_SECRET` pode ser regenerada a qualquer momento pela própria int
 reescreve `api/config.php` no servidor com escrita atômica (arquivo temporário + `rename()`)
 e reemite a sessão de quem gerou a chave, mas invalida a sessão de todos os outros usuários
 logados no momento (a assinatura antiga deixa de bater com a chave nova).
+
+`api/login.php` bloqueia um IP por 15 minutos depois de 5 tentativas erradas seguidas
+(mesmo que a senha certa seja digitada durante o bloqueio), pra dificultar força bruta —
+o contador fica em `data/login_attempts.json` (protegido pelo `.htaccess` de `data/`,
+fora do controle de versão, e se limpa sozinho com o tempo). Senhas exigem no mínimo 8
+caracteres. Adicionar ou remover outro usuário administrador (**Configurações → Usuários
+administradores**) exige confirmar a própria senha atual, igual à troca de senha e à
+geração de nova chave — são todas ações de alto impacto.
 
 ### Arquitetura geral
 

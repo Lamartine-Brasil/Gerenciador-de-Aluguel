@@ -25,11 +25,18 @@ Contratos.
 - [x] Permanece logado ao trocar de aba/página ou reabrir o navegador
 - [x] Botão "Sair" limpa a sessão
 - [x] Troca de usuário/senha pela tela de Configurações (exige senha atual)
-- [x] Usuário/senha padrão: `admin` / `123456` (só na primeira execução)
-- [x] Senha sempre salva com `password_hash` (nunca texto puro)
+- [x] Usuário/senha padrão: `admin` / `12345678` (só na primeira execução)
+- [x] Senha sempre salva com `password_hash` (nunca texto puro), mínimo 8 caracteres em
+      qualquer senha nova (própria ou de outro usuário) — antes era só 4
+- [x] Bloqueio por tentativas de login (`api/login.php`): 5 tentativas erradas seguidas
+      do mesmo IP bloqueiam novas tentativas (mesmo com a senha certa) por 15 minutos.
+      Guardado em `data/login_attempts.json` (protegido pelo mesmo `.htaccess` de
+      `data/`, e fora do controle de versão — é só um contador temporário)
 - [x] Múltiplos usuários administradores, todos com as mesmas permissões (acesso total).
-      Em Configurações: listar, adicionar e remover outros usuários. Não é possível
-      remover a si mesmo nem remover o último usuário restante. `data/auth.json` antigo
+      Em Configurações: listar, adicionar e remover outros usuários — as duas ações
+      exigem confirmar a própria senha atual (é uma ação de alto impacto: dá acesso
+      total a alguém novo, ou tira o acesso de alguém). Não é possível remover a si
+      mesmo nem remover o último usuário restante. `data/auth.json` antigo
       (usuário único) é migrado automaticamente para o novo formato com lista de
       usuários no primeiro acesso, sem exigir nenhuma ação manual
 
@@ -395,7 +402,21 @@ Contratos.
       Segurança ("Gerar novo COOKIE_SECRET") que faz isso pelo próprio site
 - [ ] Testar em hospedagem real com Apache (confirmar que `.htaccess` bloqueia `data/`
       pela URL — isso não é validado pelo servidor embutido do PHP usado em testes locais)
-- [ ] Trocar a senha padrão (`admin`/`123456`) assim que possível após o primeiro deploy
+- [ ] Trocar a senha padrão (`admin`/`12345678`) assim que possível após o primeiro deploy
+- [x] Revisão de segurança de todos os arquivos em `api/`: confirmado que cookies são
+      HMAC-assinados e comparados com `hash_equals` (à prova de timing attack), senhas
+      sempre com `password_hash`/`password_verify`, upload de anexo valida extensão E
+      tipo MIME real do conteúdo (não só a extensão), nomes de arquivo protegidos contra
+      path traversal, `data/`/`contratos/` bloqueados por `.htaccess`, escritas em disco
+      sempre atômicas (arquivo temporário + `rename()`, ou `flock`). Corrigido nessa
+      revisão: login sem limite de tentativas (bruta força), senha mínima de 4
+      caracteres (fraca), e adicionar/remover outro administrador sem reconfirmar senha
+      — ver "Login e conta" acima
+- [ ] Rate limiting do login é só por IP (sem CAPTCHA, sem 2FA) — pode falso-positivar
+      várias pessoas atrás do mesmo IP/NAT (ex: escritório) se todas errarem a senha, e
+      não impede um atacante com muitos IPs diferentes. Suficiente para o caso de uso
+      deste sistema (uso interno, poucos usuários), mas não é proteção de nível
+      enterprise
 
 ## 🚫 NÃO IMPLEMENTADO (decisão consciente, não é pendência)
 - Notificações por e-mail de vencimentos — decidiu-se não implementar por exigir SMTP

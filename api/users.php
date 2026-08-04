@@ -29,6 +29,23 @@ if ($method !== 'POST') {
 $input = json_decode(file_get_contents('php://input'), true);
 $action = (string)($input['action'] ?? '');
 
+// Adicionar ou remover outro administrador é uma ação de alto impacto (pode
+// criar uma porta dos fundos permanente, ou tirar o acesso de outra pessoa)
+// — por isso exige reconfirmar a própria senha, igual à troca de senha em
+// account.php e à geração de nova chave em regenerate_secret.php. Sem isso,
+// uma sessão sequestrada (cookie roubado, notebook destravado) conseguiria
+// fazer as duas coisas sem nenhuma verificação extra.
+if ($action === 'add' || $action === 'remove') {
+    $currentPassword = (string)($input['currentPassword'] ?? '');
+    $authCheck = readAuth();
+    $actingUser = findUserByUsername($authCheck, $currentUsername);
+    if ($actingUser === null || !password_verify($currentPassword, $actingUser['passwordHash'])) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => 'Senha atual incorreta.']);
+        exit;
+    }
+}
+
 if ($action === 'add') {
     $username = trim((string)($input['username'] ?? ''));
     $password = (string)($input['password'] ?? '');
@@ -38,9 +55,9 @@ if ($action === 'add') {
         echo json_encode(['ok' => false, 'error' => 'Informe um nome de usuário.']);
         exit;
     }
-    if (strlen($password) < 4) {
+    if (strlen($password) < 8) {
         http_response_code(400);
-        echo json_encode(['ok' => false, 'error' => 'A senha deve ter pelo menos 4 caracteres.']);
+        echo json_encode(['ok' => false, 'error' => 'A senha deve ter pelo menos 8 caracteres.']);
         exit;
     }
 
