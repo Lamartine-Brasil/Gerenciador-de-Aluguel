@@ -55,8 +55,11 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
       valor em atraso, observação — total calculado automaticamente
 - [x] Busca por inquilino ou imóvel; filtro por ano, mês e status (um contrato aparece
       se pelo menos uma das suas dívidas bater com o filtro)
-- [x] Ao criar um contrato novo, os campos Juros e Multa vêm pré-preenchidos com os
-      "valores padrão" configurados em Configurações
+- [x] Ao criar um contrato novo, os campos Juros e Multa são digitados em percentual
+      (%) do aluguel, não mais em R$ — vêm pré-preenchidos com a taxa de juros/multa
+      configurada em Configurações (a mesma usada no cálculo automático de atraso) e
+      são convertidos para R$ ao salvar a dívida. Na edição de uma dívida já existente,
+      continuam sendo digitados direto em R$ (valor fixo daquele mês, sem recalcular)
 - [x] Criação de contrato pede "Data de início do contrato" e "Dia de pagamento" (1-31)
       — o primeiro vencimento é calculado a partir desses dois campos (com ajuste
       automático se o dia não existir naquele mês, ex: dia 31 em fevereiro vira o
@@ -90,8 +93,8 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
 - [x] Excluir contrato apaga o contrato inteiro e todas as suas dívidas (com aviso
       mostrando quantas); excluir uma dívida específica remove só aquele mês, mantendo
       o resto do contrato
-- [x] Corretor (opcional, por contrato): nome (escolhido de uma lista cadastrada em
-      Configurações, para não digitar toda vez) + percentual (padrão configurável em
+- [x] Corretor (opcional, por contrato): nome (escolhido da lista de "Pessoas"
+      cadastrada em Configurações, para não digitar toda vez) + percentual (padrão configurável em
       Configurações, ex: 5%). O valor do corretor é só um cálculo informativo mostrado
       em cada dívida (aluguel da dívida × percentual) — mesma lógica do condomínio: faz
       parte do que passa pela mão do proprietário, mas não conta como receita dele. Não
@@ -116,9 +119,24 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
 - [x] Campo "Desconto (R$)": ao digitar, recalcula o valor pago automaticamente
       (total + atraso - desconto); o campo valor pago continua editável manualmente depois
 - [x] Campo "Forma de pagamento": seleção obrigatória entre Dinheiro e Pix
-- [x] Campo "Quem recebeu": texto livre, pré-preenchido com o recebedor padrão do contrato
+- [x] Campo "Quem recebeu": seletor da lista de "Pessoas" cadastrada em Configurações
+      (a mesma lista usada para corretor), pré-selecionado com o recebedor padrão do
+      contrato — evita digitar toda vez. Não é mais obrigatório
 - [x] Ao confirmar, marca a dívida como paga, registra a data do pagamento e zera o
       atraso base daquela dívida (as outras dívidas do mesmo contrato não são afetadas)
+
+### Despesas
+- [x] Aba dedicada para lançar despesas simples (data, descrição, valor), com
+      formulário sempre visível no topo (cadastro rápido, pensado para lançar várias
+      despesas seguidas)
+- [x] Cada despesa pode opcionalmente ser vinculada a um contrato (seletor "Contrato
+      relacionado") ou ficar como despesa geral (não afeta cálculo de dívida/receita —
+      é só um registro de controle à parte)
+- [x] Filtro por ano e por mês; card com total do período filtrado e card com total do
+      ano inteiro (independente do mês filtrado), para consultar tanto mensal quanto
+      anualmente
+- [x] Lista das despesas do período filtrado, mais recente primeiro, com botão excluir
+      por item
 
 ### Atrasos
 - [x] Aba dedicada listando só as dívidas com status "atrasado" (de todos os contratos)
@@ -136,6 +154,12 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
 - [x] Exibição de desconto e forma de pagamento em cada registro do histórico
 - [x] Exportação CSV do histórico de um contrato específico (inclui desconto e forma
       de pagamento)
+- [x] "Valor líquido" exibido ao lado do "Valor pago" (na aba geral e no modal por
+      contrato) sempre que houver corretor e/ou condomínio na dívida — desconta a
+      comissão do corretor (% sobre o aluguel) e o valor do condomínio do pagamento,
+      já que nenhum dos dois fica com o proprietário (mesma lógica usada nas dívidas:
+      "passa pela mão, mas não é receita"). Incluído também na exportação CSV do
+      histórico por contrato
 
 ### Gráficos
 - [x] Donut "Contratos por status" (ativos/atrasados/pagos), com legenda e total no centro
@@ -193,12 +217,14 @@ Ao implementar algo novo, atualize a seção correspondente aqui e em README.md.
 
 ### Configurações
 - [x] Taxa de juros mensal (%) e taxa de multa fixa por atraso (%) — usadas no cálculo
-      automático de atraso dos contratos vencidos
-- [x] Valores padrão de juros e multa (R$) e percentual padrão do corretor (%, padrão
-      5%) para pré-preencher novos contratos
-- [x] Cadastro de corretores: lista reutilizável de nomes de corretores (adicionar/
-      remover), usada como um seletor ao criar ou editar um contrato — evita digitar o
-      nome toda vez
+      automático de atraso dos contratos vencidos, e agora também como percentual
+      padrão dos campos "Juros"/"Multa" ao criar um novo contrato (ver abaixo)
+- [x] Percentual padrão do corretor (%, padrão 5%) para pré-preencher novos contratos
+- [x] Cadastro de "Pessoas (recebedores/corretores)": lista reutilizável de nomes
+      (adicionar/remover), usada como seletor tanto no campo "Quem recebe" (contrato e
+      pagamento) quanto no campo "Corretor" — evita digitar o nome toda vez, e um
+      corretor cadastrado também pode ser escolhido como "quem recebeu" um pagamento.
+      Renomeado do antigo cadastro "Corretores" (dados antigos migrados automaticamente)
 - [x] Conta do administrador (usuário/senha)
 - [x] Backup do banco de dados (exportar/importar)
 - [x] Zona de perigo: excluir todos os dados (contratos, pagamentos e configuração)

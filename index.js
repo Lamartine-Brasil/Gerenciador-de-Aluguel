@@ -13,7 +13,7 @@ const DIAS_ALERTA_VENCIMENTO = 5;
  * contrato antigo já nascer com várias dívidas em aberto (uma por mês em
  * atraso), em vez de virar vários "contratos" separados.
  */
-let state = { contratos: [], config: { taxaJurosMensal: 1, taxaMultaPercent: 2, jurosPadrao: 0, multaPadrao: 0, corretorPercentualPadrao: 5 }, auditoria: [], corretores: [] };
+let state = { contratos: [], config: { taxaJurosMensal: 1, taxaMultaPercent: 2, corretorPercentualPadrao: 5 }, auditoria: [], pessoas: [], despesas: [] };
 let currentUsername = '';
 
 function setCurrentUsername(username) {
@@ -76,9 +76,13 @@ async function fetchState() {
   if (!res.ok) throw new Error('Falha ao carregar dados do servidor.');
   const data = await res.json();
   data.contratos = data.contratos || [];
-  data.config = Object.assign({ taxaJurosMensal: 1, taxaMultaPercent: 2, jurosPadrao: 0, multaPadrao: 0, corretorPercentualPadrao: 5 }, data.config || {});
+  data.config = Object.assign({ taxaJurosMensal: 1, taxaMultaPercent: 2, corretorPercentualPadrao: 5 }, data.config || {});
   data.auditoria = data.auditoria || [];
-  data.corretores = data.corretores || [];
+  // pessoas substitui o antigo cadastro "corretores" (agora serve tanto para
+  // quem recebe quanto para corretor) — migra dados antigos automaticamente.
+  data.pessoas = data.pessoas || data.corretores || [];
+  delete data.corretores;
+  data.despesas = data.despesas || [];
   return data;
 }
 
@@ -210,6 +214,15 @@ function getStatus(d) {
 
 function statusLabel(status) {
   return { ativo: 'Ativo', atrasado: 'Atrasado', pago: 'Pago' }[status] || status;
+}
+
+// Valor que o proprietário de fato fica com um pagamento, descontando a parte
+// do corretor (se houver) e o condomínio — nenhum dos dois é receita dele,
+// só "passa pela mão" antes de ser repassado.
+function valorLiquidoPagamento(c, d, p) {
+  const corretorCut = c.corretorNome ? (Number(d.aluguel) || 0) * (Number(c.corretorPercentual) || 0) / 100 : 0;
+  const condominio = Number(d.condominio) || 0;
+  return (Number(p.valor) || 0) - corretorCut - condominio;
 }
 
 function showToast(message, type = '') {
@@ -435,6 +448,7 @@ document.getElementById('tabsNav').addEventListener('click', (e) => {
   if (btn.dataset.tab === 'relatorios') renderRelatorios();
   if (btn.dataset.tab === 'auditoria') renderAuditoria();
   if (btn.dataset.tab === 'calendario') renderCalendario();
+  if (btn.dataset.tab === 'despesas') renderDespesas();
 });
 
 /* ===================== MODALS ===================== */
@@ -481,18 +495,29 @@ document.addEventListener('keydown', (e) => {
 /* ===================== CONTRATO / DÍVIDA FORM ===================== */
 const formContrato = document.getElementById('formContrato');
 
+// Na criação, Juros/Multa são digitados em % (do aluguel) e convertidos para
+// R$ aqui só para a prévia; na edição de uma dívida já existente, são digitados
+// direto em R$ (valor fixo daquele mês).
 function updateTotalPreview() {
+  const criando = !document.getElementById('dividaId').value;
+  const aluguel = Number(document.getElementById('fAluguel').value) || 0;
+  const juros = criando
+    ? aluguel * (Number(document.getElementById('fJurosPercentual').value) || 0) / 100
+    : (Number(document.getElementById('fJuros').value) || 0);
+  const multa = criando
+    ? aluguel * (Number(document.getElementById('fMultaPercentual').value) || 0) / 100
+    : (Number(document.getElementById('fMulta').value) || 0);
   const total = calcTotal({
-    aluguel: document.getElementById('fAluguel').value,
+    aluguel,
     desconto: document.getElementById('fDesconto').value,
-    juros: document.getElementById('fJuros').value,
-    multa: document.getElementById('fMulta').value,
+    juros,
+    multa,
     condominio: document.getElementById('fCondominio').value,
   });
   document.getElementById('fTotalPreview').textContent = formatCurrency(total);
 }
 
-['fAluguel', 'fDesconto', 'fJuros', 'fMulta', 'fCondominio'].forEach(id => {
+['fAluguel', 'fDesconto', 'fJuros', 'fMulta', 'fJurosPercentual', 'fMultaPercentual', 'fCondominio'].forEach(id => {
   document.getElementById(id).addEventListener('input', updateTotalPreview);
 });
 
@@ -503,17 +528,22 @@ document.getElementById('btnNovoContrato').addEventListener('click', () => {
   document.getElementById('modalContratoTitle').textContent = 'Novo contrato';
   document.getElementById('fDataInicio').value = todayStr();
   document.getElementById('fDiaPagamento').value = new Date().getDate();
-  document.getElementById('fJuros').value = state.config.jurosPadrao || '';
-  document.getElementById('fMulta').value = state.config.multaPadrao || '';
+  document.getElementById('fJurosPercentual').value = state.config.taxaJurosMensal || '';
+  document.getElementById('fMultaPercentual').value = state.config.taxaMultaPercent || '';
   document.getElementById('fCampoDataInicio').classList.remove('hidden');
   document.getElementById('fCampoDiaPagamento').classList.remove('hidden');
   document.getElementById('fCampoImovel').classList.remove('hidden');
   document.getElementById('fCampoInquilino').classList.remove('hidden');
   document.getElementById('fCampoQuemRecebeu').classList.remove('hidden');
+  populatePessoaSelect(document.getElementById('fQuemRecebeu'), '', 'Nenhum / outro');
   document.getElementById('fCampoVencimento').classList.add('hidden');
+  document.getElementById('fCampoJurosPercentual').classList.remove('hidden');
+  document.getElementById('fCampoMultaPercentual').classList.remove('hidden');
+  document.getElementById('fCampoJuros').classList.add('hidden');
+  document.getElementById('fCampoMulta').classList.add('hidden');
   document.getElementById('fCampoCorretorNome').classList.remove('hidden');
   document.getElementById('fCampoCorretorPercentual').classList.remove('hidden');
-  populateCorretorSelect(document.getElementById('fCorretorNome'), '');
+  populatePessoaSelect(document.getElementById('fCorretorNome'), '', 'Nenhum (sem corretor)');
   document.getElementById('fCampoCorretorPercentual').classList.add('hidden');
   document.getElementById('fCorretorPercentual').value = 0;
   document.getElementById('fCorretorHint').classList.remove('hidden');
@@ -548,6 +578,10 @@ function openEditDivida(dividaId) {
   document.getElementById('fCampoInquilino').classList.add('hidden');
   document.getElementById('fCampoQuemRecebeu').classList.add('hidden');
   document.getElementById('fCampoVencimento').classList.remove('hidden');
+  document.getElementById('fCampoJurosPercentual').classList.add('hidden');
+  document.getElementById('fCampoMultaPercentual').classList.add('hidden');
+  document.getElementById('fCampoJuros').classList.remove('hidden');
+  document.getElementById('fCampoMulta').classList.remove('hidden');
   document.getElementById('fCampoCorretorNome').classList.add('hidden');
   document.getElementById('fCampoCorretorPercentual').classList.add('hidden');
   document.getElementById('fCorretorHint').classList.add('hidden');
@@ -564,12 +598,28 @@ function openEditDivida(dividaId) {
 formContrato.addEventListener('submit', (e) => {
   e.preventDefault();
   const dividaId = document.getElementById('dividaId').value;
+  const aluguelValue = Number(document.getElementById('fAluguel').value) || 0;
+
+  // Na edição de uma dívida já existente, juros/multa são digitados direto em
+  // R$ (valor fixo daquele mês). Na criação de um contrato novo, são digitados
+  // em % do aluguel (padrão vindo da taxa de juros/multa de Configurações) e
+  // convertidos para R$ aqui — a partir daí a dívida guarda só o valor em R$.
+  let jurosValue, multaValue;
+  if (dividaId) {
+    jurosValue = Number(document.getElementById('fJuros').value) || 0;
+    multaValue = Number(document.getElementById('fMulta').value) || 0;
+  } else {
+    const jurosPct = Number(document.getElementById('fJurosPercentual').value) || 0;
+    const multaPct = Number(document.getElementById('fMultaPercentual').value) || 0;
+    jurosValue = aluguelValue * jurosPct / 100;
+    multaValue = aluguelValue * multaPct / 100;
+  }
 
   const camposDivida = {
-    aluguel: Number(document.getElementById('fAluguel').value) || 0,
+    aluguel: aluguelValue,
     desconto: Number(document.getElementById('fDesconto').value) || 0,
-    juros: Number(document.getElementById('fJuros').value) || 0,
-    multa: Number(document.getElementById('fMulta').value) || 0,
+    juros: jurosValue,
+    multa: multaValue,
     condominio: Number(document.getElementById('fCondominio').value) || 0,
     valorAtrasoBase: Number(document.getElementById('fValorAtraso').value) || 0,
     observacao: document.getElementById('fObservacao').value.trim(),
@@ -779,12 +829,12 @@ function openContratoInfo(contratoId) {
   document.getElementById('infoContratoId').value = c.id;
   document.getElementById('infoImovel').value = c.imovel;
   document.getElementById('infoInquilino').value = c.inquilino;
-  document.getElementById('infoQuemRecebeu').value = c.quemRecebeu || '';
+  populatePessoaSelect(document.getElementById('infoQuemRecebeu'), c.quemRecebeu || '', 'Nenhum / outro');
   document.getElementById('infoContratoSubtitle').textContent = c.dataInicio
     ? `Início do contrato: ${formatDate(c.dataInicio)}, todo dia ${c.diaPagamento}`
     : '';
 
-  populateCorretorSelect(document.getElementById('infoCorretorNome'), c.corretorNome || '');
+  populatePessoaSelect(document.getElementById('infoCorretorNome'), c.corretorNome || '', 'Nenhum (sem corretor)');
   document.getElementById('infoCampoCorretorPercentual').classList.toggle('hidden', !c.corretorNome);
   document.getElementById('infoCampoCorretorValor').classList.toggle('hidden', !c.corretorNome);
   document.getElementById('infoCorretorPercentual').value = c.corretorNome ? c.corretorPercentual : 0;
@@ -943,7 +993,7 @@ function openPagamento(dividaId) {
   document.getElementById('pagDesconto').value = '';
   document.getElementById('pagValor').value = (d.total + calcAtrasoAtual(d)).toFixed(2);
   document.getElementById('pagForma').value = '';
-  document.getElementById('pagQuemRecebeu').value = c.quemRecebeu || '';
+  populatePessoaSelect(document.getElementById('pagQuemRecebeu'), c.quemRecebeu || '', 'Nenhum / outro');
   document.getElementById('pagObservacao').value = '';
   openModal('modalPagamento');
 }
@@ -993,7 +1043,7 @@ function openHistoricoContrato(contratoId) {
   document.getElementById('histContratoInfo').textContent = `${c.imovel} — ${c.inquilino}`;
   const list = document.getElementById('histContratoList');
   const pagamentos = [];
-  c.dividas.forEach(d => d.pagamentos.forEach(p => pagamentos.push({ ...p, vencimentoDivida: d.vencimento })));
+  c.dividas.forEach(d => d.pagamentos.forEach(p => pagamentos.push({ ...p, vencimentoDivida: d.vencimento, valorLiquido: valorLiquidoPagamento(c, d, p) })));
   pagamentos.sort((a, b) => a.data < b.data ? 1 : -1);
 
   if (!pagamentos.length) {
@@ -1005,6 +1055,7 @@ function openHistoricoContrato(contratoId) {
           <div><span>Dívida (vencimento)</span><strong>${formatDate(p.vencimentoDivida)}</strong></div>
           <div><span>Data do pagamento</span><strong>${formatDate(p.data)}</strong></div>
           <div><span>Valor pago</span><strong>${formatCurrency(p.valor)}</strong></div>
+          ${Math.abs(p.valorLiquido - p.valor) > 0.001 ? `<div><span>Valor líquido</span><strong>${formatCurrency(p.valorLiquido)}</strong></div>` : ''}
           ${p.desconto ? `<div><span>Desconto</span><strong>${formatCurrency(p.desconto)}</strong></div>` : ''}
           <div><span>Forma de pagamento</span><strong>${escapeHtml(p.forma) || '--'}</strong></div>
           <div><span>Quem recebeu</span><strong>${escapeHtml(p.quemRecebeu) || '--'}</strong></div>
@@ -1358,7 +1409,9 @@ function renderHistorico() {
     return;
   }
 
-  list.innerHTML = entries.map(e => `
+  list.innerHTML = entries.map(e => {
+    const valorLiquido = valorLiquidoPagamento(e.contrato, e.divida, e);
+    return `
     <div class="card">
       <div class="contrato-top">
         <div>
@@ -1370,16 +1423,121 @@ function renderHistorico() {
       <div class="contrato-grid">
         <div><span>Data do pagamento</span><strong>${formatDate(e.data)}</strong></div>
         <div><span>Valor pago</span><strong>${formatCurrency(e.valor)}</strong></div>
+        ${Math.abs(valorLiquido - e.valor) > 0.001 ? `<div><span>Valor líquido</span><strong>${formatCurrency(valorLiquido)}</strong></div>` : ''}
         ${e.desconto ? `<div><span>Desconto</span><strong>${formatCurrency(e.desconto)}</strong></div>` : ''}
         <div><span>Forma de pagamento</span><strong>${escapeHtml(e.forma) || '--'}</strong></div>
         <div><span>Quem recebeu</span><strong>${escapeHtml(e.quemRecebeu) || '--'}</strong></div>
         <div><span>Observação</span><strong>${escapeHtml(e.observacao) || '--'}</strong></div>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 document.getElementById('historicoFiltroContrato').addEventListener('change', renderHistorico);
+
+/* ===================== DESPESAS =====================
+ * Lançamentos simples de despesa (data, descrição, valor), opcionalmente
+ * ligados a um contrato. Consultáveis por mês (filtro de mês) e por ano
+ * (filtro de ano, com total do ano sempre visível independente do mês).
+ */
+const formDespesa = document.getElementById('formDespesa');
+
+function populateDespesaContratoSelect() {
+  const select = document.getElementById('despContrato');
+  const current = select.value;
+  select.innerHTML = '<option value="">Nenhum (despesa geral)</option>' +
+    state.contratos.map(c => `<option value="${c.id}">${escapeHtml(c.imovel)} — ${escapeHtml(c.inquilino)}</option>`).join('');
+  select.value = current || '';
+}
+
+function populateDespesaAnoFilter() {
+  const select = document.getElementById('despesaFiltroAno');
+  const anos = new Set(state.despesas.map(d => parseDate(d.data).getFullYear()));
+  anos.add(new Date().getFullYear());
+  const sorted = Array.from(anos).sort((a, b) => b - a);
+  const current = select.value;
+  select.innerHTML = sorted.map(a => `<option value="${a}">${a}</option>`).join('');
+  select.value = sorted.map(String).includes(current) ? current : String(new Date().getFullYear());
+}
+
+function despesaContratoLabel(contratoId) {
+  const c = state.contratos.find(x => x.id === contratoId);
+  return c ? `${c.imovel} — ${c.inquilino}` : 'Contrato removido';
+}
+
+function renderDespesas() {
+  if (!document.getElementById('despData').value) document.getElementById('despData').value = todayStr();
+  populateDespesaContratoSelect();
+  populateDespesaAnoFilter();
+
+  const ano = Number(document.getElementById('despesaFiltroAno').value);
+  const mes = document.getElementById('despesaFiltroMes').value;
+
+  const doAno = state.despesas.filter(d => parseDate(d.data).getFullYear() === ano);
+  const totalAno = doAno.reduce((sum, d) => sum + d.valor, 0);
+  document.getElementById('statDespesaAno').textContent = formatCurrency(totalAno);
+
+  const filtradas = doAno.filter(d => mes === '' || parseDate(d.data).getMonth() === Number(mes));
+  const totalFiltrado = filtradas.reduce((sum, d) => sum + d.valor, 0);
+  document.getElementById('statDespesaFiltro').textContent = formatCurrency(totalFiltrado);
+
+  const ordenadas = filtradas.slice().sort((a, b) => a.data < b.data ? 1 : -1);
+  const list = document.getElementById('despesasList');
+  if (!ordenadas.length) {
+    list.innerHTML = '<div class="empty-state">Nenhuma despesa registrada neste período.</div>';
+    return;
+  }
+  list.innerHTML = ordenadas.map(d => `
+    <div class="card">
+      <div class="contrato-top">
+        <div>
+          <div class="contrato-title">${escapeHtml(d.descricao)}</div>
+          <div class="contrato-sub">${icon('calendar')} ${formatDate(d.data)}${d.contratoId ? ` · ${icon('user')} ${escapeHtml(despesaContratoLabel(d.contratoId))}` : ' · Despesa geral'}</div>
+        </div>
+        <strong style="color:var(--danger)">${formatCurrency(d.valor)}</strong>
+      </div>
+      <div class="contrato-actions">
+        <button type="button" class="btn btn-danger btn-sm" data-remove-despesa="${d.id}">${icon('trash')} Excluir</button>
+      </div>
+    </div>
+  `).join('');
+  list.querySelectorAll('[data-remove-despesa]').forEach(btn => {
+    btn.addEventListener('click', () => excluirDespesa(btn.dataset.removeDespesa));
+  });
+}
+
+function excluirDespesa(id) {
+  const d = state.despesas.find(x => x.id === id);
+  if (!d) return;
+  if (!confirm(`Excluir a despesa "${d.descricao}" de ${formatCurrency(d.valor)}?`)) return;
+  state.despesas = state.despesas.filter(x => x.id !== id);
+  registrarAuditoria('despesa_excluida', `Despesa excluída: ${d.descricao} (${formatCurrency(d.valor)})`);
+  saveState();
+  renderDespesas();
+  showToast('Despesa excluída.', 'success');
+}
+
+formDespesa.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const data = document.getElementById('despData').value;
+  const descricao = document.getElementById('despDescricao').value.trim();
+  const valor = Number(document.getElementById('despValor').value) || 0;
+  const contratoId = document.getElementById('despContrato').value || null;
+  if (!data || !descricao || valor <= 0) return;
+
+  state.despesas.push({ id: uuid(), data, descricao, valor, contratoId, criadoEm: Date.now() });
+  registrarAuditoria('despesa_criada', `Despesa registrada: ${descricao} (${formatCurrency(valor)})`);
+  saveState();
+  const dataAtual = data;
+  formDespesa.reset();
+  document.getElementById('despData').value = dataAtual;
+  renderDespesas();
+  showToast('Despesa adicionada com sucesso.', 'success');
+});
+
+document.getElementById('despesaFiltroAno').addEventListener('change', renderDespesas);
+document.getElementById('despesaFiltroMes').addEventListener('change', renderDespesas);
 
 /* ===================== CONFIG ===================== */
 const configForm = document.getElementById('configForm');
@@ -1387,11 +1545,9 @@ const configForm = document.getElementById('configForm');
 function renderConfig() {
   document.getElementById('configTaxaJuros').value = state.config.taxaJurosMensal;
   document.getElementById('configTaxaMulta').value = state.config.taxaMultaPercent;
-  document.getElementById('configJurosPadrao').value = state.config.jurosPadrao || 0;
-  document.getElementById('configMultaPadrao').value = state.config.multaPadrao || 0;
   document.getElementById('configCorretorPercentualPadrao').value = state.config.corretorPercentualPadrao || 0;
   document.getElementById('accUsername').value = currentUsername;
-  renderCorretoresConfig();
+  renderPessoasConfig();
 }
 
 configForm.addEventListener('submit', (e) => {
@@ -1409,8 +1565,6 @@ configForm.addEventListener('submit', (e) => {
 const configPadraoForm = document.getElementById('configPadraoForm');
 configPadraoForm.addEventListener('submit', (e) => {
   e.preventDefault();
-  state.config.jurosPadrao = Number(document.getElementById('configJurosPadrao').value) || 0;
-  state.config.multaPadrao = Number(document.getElementById('configMultaPadrao').value) || 0;
   state.config.corretorPercentualPadrao = Number(document.getElementById('configCorretorPercentualPadrao').value) || 0;
   saveState();
   const msg = document.getElementById('configPadraoSaved');
@@ -1419,16 +1573,16 @@ configPadraoForm.addEventListener('submit', (e) => {
   showToast('Valores padrão salvos com sucesso.', 'success');
 });
 
-/* ===================== CORRETORES (cadastro reutilizável) ===================== */
-const addCorretorForm = document.getElementById('addCorretorForm');
+/* ===================== PESSOAS (cadastro reutilizável: recebedores/corretores) ===================== */
+const addPessoaForm = document.getElementById('addPessoaForm');
 
-function populateCorretorSelect(selectEl, valorAtual) {
+function populatePessoaSelect(selectEl, valorAtual, placeholder) {
   const atual = valorAtual || '';
-  selectEl.innerHTML = '<option value="">Nenhum (sem corretor)</option>' +
-    state.corretores.map(c => `<option value="${escapeHtml(c.nome)}">${escapeHtml(c.nome)}</option>`).join('');
-  // se o valor atual não estiver na lista (corretor removido do cadastro depois
-  // de já usado num contrato), mantém mostrando o nome mesmo assim
-  if (atual && !state.corretores.some(c => c.nome === atual)) {
+  selectEl.innerHTML = `<option value="">${placeholder}</option>` +
+    state.pessoas.map(p => `<option value="${escapeHtml(p.nome)}">${escapeHtml(p.nome)}</option>`).join('');
+  // se o valor atual não estiver na lista (pessoa removida do cadastro depois
+  // de já usada num contrato/pagamento), mantém mostrando o nome mesmo assim
+  if (atual && !state.pessoas.some(p => p.nome === atual)) {
     selectEl.innerHTML += `<option value="${escapeHtml(atual)}">${escapeHtml(atual)}</option>`;
   }
   selectEl.value = atual;
@@ -1451,49 +1605,49 @@ document.getElementById('infoCorretorNome').addEventListener('change', () => {
   atualizarValorCorretorInfo();
 });
 
-function renderCorretoresConfig() {
-  const list = document.getElementById('corretoresList');
-  if (!state.corretores.length) {
-    list.innerHTML = '<div class="empty-state">Nenhum corretor cadastrado ainda.</div>';
+function renderPessoasConfig() {
+  const list = document.getElementById('pessoasList');
+  if (!state.pessoas.length) {
+    list.innerHTML = '<div class="empty-state">Nenhuma pessoa cadastrada ainda.</div>';
     return;
   }
-  list.innerHTML = state.corretores.map(c => `
+  list.innerHTML = state.pessoas.map(p => `
     <div class="card">
       <div class="contrato-top">
-        <div class="contrato-title">${escapeHtml(c.nome)}</div>
-        <button type="button" class="btn btn-danger btn-sm" data-remove-corretor="${c.id}">${icon('trash')} Remover</button>
+        <div class="contrato-title">${escapeHtml(p.nome)}</div>
+        <button type="button" class="btn btn-danger btn-sm" data-remove-pessoa="${p.id}">${icon('trash')} Remover</button>
       </div>
     </div>
   `).join('');
-  list.querySelectorAll('[data-remove-corretor]').forEach(btn => {
-    btn.addEventListener('click', () => removeCorretor(btn.dataset.removeCorretor));
+  list.querySelectorAll('[data-remove-pessoa]').forEach(btn => {
+    btn.addEventListener('click', () => removePessoa(btn.dataset.removePessoa));
   });
 }
 
-function removeCorretor(id) {
-  const c = state.corretores.find(x => x.id === id);
-  if (!c) return;
-  if (!confirm(`Remover "${c.nome}" da lista de corretores? Contratos que já usam esse nome não são afetados.`)) return;
-  state.corretores = state.corretores.filter(x => x.id !== id);
+function removePessoa(id) {
+  const p = state.pessoas.find(x => x.id === id);
+  if (!p) return;
+  if (!confirm(`Remover "${p.nome}" da lista de pessoas? Contratos/pagamentos que já usam esse nome não são afetados.`)) return;
+  state.pessoas = state.pessoas.filter(x => x.id !== id);
   saveState();
-  renderCorretoresConfig();
-  showToast('Corretor removido.', 'success');
+  renderPessoasConfig();
+  showToast('Pessoa removida.', 'success');
 }
 
-addCorretorForm.addEventListener('submit', (e) => {
+addPessoaForm.addEventListener('submit', (e) => {
   e.preventDefault();
-  const nomeInput = document.getElementById('newCorretorNome');
+  const nomeInput = document.getElementById('newPessoaNome');
   const nome = nomeInput.value.trim();
   if (!nome) return;
-  if (state.corretores.some(c => c.nome.toLowerCase() === nome.toLowerCase())) {
-    showToast('Já existe um corretor cadastrado com esse nome.', 'error');
+  if (state.pessoas.some(p => p.nome.toLowerCase() === nome.toLowerCase())) {
+    showToast('Já existe uma pessoa cadastrada com esse nome.', 'error');
     return;
   }
-  state.corretores.push({ id: uuid(), nome });
+  state.pessoas.push({ id: uuid(), nome });
   saveState();
   nomeInput.value = '';
-  renderCorretoresConfig();
-  showToast('Corretor adicionado com sucesso.', 'success');
+  renderPessoasConfig();
+  showToast('Pessoa adicionada com sucesso.', 'success');
 });
 
 /* ===================== CONTA (usuário/senha) ===================== */
@@ -1661,11 +1815,13 @@ document.getElementById('inputImportBackup').addEventListener('change', (e) => {
     if (precisaMigrarContratos(state.contratos)) {
       state.contratos = migrarContratos(state.contratos);
     }
-    state.corretores = state.corretores || [];
+    state.pessoas = state.pessoas || state.corretores || [];
+    delete state.corretores;
+    state.despesas = state.despesas || [];
     state.auditoria = state.auditoria || [];
     await saveState();
     renderAll();
-    renderCorretoresConfig();
+    renderPessoasConfig();
     showToast('Backup restaurado com sucesso.', 'success');
   };
   reader.readAsText(file, 'UTF-8');
@@ -1680,7 +1836,7 @@ document.getElementById('btnDeleteDatabase').addEventListener('click', async () 
     showToast('Exclusão cancelada.', 'error');
     return;
   }
-  state = { contratos: [], config: { taxaJurosMensal: 1, taxaMultaPercent: 2, jurosPadrao: 0, multaPadrao: 0, corretorPercentualPadrao: 5 }, auditoria: [], corretores: [] };
+  state = { contratos: [], config: { taxaJurosMensal: 1, taxaMultaPercent: 2, corretorPercentualPadrao: 5 }, auditoria: [], pessoas: [], despesas: [] };
   await saveState();
   renderAll();
   showToast('Todos os dados foram excluídos.', 'success');
@@ -2235,14 +2391,15 @@ document.getElementById('btnExportHistoricoContrato').addEventListener('click', 
   const c = state.contratos.find(x => x.id === historicoContratoAtualId);
   if (!c) return;
   const pagamentos = [];
-  c.dividas.forEach(d => d.pagamentos.forEach(p => pagamentos.push({ ...p, vencimentoDivida: d.vencimento })));
+  c.dividas.forEach(d => d.pagamentos.forEach(p => pagamentos.push({ ...p, vencimentoDivida: d.vencimento, valorLiquido: valorLiquidoPagamento(c, d, p) })));
   if (!pagamentos.length) { showToast('Nenhum pagamento para exportar.', 'error'); return; }
 
-  const headers = ['Dívida (Vencimento)', 'Data do Pagamento', 'Valor Pago', 'Desconto', 'Forma de Pagamento', 'Quem Recebeu', 'Observação'];
+  const headers = ['Dívida (Vencimento)', 'Data do Pagamento', 'Valor Pago', 'Valor Líquido', 'Desconto', 'Forma de Pagamento', 'Quem Recebeu', 'Observação'];
   const rows = pagamentos.map(p => [
     formatDate(p.vencimentoDivida),
     formatDate(p.data),
     p.valor.toFixed(2),
+    p.valorLiquido.toFixed(2),
     (p.desconto || 0).toFixed(2),
     p.forma || '',
     p.quemRecebeu || '',
@@ -2455,6 +2612,8 @@ function renderAll() {
   if (auditoriaTab.classList.contains('active')) renderAuditoria();
   const calendarioTab = document.getElementById('tab-calendario');
   if (calendarioTab.classList.contains('active')) renderCalendario();
+  const despesasTab = document.getElementById('tab-despesas');
+  if (despesasTab.classList.contains('active')) renderDespesas();
 }
 
 /* ===================== INIT ===================== */

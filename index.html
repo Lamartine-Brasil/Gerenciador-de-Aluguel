@@ -36,6 +36,7 @@
     <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.3-4.3"/></symbol>
     <symbol id="icon-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="2.7"/></symbol>
     <symbol id="icon-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c1-4 4-6 7.5-6s6.5 2 7.5 6"/></symbol>
+    <symbol id="icon-wallet" viewBox="0 0 24 24"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h12A1.5 1.5 0 0 1 19 7.5V9"/><path d="M4 7.5V18a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 18v-7.5A1.5 1.5 0 0 0 18.5 9H5.5A1.5 1.5 0 0 1 4 7.5Z"/><circle cx="16" cy="13.5" r="1.2" fill="currentColor" stroke="none"/></symbol>
   </defs>
 </svg>
 
@@ -80,6 +81,7 @@
     <button class="tab-btn" data-tab="contratos"><span class="tab-icon"><svg class="icon"><use href="#icon-file-text"></use></svg></span><span>Contratos</span></button>
     <button class="tab-btn" data-tab="atrasos"><span class="tab-icon"><svg class="icon"><use href="#icon-clock"></use></svg></span><span>Atrasos</span></button>
     <button class="tab-btn" data-tab="historico"><span class="tab-icon"><svg class="icon"><use href="#icon-receipt"></use></svg></span><span>Histórico</span></button>
+    <button class="tab-btn" data-tab="despesas"><span class="tab-icon"><svg class="icon"><use href="#icon-wallet"></use></svg></span><span>Despesas</span></button>
     <button class="tab-btn" data-tab="graficos"><span class="tab-icon"><svg class="icon"><use href="#icon-bar-chart"></use></svg></span><span>Gráficos</span></button>
     <button class="tab-btn" data-tab="relatorios"><span class="tab-icon"><svg class="icon"><use href="#icon-clipboard-list"></use></svg></span><span>Relatórios</span></button>
     <button class="tab-btn" data-tab="calendario"><span class="tab-icon"><svg class="icon"><use href="#icon-calendar"></use></svg></span><span>Calendário</span></button>
@@ -198,6 +200,77 @@
         </select>
       </div>
       <div id="historicoList" class="cards-list"></div>
+    </section>
+
+    <!-- ---------- DESPESAS ---------- -->
+    <section id="tab-despesas" class="tab-panel">
+      <div class="panel-header">
+        <h2>Despesas</h2>
+      </div>
+
+      <div class="card">
+        <h3>Nova despesa</h3>
+        <p class="modal-subtitle">Cadastro simples e rápido — pode ou não estar ligada a um contrato específico.</p>
+        <form id="formDespesa" class="config-form">
+          <label class="field">
+            <span>Data *</span>
+            <input type="date" id="despData" required>
+          </label>
+          <label class="field">
+            <span>Descrição *</span>
+            <input type="text" id="despDescricao" placeholder="Ex: Manutenção, reparo, taxa..." required>
+          </label>
+          <label class="field">
+            <span>Valor (R$) *</span>
+            <input type="number" id="despValor" step="0.01" min="0.01" required>
+          </label>
+          <label class="field">
+            <span>Contrato relacionado (opcional)</span>
+            <select id="despContrato">
+              <option value="">Nenhum (despesa geral)</option>
+            </select>
+          </label>
+          <button type="submit" class="btn btn-primary">Adicionar despesa</button>
+        </form>
+      </div>
+
+      <div class="toolbar">
+        <select id="despesaFiltroAno" class="input select"></select>
+        <select id="despesaFiltroMes" class="input select">
+          <option value="">Todos os meses</option>
+          <option value="0">Janeiro</option>
+          <option value="1">Fevereiro</option>
+          <option value="2">Março</option>
+          <option value="3">Abril</option>
+          <option value="4">Maio</option>
+          <option value="5">Junho</option>
+          <option value="6">Julho</option>
+          <option value="7">Agosto</option>
+          <option value="8">Setembro</option>
+          <option value="9">Outubro</option>
+          <option value="10">Novembro</option>
+          <option value="11">Dezembro</option>
+        </select>
+      </div>
+
+      <div class="cards-grid">
+        <div class="card stat-card stat-danger">
+          <div class="stat-icon"><svg class="icon"><use href="#icon-wallet"></use></svg></div>
+          <div class="stat-info">
+            <span class="stat-value" id="statDespesaFiltro">R$ 0,00</span>
+            <span class="stat-label">Total no período filtrado</span>
+          </div>
+        </div>
+        <div class="card stat-card stat-warn">
+          <div class="stat-icon"><svg class="icon"><use href="#icon-wallet"></use></svg></div>
+          <div class="stat-info">
+            <span class="stat-value" id="statDespesaAno">R$ 0,00</span>
+            <span class="stat-label">Total no ano selecionado</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="despesasList" class="cards-list"></div>
     </section>
 
     <!-- ---------- GRÁFICOS ---------- -->
@@ -330,6 +403,7 @@
       </div>
       <div class="card">
         <h3>Taxa de juros por atraso</h3>
+        <p class="modal-subtitle">Usada para calcular o acréscimo automático sobre dívidas vencidas, e também como percentual padrão de Juros/Multa ao criar um novo contrato.</p>
         <form id="configForm" class="config-form">
           <label class="field">
             <span>Taxa de juros mensal (%)</span>
@@ -349,14 +423,6 @@
         <p class="modal-subtitle">Preenchidos automaticamente ao criar um novo contrato, para evitar digitar sempre. Podem ser alterados individualmente em cada contrato.</p>
         <form id="configPadraoForm" class="config-form">
           <label class="field">
-            <span>Juros padrão (R$)</span>
-            <input type="number" id="configJurosPadrao" step="0.01" min="0" required>
-          </label>
-          <label class="field">
-            <span>Multa padrão (R$)</span>
-            <input type="number" id="configMultaPadrao" step="0.01" min="0" required>
-          </label>
-          <label class="field">
             <span>Percentual padrão do corretor (%)</span>
             <input type="number" id="configCorretorPercentualPadrao" step="0.01" min="0" max="100" required>
           </label>
@@ -366,15 +432,15 @@
       </div>
 
       <div class="card">
-        <h3>Corretores</h3>
-        <p class="modal-subtitle">Cadastre os corretores uma vez para escolher pela lista ao criar um contrato, sem precisar digitar o nome toda vez.</p>
-        <div id="corretoresList" class="cards-list"></div>
-        <form id="addCorretorForm" class="config-form" style="margin-top:14px;">
+        <h3>Pessoas (recebedores / corretores)</h3>
+        <p class="modal-subtitle">Cadastre aqui quem pode receber pagamentos e/ou atuar como corretor, para escolher pela lista sem digitar o nome toda vez. A mesma lista alimenta os campos "Quem recebe" e "Corretor".</p>
+        <div id="pessoasList" class="cards-list"></div>
+        <form id="addPessoaForm" class="config-form" style="margin-top:14px;">
           <label class="field">
-            <span>Nome do corretor *</span>
-            <input type="text" id="newCorretorNome" required>
+            <span>Nome *</span>
+            <input type="text" id="newPessoaNome" required>
           </label>
-          <button type="submit" class="btn btn-primary">Adicionar corretor</button>
+          <button type="submit" class="btn btn-primary">Adicionar pessoa</button>
         </form>
       </div>
 
@@ -480,7 +546,9 @@
         </label>
         <label class="field" id="fCampoQuemRecebeu">
           <span>Quem recebe (padrão)</span>
-          <input type="text" id="fQuemRecebeu" placeholder="Ex: Banco X, PIX...">
+          <select id="fQuemRecebeu">
+            <option value="">Nenhum / outro</option>
+          </select>
         </label>
         <label class="field" id="fCampoCorretorNome">
           <span>Corretor (opcional)</span>
@@ -500,11 +568,19 @@
           <span>Desconto (R$)</span>
           <input type="number" id="fDesconto" step="0.01" min="0" placeholder="0,00">
         </label>
-        <label class="field">
+        <label class="field" id="fCampoJurosPercentual">
+          <span>Juros (%)</span>
+          <input type="number" id="fJurosPercentual" step="0.01" min="0" placeholder="Ex: 1">
+        </label>
+        <label class="field" id="fCampoMultaPercentual">
+          <span>Multa (%)</span>
+          <input type="number" id="fMultaPercentual" step="0.01" min="0" placeholder="Ex: 2">
+        </label>
+        <label class="field" id="fCampoJuros">
           <span>Juros (R$)</span>
           <input type="number" id="fJuros" step="0.01" min="0" placeholder="0,00">
         </label>
-        <label class="field">
+        <label class="field" id="fCampoMulta">
           <span>Multa (R$)</span>
           <input type="number" id="fMulta" step="0.01" min="0" placeholder="0,00">
         </label>
@@ -555,7 +631,9 @@
       </label>
       <label class="field">
         <span>Quem recebe (padrão)</span>
-        <input type="text" id="infoQuemRecebeu" placeholder="Ex: Banco X, PIX...">
+        <select id="infoQuemRecebeu">
+          <option value="">Nenhum / outro</option>
+        </select>
       </label>
       <div class="field">
         <span>Corretor (opcional)</span>
@@ -626,8 +704,10 @@
         </select>
       </label>
       <label class="field">
-        <span>Quem recebeu *</span>
-        <input type="text" id="pagQuemRecebeu" placeholder="Banco, PIX, transferência..." required>
+        <span>Quem recebeu</span>
+        <select id="pagQuemRecebeu">
+          <option value="">Nenhum / outro</option>
+        </select>
       </label>
       <label class="field">
         <span>Observação</span>
