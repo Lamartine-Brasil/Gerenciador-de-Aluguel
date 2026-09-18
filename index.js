@@ -5263,6 +5263,71 @@ function drawChartTooltip(ctx, w, x, y, titulo, linhas) {
   });
 }
 
+/* ---- Gráficos sem mouse ----
+ * Um canvas é só uma imagem: sem isto, os valores de cada mês só apareciam
+ * passando o mouse (nada para teclado, leitor de tela ou toque). Cada gráfico
+ * ganha um nome com resumo (role="img") e um "Ver dados" com a tabela gerada
+ * dos mesmos números que desenham o gráfico.
+ */
+function tituloDoGrafico(canvas) {
+  const card = canvas.closest('.chart-card');
+  const h = card && card.querySelector('h3');
+  return h ? h.textContent.replace(/\s+/g, ' ').trim() : 'Gráfico';
+}
+
+function definirDadosDoGrafico(canvas, { resumo, cabecalho, linhas, dicaTeclado }) {
+  const titulo = tituloDoGrafico(canvas);
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', `${titulo}. ${resumo}${dicaTeclado ? ' Use as setas para a esquerda e para a direita para ouvir cada mês.' : ''}`);
+  let detalhes = canvas.parentElement.querySelector(`details[data-grafico="${canvas.id}"]`);
+  if (!detalhes) {
+    detalhes = document.createElement('details');
+    detalhes.className = 'chart-dados';
+    detalhes.dataset.grafico = canvas.id;
+    detalhes.innerHTML = '<summary>Ver dados</summary><div class="chart-dados-tabela"></div>';
+    canvas.parentElement.appendChild(detalhes);
+  }
+  detalhes.querySelector('summary').innerHTML = `Ver dados<span class="sr-only"> de ${escapeHtml(titulo)}</span>`;
+  detalhes.querySelector('.chart-dados-tabela').innerHTML = linhas.length ? `
+    <table class="report-table">
+      <caption class="sr-only">${escapeHtml(titulo)}</caption>
+      <thead><tr>${cabecalho.map((c, i) => `<th scope="col"${i ? ' class="num"' : ''}>${escapeHtml(c)}</th>`).join('')}</tr></thead>
+      <tbody>${linhas.map(l => `<tr><th scope="row">${escapeHtml(String(l[0]))}</th>${l.slice(1).map(v => `<td class="num">${escapeHtml(String(v))}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table>` : '<p class="modal-subtitle">Sem dados neste ano.</p>';
+}
+
+// Resumo de uma série mensal: total, e o mês de maior valor.
+function resumoMensal(meses, valores) {
+  const total = valores.reduce((a, b) => a + b, 0);
+  if (!total) return 'Sem valores neste ano.';
+  const i = valores.indexOf(Math.max(...valores));
+  return `Total ${formatCurrency(total)}; maior mês: ${MESES_PT[meses[i].month]}, ${formatCurrency(valores[i])}.`;
+}
+
+// Mês destacado pelo teclado (setas) ou pelo toque, com o valor anunciado.
+function ligarNavegacaoPorMes(canvas, n, desenhar, textoDoMes) {
+  canvas.tabIndex = 0;
+  canvas.onkeydown = (e) => {
+    const atual = canvas.__hover;
+    let idx = null;
+    if (e.key === 'ArrowRight') idx = atual == null ? 0 : Math.min(atual + 1, n - 1);
+    else if (e.key === 'ArrowLeft') idx = atual == null ? n - 1 : Math.max(atual - 1, 0);
+    else if (e.key === 'Home') idx = 0;
+    else if (e.key === 'End') idx = n - 1;
+    else if (e.key === 'Escape' && atual != null) { canvas.__hover = null; desenhar(null); e.stopPropagation(); return; }
+    else return;
+    e.preventDefault();
+    canvas.__hover = idx;
+    desenhar(idx);
+    anunciar(textoDoMes(idx));
+  };
+  canvas.onblur = () => {
+    if (canvas.__hover == null) return;
+    canvas.__hover = null;
+    desenhar(null);
+  };
+}
+
 function renderCharts() {
   populateGraficoAnoFilter();
   const ano = anoGraficoSelecionado();
@@ -5286,6 +5351,13 @@ function renderDonutChart(canvasId, legendId, data, centerValue, centerLabel) {
 
   const positivos = data.filter(d => d.value > 0);
   const total = positivos.reduce((sum, d) => sum + d.value, 0);
+  definirDadosDoGrafico(canvas, {
+    resumo: total > 0
+      ? `${centerValue} ${centerLabel}: ` + data.map(d => `${d.label} ${d.displayValue}`).join('; ') + '.'
+      : 'Sem dados neste ano.',
+    cabecalho: ['Item', 'Valor'],
+    linhas: total > 0 ? data.map(d => [d.label, d.displayValue]) : [],
+  });
   if (total <= 0) {
     drawChartEmptyState(ctx, w, h, 'Sem dados neste ano');
     legendEl.innerHTML = '';
@@ -5491,9 +5563,10 @@ function renderLineChart(canvasId, months, series, legendId) {
     canvas.__geo = { padLeft, stepX, n: months.length };
   }
 
-  // `onmousemove` (propriedade, não addEventListener) para não empilhar
-  // handlers a cada re-render do gráfico.
-  canvas.onmousemove = (e) => {
+  // Handlers por propriedade (não addEventListener) para não empilhar a cada
+  // re-render do gráfico. Eventos de ponteiro cobrem mouse, toque e caneta: no
+  // celular, tocar num mês mostra o valor (e ele fica até tocar em outro).
+  const apontar = (e) => {
     const geo = canvas.__geo;
     if (!geo || geo.n < 2) return;
     const rect = canvas.getBoundingClientRect();
@@ -5505,14 +5578,27 @@ function renderLineChart(canvasId, months, series, legendId) {
       desenhar(idx);
     }
   };
-  canvas.onmouseleave = () => {
-    if (canvas.__hover == null) return;
+  canvas.onpointermove = apontar;
+  canvas.onpointerdown = apontar;
+  canvas.onpointerleave = (e) => {
+    if (e.pointerType !== 'mouse' || canvas.__hover == null) return;
     canvas.__hover = null;
     desenhar(null);
   };
 
   canvas.__hover = null;
   desenhar(null);
+
+  const textoDoMes = (i) => `${MESES_PT[months[i].month]}: ` + series.map(s => `${s.label ? s.label + ' ' : ''}${formatCurrency(s.values[i])}`).join(', ');
+  ligarNavegacaoPorMes(canvas, months.length, desenhar, textoDoMes);
+  definirDadosDoGrafico(canvas, {
+    resumo: series.length > 1
+      ? series.map(s => `${s.label}: ${resumoMensal(months, s.values)}`).join(' ')
+      : resumoMensal(months, series[0].values),
+    cabecalho: ['Mês', ...series.map(s => s.label || 'Valor')],
+    linhas: months.map((m, i) => [MESES_PT[m.month], ...series.map(s => formatCurrency(s.values[i]))]),
+    dicaTeclado: true,
+  });
 
   if (legendId) {
     const legendEl = document.getElementById(legendId);
@@ -5592,6 +5678,13 @@ function renderHorizontalBarChart(canvasId, entries, colorVarName) {
   const { ctx, w, h } = setupCanvas(canvas);
   const color = cssVar(colorVarName);
 
+  definirDadosDoGrafico(canvas, {
+    resumo: entries.length
+      ? entries.map((en, i) => `${i + 1}º ${en.label}: ${formatCurrency(en.value)}`).join('; ') + '.'
+      : 'Nenhuma dívida em atraso neste ano.',
+    cabecalho: ['Quem', 'Total em atraso'],
+    linhas: entries.map(en => [en.label, formatCurrency(en.value)]),
+  });
   if (!entries.length) {
     drawChartEmptyState(ctx, w, h, 'Nenhuma dívida em atraso neste ano');
     return;
@@ -5727,7 +5820,7 @@ function renderColumnChart(canvasId, labels, values, colorVarName, vazioTexto) {
     canvas.__geo = { padLeft, faixa, n: values.length };
   }
 
-  canvas.onmousemove = (e) => {
+  const apontar = (e) => {
     const geo = canvas.__geo;
     if (!geo) return;
     const rect = canvas.getBoundingClientRect();
@@ -5738,14 +5831,30 @@ function renderColumnChart(canvasId, labels, values, colorVarName, vazioTexto) {
       desenhar(valido);
     }
   };
-  canvas.onmouseleave = () => {
-    if (canvas.__hover == null) return;
+  canvas.onpointermove = apontar;
+  canvas.onpointerdown = apontar;
+  canvas.onpointerleave = (e) => {
+    if (e.pointerType !== 'mouse' || canvas.__hover == null) return;
     canvas.__hover = null;
     desenhar(null);
   };
 
   canvas.__hover = null;
   desenhar(null);
+
+  // `labels` são os meses abreviados; o texto falado usa o nome inteiro
+  const nomeDoMes = (i) => MESES_PT.find(m => m.startsWith(labels[i])) || labels[i];
+  const temValor = values.some(v => v > 0);
+  if (temValor) ligarNavegacaoPorMes(canvas, values.length, desenhar, (i) => `${nomeDoMes(i)}: ${formatCurrency(values[i])}`);
+  else { canvas.removeAttribute('tabindex'); canvas.onkeydown = null; }
+  const total = values.reduce((a, b) => a + b, 0);
+  const iMaior = values.indexOf(Math.max(...values));
+  definirDadosDoGrafico(canvas, {
+    resumo: temValor ? `Total ${formatCurrency(total)}; maior mês: ${nomeDoMes(iMaior)}, ${formatCurrency(values[iMaior])}.` : (vazioTexto || 'Sem dados neste período.'),
+    cabecalho: ['Mês', 'Valor'],
+    linhas: temValor ? values.map((v, i) => [nomeDoMes(i), formatCurrency(v)]) : [],
+    dicaTeclado: temValor,
+  });
 }
 
 document.getElementById('inadimplenciaAgrupador').addEventListener('change', () => { renderInadimplenciaChart(); atualizarEndereco(); });

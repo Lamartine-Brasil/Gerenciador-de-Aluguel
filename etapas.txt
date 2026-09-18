@@ -343,8 +343,11 @@ dentro de Contratos, Atrasos ou Histórico.
       ano, agrupável por inquilino ou por imóvel, sobre um trilho que mostra a escala
 - [x] Eixo Y com grade e valores redondos (`passoRedondo()`) em formato curto
       ("12,5 mil", `formatCompacto()`); rótulos dos meses das pontas alinhados para dentro
-- [x] Guia com os valores do mês ao passar o mouse (`canvas.onmousemove`, por propriedade
-      e não `addEventListener`, para os handlers não se acumularem a cada render)
+- [x] Guia com os valores do mês ao passar o mouse ou tocar (eventos de ponteiro, por
+      propriedade e não `addEventListener`, para os handlers não se acumularem a cada render)
+- [x] Sem mouse: cada gráfico tem `role="img"` com nome e resumo, "Ver dados" com a tabela
+      dos mesmos números, e nos mensais as setas movem o mês destacado com o gráfico em
+      foco, anunciando o valor
 - [x] Alta resolução: `setupCanvas()` multiplica pelo `devicePixelRatio` e escala o
       contexto; a altura lógica fica em `dataset.alturaLogica`
 - [x] Cores lidas das variáveis CSS (`cssVar()`) — redesenham sozinhos ao trocar de tema

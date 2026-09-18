@@ -34,7 +34,9 @@ de cada dívida — pagar, gerar recibo, editar, excluir — ficam à mão na pr
 ![Contratos](imagens/contratos.png)
 
 **Gráficos** — seis gráficos desenhados em `<canvas>` puro, todos referentes ao ano
-escolhido no seletor. Passar o mouse mostra os valores de cada mês.
+escolhido no seletor. Passar o mouse (ou tocar, no celular) mostra os valores de cada mês;
+com o gráfico em foco, as setas do teclado passam de um mês para o outro; e "Ver dados" abre
+a tabela com os mesmos números.
 
 ![Gráficos](imagens/graficos.png)
 
@@ -244,7 +246,8 @@ Se você não usa corretor nem condomínio, nada disso aparece: a tela mostra um
 - **Gráficos** — seis gráficos do ano escolhido no seletor (padrão: ano atual): dívidas por
   status, pagamentos por forma (Dinheiro/Pix), receita líquida × despesas mês a mês, total
   em atraso por mês, despesas por mês e um ranking de inadimplência (top 6 por inquilino ou
-  por imóvel). Passar o mouse mostra os valores do mês. Os valores de "recebido" são
+  por imóvel). Passar o mouse ou tocar mostra os valores do mês; com o teclado, as setas
+  percorrem os meses; "Ver dados" mostra a tabela de cada gráfico. Os valores de "recebido" são
   líquidos, mesma convenção de Relatórios — o total em atraso continua com o valor cheio
   devido, já que é dívida em aberto, não receita
 - **Relatórios** — fecha **o ano ou um mês** (dois seletores no topo): a conta aberta de
@@ -561,10 +564,15 @@ importantes de quem for mexer neles:
 - **Eixos**: `passoRedondo()` escolhe um passo "bonito" (1, 2, 5, 10, 20, 50...) para as
   linhas de grade, e `formatCompacto()` encurta os valores ("12,5 mil"). Os rótulos dos
   meses das pontas são alinhados para dentro, para não serem cortados na borda.
-- **Interação**: passar o mouse sobre um gráfico de linha ou de barras mostra os valores
-  daquele mês. Os handlers usam `canvas.onmousemove = ...` (propriedade, não
-  `addEventListener`) de propósito: o gráfico é redesenhado a cada render, e com
-  `addEventListener` os handlers se acumulariam.
+- **Interação**: passar o mouse ou tocar num gráfico de linha ou de colunas mostra os
+  valores daquele mês (eventos de ponteiro, que cobrem mouse, toque e caneta). Com o
+  gráfico em foco (Tab), ← → Home End movem o mês destacado e o valor é anunciado para o
+  leitor de tela (`ligarNavegacaoPorMes()`). Os handlers usam propriedades
+  (`canvas.onpointermove = ...`, não `addEventListener`) de propósito: o gráfico é
+  redesenhado a cada render, e com `addEventListener` eles se acumulariam.
+- **Sem depender da imagem**: cada canvas tem `role="img"` e um nome com o resumo (total e
+  maior mês, ou cada fatia), e um "Ver dados" (`<details>`) com a tabela gerada dos mesmos
+  valores que desenham o gráfico (`definirDadosDoGrafico()`).
 
 ### Calendário
 

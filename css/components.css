@@ -1002,3 +1002,21 @@ kbd {
   line-height: 1.5;
   text-align: center;
 }
+
+/* "Ver dados" dos gráficos: a mesma informação do canvas, em tabela */
+.chart-dados { margin-top: var(--space-3); }
+.chart-dados summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 4px var(--space-2);
+  border-radius: var(--radius-xs);
+  color: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.chart-dados summary:hover { background: var(--surface-2); }
+.chart-dados-tabela { margin-top: var(--space-2); overflow-x: auto; }
+.chart-dados .report-table th[scope="row"] { font-weight: 550; text-transform: none; letter-spacing: 0; font-size: var(--text-sm); color: var(--text); background: none; }
+.report-table .num { text-align: right; font-variant-numeric: tabular-nums; }
