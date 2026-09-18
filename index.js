@@ -394,14 +394,364 @@ function valorLiquidoPagamento(c, d, p) {
   return (Number(p.valor) || 0) - comissaoCorretor(c, d) - condominioNoPagamento(d, p);
 }
 
-function showToast(message, type = '') {
+/* ===================== AVISOS =====================
+ * Duas regiões fixas no HTML: sucesso em role="status", que some sozinho, e
+ * erro em role="alert", que fica na tela até a pessoa fechar — um erro que
+ * some em dois segundos é um erro que ninguém leu. `opcoes.acao` põe um botão
+ * no aviso de erro ({ rotulo: 'Tentar de novo', fn }).
+ */
+function showToast(message, type = '', opcoes = {}) {
+  if (type === 'error') { mostrarErro(message, opcoes); return; }
   const toast = document.getElementById('toast');
-  toast.textContent = message;
   toast.className = 'toast' + (type ? ' toast-' + type : '');
-  toast.classList.remove('hidden');
+  toast.textContent = message;
   clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => toast.classList.add('hidden'), 2600);
+  showToast._t = setTimeout(() => { toast.textContent = ''; }, 4500);
 }
+
+let acaoDoErro = null;
+
+function mostrarErro(message, { acao } = {}) {
+  const btnAcao = document.getElementById('toastErroAcao');
+  acaoDoErro = acao ? acao.fn : null;
+  btnAcao.textContent = acao ? acao.rotulo : '';
+  btnAcao.classList.toggle('hidden', !acao);
+  document.getElementById('toastErroTexto').textContent = message;
+  document.getElementById('toastErro').classList.add('is-visivel');
+}
+
+function fecharErro() {
+  const caixa = document.getElementById('toastErro');
+  const tinhaFoco = caixa.contains(document.activeElement);
+  caixa.classList.remove('is-visivel');
+  document.getElementById('toastErroTexto').textContent = '';
+  acaoDoErro = null;
+  if (tinhaFoco) focarTituloDaTela();
+}
+
+document.getElementById('toastErroFechar').addEventListener('click', fecharErro);
+document.getElementById('toastErroAcao').addEventListener('click', () => {
+  const fn = acaoDoErro;
+  fecharErro();
+  if (fn) fn();
+});
+
+/* ===================== FOCO =====================
+ * Redesenhar uma lista com innerHTML destrói o botão que estava com o foco, e
+ * quem usa teclado voltava para o começo da página. `chaveDoElemento()`
+ * descreve o elemento de um jeito que sobrevive ao redesenho (id, ou os data-*
+ * que o identificam dentro do painel), e `restaurarFoco()` acha o equivalente.
+ */
+const ATRIBUTOS_DE_FOCO = [
+  'data-divida-action', 'data-divida-id', 'data-grupo-action', 'data-contrato-id',
+  'data-edit-despesa', 'data-remove-despesa', 'data-edit-imovel', 'data-remove-imovel',
+  'data-edit-pessoa', 'data-remove-pessoa', 'data-edit-carteira', 'data-remove-carteira',
+  'data-remove-user', 'data-recibo-divida', 'data-recibo-indice', 'data-data', 'data-pagina',
+  'data-ir-contrato', 'data-abrir-reajuste', 'data-codigo', 'data-ver-dados',
+];
+
+function chaveDoElemento(el) {
+  if (!el || el === document.body || el === document.documentElement) return null;
+  if (el.id) return '#' + CSS.escape(el.id);
+  const attrs = ATRIBUTOS_DE_FOCO.filter(a => el.hasAttribute(a))
+    .map(a => `[${a}="${CSS.escape(el.getAttribute(a))}"]`).join('');
+  if (!attrs) return null;
+  const dono = el.parentElement && el.parentElement.closest('[id]');
+  return (dono ? '#' + CSS.escape(dono.id) + ' ' : '') + el.tagName.toLowerCase() + attrs;
+}
+
+function elementoVisivel(el) {
+  return !!el && el.isConnected && el.getClientRects().length > 0;
+}
+
+function focoPerdido() {
+  const a = document.activeElement;
+  return !a || a === document.body || !a.isConnected || !elementoVisivel(a);
+}
+
+// Acha o equivalente e dá foco. Botão de paginação desabilitado (chegou na
+// última página) passa o foco para o outro botão da mesma paginação.
+function restaurarFoco(chave) {
+  let alvo = null;
+  try { alvo = chave ? document.querySelector(chave) : null; } catch (e) { alvo = null; }
+  if (alvo && alvo.disabled && alvo.hasAttribute('data-pagina')) {
+    alvo = alvo.parentElement.querySelector('[data-pagina]:not([disabled])');
+  }
+  if (elementoVisivel(alvo) && !alvo.disabled) {
+    alvo.focus({ preventScroll: false });
+    return true;
+  }
+  focarTituloDaTela();
+  return false;
+}
+
+// Roda um redesenho e, se ele levou embora o elemento com foco, devolve o foco
+// ao equivalente.
+function preservandoFoco(fn) {
+  const chave = focoPerdido() ? null : chaveDoElemento(document.activeElement);
+  const resultado = fn();
+  if (chave && focoPerdido()) restaurarFoco(chave);
+  return resultado;
+}
+
+function focarTituloDaTela() {
+  const titulo = document.querySelector('.tab-panel.active h1');
+  if (titulo && !document.getElementById('app').classList.contains('hidden')) {
+    titulo.focus({ preventScroll: true });
+  }
+}
+
+/* ===================== FORMULÁRIOS: o que foi digitado e não salvo =====================
+ * Um formulário "sujo" é um que mudou desde que foi aberto ou salvo. A
+ * referência é tirada no primeiro foco dentro dele (antes de qualquer
+ * digitação) e renovada por marcarLimpo() depois de salvar ou de preencher por
+ * código. É o que faz fechar um modal, trocar de tela ou recarregar a página
+ * perguntar antes de jogar fora o que foi digitado.
+ */
+const baseDosFormularios = new WeakMap();
+
+function valoresDoFormulario(form) {
+  return JSON.stringify(Array.from(form.elements)
+    .filter(el => (el.id || el.name) && !['file', 'submit', 'button', 'reset'].includes(el.type))
+    .map(el => (el.type === 'checkbox' || el.type === 'radio') ? el.checked : el.value));
+}
+
+function marcarLimpo(form) {
+  if (form) baseDosFormularios.set(form, valoresDoFormulario(form));
+}
+
+function estaSujo(form) {
+  if (!form || form.hasAttribute('data-sem-rascunho')) return false;
+  const base = baseDosFormularios.get(form);
+  return base !== undefined && base !== valoresDoFormulario(form);
+}
+
+document.addEventListener('focusin', (e) => {
+  const form = e.target.closest && e.target.closest('form');
+  if (form && !baseDosFormularios.has(form)) marcarLimpo(form);
+});
+
+// Formulários sujos dentro de `raiz` (a tela atual, um modal, ou o documento).
+function formulariosSujos(raiz) {
+  return Array.from((raiz || document).querySelectorAll('form')).filter(estaSujo);
+}
+
+// Envio de formulário: não deixa enviar duas vezes (o botão fica desabilitado
+// enquanto a gravação não volta) e, se o envio deu certo (a função não devolveu
+// false), marca o formulário como limpo.
+function aoEnviar(form, fn) {
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (form.dataset.enviando) return;
+    form.dataset.enviando = '1';
+    const botoes = Array.from(form.querySelectorAll('[type="submit"]'));
+    const botaoComFoco = botoes.find(b => b === document.activeElement);
+    botoes.forEach(b => { b.disabled = true; b.setAttribute('aria-busy', 'true'); });
+    try {
+      const resultado = await fn(e);
+      if (resultado !== false) marcarLimpo(form);
+    } finally {
+      delete form.dataset.enviando;
+      botoes.forEach(b => { b.disabled = false; b.removeAttribute('aria-busy'); });
+      if (botaoComFoco && focoPerdido() && elementoVisivel(botaoComFoco)) botaoComFoco.focus();
+    }
+  });
+}
+
+/* ===================== MODAIS =====================
+ * Pilha de modais abertos. Ao abrir: o resto da página fica `inert` (o Tab não
+ * escapa para trás do modal, e o leitor de tela não lê o fundo) e o foco vai
+ * para o primeiro campo — ou para o título, nos modais só de leitura, ou para
+ * o que `data-foco-inicial` indicar. Ao fechar: o foco volta para quem abriu
+ * (ou para o equivalente, se a lista foi redesenhada nesse meio tempo).
+ *
+ * closeModal() fecha na hora (usado depois de salvar). pedirFechamento() é o
+ * fechamento pedido pela pessoa — Esc, ×, "Cancelar", clique fora, Voltar do
+ * navegador — e pergunta antes se há algo digitado e não salvo.
+ */
+const pilhaModais = [];
+const cancelamentoDosModais = {}; // id -> função chamada no lugar de fechar (diálogos que devolvem resposta)
+
+function modalAberto() {
+  const topo = pilhaModais[pilhaModais.length - 1];
+  return topo ? document.getElementById(topo.id) : null;
+}
+
+function atualizarFundoInerte() {
+  const topo = modalAberto();
+  Array.from(document.body.children).forEach(el => {
+    if (el.tagName === 'SCRIPT' || el.id === 'toast' || el.id === 'toastErro') return;
+    el.inert = !!topo && el !== topo;
+  });
+}
+
+function focarInicioDoModal(overlay) {
+  const seletor = overlay.dataset.focoInicial;
+  let alvo = seletor ? overlay.querySelector(seletor) : null;
+  if (!elementoVisivel(alvo)) {
+    alvo = Array.from(overlay.querySelectorAll('.modal-body input:not([type="hidden"]), .modal-body select, .modal-body textarea'))
+      .find(el => !el.disabled && elementoVisivel(el));
+  }
+  if (!alvo) alvo = overlay.querySelector('.modal-header h2');
+  if (alvo) alvo.focus();
+}
+
+function openModal(id, opcoes = {}) {
+  const overlay = document.getElementById(id);
+  if (pilhaModais.some(m => m.id === id)) return;
+  const origem = opcoes.origem || document.activeElement;
+  pilhaModais.push({ id, origem, chaveFoco: chaveDoElemento(origem) });
+  overlay.classList.remove('hidden');
+  const modal = overlay.querySelector('.modal');
+  if (modal) modal.scrollTop = 0;
+  atualizarFundoInerte();
+  const form = overlay.querySelector('form');
+  if (form) marcarLimpo(form); // o que foi preenchido por código não conta como alteração
+  focarInicioDoModal(overlay);
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.add('hidden');
+  const i = pilhaModais.findIndex(m => m.id === id);
+  if (i < 0) return;
+  const [fechado] = pilhaModais.splice(i, 1);
+  atualizarFundoInerte();
+  // Espera o redesenho que costuma vir logo depois de fechar (salvar → renderAll)
+  setTimeout(() => devolverFocoDoModal(fechado), 0);
+}
+
+function devolverFocoDoModal(fechado) {
+  const topo = modalAberto();
+  if (topo) {
+    if (topo.contains(document.activeElement)) return;
+    if (topo.contains(fechado.origem) && elementoVisivel(fechado.origem)) fechado.origem.focus();
+    else focarInicioDoModal(topo);
+    return;
+  }
+  if (!focoPerdido()) return; // alguém já pôs o foco em outro lugar de propósito
+  if (elementoVisivel(fechado.origem) && !fechado.origem.disabled) fechado.origem.focus();
+  else restaurarFoco(fechado.chaveFoco);
+}
+
+async function pedirFechamento(id) {
+  if (cancelamentoDosModais[id]) { cancelamentoDosModais[id](); return true; }
+  const overlay = document.getElementById(id);
+  if (formulariosSujos(overlay).length) {
+    const descartar = await confirmar({
+      titulo: 'Descartar o que foi digitado?',
+      mensagem: 'As alterações deste formulário ainda não foram salvas.',
+      acao: 'Descartar alterações',
+      cancelar: 'Continuar editando',
+      perigo: true,
+    });
+    if (!descartar) return false;
+  }
+  closeModal(id);
+  return true;
+}
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  // Só fecha quando o clique começou E terminou fora do modal: arrastar para
+  // selecionar um texto e soltar fora não pode fechar o formulário.
+  let comecouFora = false;
+  overlay.addEventListener('mousedown', (e) => { comecouFora = e.target === overlay; });
+  overlay.addEventListener('click', (e) => {
+    if (e.target.closest('[data-close]')) { pedirFechamento(overlay.id); return; }
+    if (e.target === overlay && comecouFora && !overlay.hasAttribute('data-sem-fechar-fora')) {
+      pedirFechamento(overlay.id);
+    }
+  });
+});
+
+/* ===================== DIÁLOGO DE CONFIRMAÇÃO =====================
+ * Substitui confirm() e prompt(): o botão diz a ação ("Excluir contrato", não
+ * "OK"), o foco começa em "Cancelar" nas ações destrutivas, e o campo (quando
+ * há) tem rótulo — inclusive de senha, com type="password", que o prompt() do
+ * navegador mostrava em texto puro.
+ *
+ *   await confirmar({ titulo, mensagem, acao, perigo })        → true / false
+ *   await pedirTexto({ ..., rotulo, tipo, validar, aoConfirmar }) → texto / null
+ *
+ * `validar(valor)` devolve a mensagem de erro ou null. `aoConfirmar(valor)` roda
+ * com o diálogo ainda aberto (botão ocupado) e também devolve erro ou null —
+ * serve para mostrar "senha incorreta" sem fechar e reabrir.
+ */
+let confirmacaoAtual = null;
+
+function abrirConfirmacao(opcoes) {
+  const {
+    titulo, mensagem = '', acao = 'Confirmar', cancelar = 'Cancelar', perigo = false,
+    campo = false, rotulo = '', tipo = 'text', autocomplete = 'off',
+  } = opcoes;
+  if (confirmacaoAtual) confirmacaoAtual.responder(null);
+
+  const overlay = document.getElementById('modalConfirmacao');
+  document.getElementById('confTitulo').textContent = titulo;
+  document.getElementById('confMensagem').textContent = mensagem;
+  document.getElementById('confCancelar').textContent = cancelar;
+  const ok = document.getElementById('confOk');
+  ok.textContent = acao;
+  ok.className = 'btn ' + (perigo ? 'btn-danger btn-danger-forte' : 'btn-primary');
+  const entrada = document.getElementById('confEntrada');
+  document.getElementById('confCampo').classList.toggle('hidden', !campo);
+  document.getElementById('confRotulo').textContent = rotulo;
+  entrada.type = tipo;
+  entrada.autocomplete = autocomplete;
+  entrada.value = '';
+  entrada.removeAttribute('aria-invalid');
+  document.getElementById('confErro').classList.add('hidden');
+  overlay.dataset.focoInicial = campo ? '#confEntrada' : (perigo ? '#confCancelar' : '#confOk');
+
+  return new Promise(resolve => {
+    confirmacaoAtual = {
+      opcoes,
+      responder(valor) {
+        confirmacaoAtual = null;
+        closeModal('modalConfirmacao');
+        resolve(valor);
+      },
+    };
+    openModal('modalConfirmacao');
+  });
+}
+
+function confirmar(opcoes) {
+  return abrirConfirmacao({ ...opcoes, campo: false }).then(v => v !== null);
+}
+
+function pedirTexto(opcoes) {
+  return abrirConfirmacao({ ...opcoes, campo: true });
+}
+
+function mostrarErroConfirmacao(msg) {
+  const erro = document.getElementById('confErro');
+  const entrada = document.getElementById('confEntrada');
+  erro.textContent = msg;
+  erro.classList.remove('hidden');
+  if (!document.getElementById('confCampo').classList.contains('hidden')) {
+    entrada.setAttribute('aria-invalid', 'true');
+    if (entrada.type === 'password') entrada.value = '';
+    entrada.focus();
+  }
+}
+
+cancelamentoDosModais.modalConfirmacao = () => { if (confirmacaoAtual) confirmacaoAtual.responder(null); };
+document.getElementById('confCancelar').addEventListener('click', () => cancelamentoDosModais.modalConfirmacao());
+
+aoEnviar(document.getElementById('formConfirmacao'), async () => {
+  if (!confirmacaoAtual) return;
+  const { opcoes } = confirmacaoAtual;
+  const valor = opcoes.campo ? document.getElementById('confEntrada').value : '';
+  if (opcoes.validar) {
+    const msg = opcoes.validar(valor);
+    if (msg) { mostrarErroConfirmacao(msg); return false; }
+  }
+  if (opcoes.aoConfirmar) {
+    const msg = await opcoes.aoConfirmar(valor);
+    if (msg) { mostrarErroConfirmacao(msg); return false; }
+  }
+  if (confirmacaoAtual) confirmacaoAtual.responder(valor);
+});
 
 /* ===================== MODELO: CONTRATO / DÍVIDA =====================
  * migrarContratos(): converte o formato antigo (um "contrato" plano = um
@@ -779,29 +1129,16 @@ document.getElementById('tabsNav').addEventListener('click', (e) => {
   ajustarTabelasVisiveis();
 });
 
-/* ===================== MODALS ===================== */
-function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
-function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-
-document.querySelectorAll('.modal-overlay').forEach(overlay => {
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay || e.target.closest('[data-close]')) {
-      overlay.classList.add('hidden');
-    }
-  });
-});
-
 /* ===================== ATALHOS DE TECLADO ===================== */
-function modalAberto() {
-  return Array.from(document.querySelectorAll('.modal-overlay')).find(m => !m.classList.contains('hidden'));
-}
-
 document.addEventListener('keydown', (e) => {
   if (appEl.classList.contains('hidden')) return; // não logado ainda
 
   if (e.key === 'Escape') {
     const aberto = modalAberto();
-    if (aberto) aberto.classList.add('hidden');
+    if (aberto) {
+      e.preventDefault();
+      pedirFechamento(aberto.id);
+    }
     return;
   }
 
@@ -975,8 +1312,7 @@ function openEditDivida(dividaId) {
   openModal('modalContrato');
 }
 
-formContrato.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(formContrato, async () => {
   const dividaId = document.getElementById('dividaId').value;
   const aluguelValue = Number(document.getElementById('fAluguel').value) || 0;
 
@@ -1025,7 +1361,7 @@ formContrato.addEventListener('submit', (e) => {
     const diaPagamento = Number(document.getElementById('fDiaPagamento').value) || 0;
     if (!dataInicio || diaPagamento < 1 || diaPagamento > 31) {
       showToast('Informe a data de início e um dia de pagamento válido (1 a 31).', 'error');
-      return;
+      return false;
     }
 
     const corretorNome = document.getElementById('fCorretorNome').value;
@@ -1036,12 +1372,14 @@ formContrato.addEventListener('submit', (e) => {
     const vencimentos = gerarVencimentosAtePresente(primeiroVenc);
 
     if (vencimentos.length > 1) {
-      const ok = confirm(
-        `A data de início já passou. Isso vai gerar ${vencimentos.length} dívidas neste contrato, ` +
-        `uma para cada mês, de ${formatDate(vencimentos[0])} até ${formatDate(vencimentos[vencimentos.length - 1])}. ` +
-        `Deseja continuar?`
-      );
-      if (!ok) return;
+      const ok = await confirmar({
+        titulo: `Gerar ${vencimentos.length} dívidas?`,
+        mensagem: `A data de início já passou. Este contrato vai começar com ${vencimentos.length} dívidas, ` +
+          `uma para cada mês, de ${formatDate(vencimentos[0])} até ${formatDate(vencimentos[vencimentos.length - 1])}.`,
+        acao: `Criar contrato com ${vencimentos.length} dívidas`,
+        cancelar: 'Voltar ao formulário',
+      });
+      if (!ok) return false;
     }
 
     const dividas = vencimentos.map((venc, idx) => {
@@ -1110,10 +1448,15 @@ formContrato.addEventListener('submit', (e) => {
   renderAll();
 });
 
-function excluirContrato(contratoId) {
+async function excluirContrato(contratoId) {
   const c = state.contratos.find(x => x.id === contratoId);
   if (!c) return;
-  if (!confirm(`Tem certeza que deseja excluir o contrato de ${c.imovel} - ${c.inquilino}? Isso apaga TODAS as ${c.dividas.length} dívida(s) dele. Esta ação não pode ser desfeita.`)) return;
+  if (!(await confirmar({
+    titulo: `Excluir o contrato #${c.numero}?`,
+    mensagem: `${c.imovel} — ${c.inquilino}.\nIsso apaga o contrato e TODAS as ${c.dividas.length} dívida(s) dele, com os pagamentos. Não dá para desfazer.\nSe o inquilino só saiu do imóvel, use "Encerrar contrato": o histórico fica guardado.`,
+    acao: 'Excluir contrato',
+    perigo: true,
+  }))) return;
   state.contratos = state.contratos.filter(x => x.id !== contratoId);
   registrarAuditoria('contrato_excluido', `Contrato excluído: ${c.imovel} - ${c.inquilino} (${c.dividas.length} dívida(s))`);
   saveState();
@@ -1125,10 +1468,14 @@ function excluirContrato(contratoId) {
 // histórico de pagamentos continuam existindo e visíveis), só faz o sistema
 // parar de gerar novas dívidas mensais para este contrato — usado quando o
 // inquilino deixa o imóvel. Pode ser revertido a qualquer momento.
-function encerrarContrato(contratoId) {
+async function encerrarContrato(contratoId) {
   const c = state.contratos.find(x => x.id === contratoId);
   if (!c) return;
-  if (!confirm(`Encerrar o contrato de ${c.imovel} - ${c.inquilino}? O histórico continua disponível normalmente — o sistema só para de gerar novas dívidas mensais automaticamente. Você pode reabrir depois, se precisar.`)) return;
+  if (!(await confirmar({
+    titulo: `Encerrar o contrato #${c.numero}?`,
+    mensagem: `${c.imovel} — ${c.inquilino}.\nO histórico continua disponível normalmente: o sistema só para de gerar novas dívidas mensais. Você pode reabrir depois, se precisar.`,
+    acao: 'Encerrar contrato',
+  }))) return;
   c.encerrado = true;
   c.dataEncerramento = todayStr();
   registrarAuditoria('contrato_encerrado', `Contrato encerrado: ${c.imovel} - ${c.inquilino}`);
@@ -1148,11 +1495,16 @@ function reabrirContrato(contratoId) {
   showToast('Contrato reaberto.', 'success');
 }
 
-function excluirDivida(dividaId) {
+async function excluirDivida(dividaId) {
   const achado = encontrarDivida(dividaId);
   if (!achado) return;
   const { contrato: c, divida: d } = achado;
-  if (!confirm(`Excluir a dívida de ${formatDate(d.vencimento)} de ${c.imovel} - ${c.inquilino}? Esta ação não pode ser desfeita.`)) return;
+  if (!(await confirmar({
+    titulo: `Excluir a dívida de ${formatDate(d.vencimento)}?`,
+    mensagem: `Contrato #${c.numero} — ${c.imovel} — ${c.inquilino}.${(d.pagamentos || []).length ? '\nOs pagamentos registrados nesta dívida também são apagados.' : ''}\nNão dá para desfazer.`,
+    acao: 'Excluir dívida',
+    perigo: true,
+  }))) return;
   c.dividas = c.dividas.filter(x => x.id !== dividaId);
   registrarAuditoria('divida_excluida', `Dívida excluída: ${c.imovel} - ${c.inquilino} (${formatDate(d.vencimento)})`);
   saveState();
@@ -1287,8 +1639,7 @@ const LABELS_CONTRATO_INFO = {
   caucao: 'Caução (R$)',
 };
 
-formContratoInfo.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(formContratoInfo, async () => {
   const id = document.getElementById('infoContratoId').value;
   const c = state.contratos.find(x => x.id === id);
   if (!c) return;
@@ -1374,7 +1725,12 @@ document.getElementById('btnRemoverAnexo').addEventListener('click', async () =>
   const id = document.getElementById('infoContratoId').value;
   const c = state.contratos.find(x => x.id === id);
   if (!c || !c.anexoContrato) return;
-  if (!confirm('Remover o arquivo anexado a este contrato?')) return;
+  if (!(await confirmar({
+    titulo: 'Remover o contrato anexado?',
+    mensagem: `O arquivo ${c.anexoContrato} é apagado do servidor.`,
+    acao: 'Remover anexo',
+    perigo: true,
+  }))) return;
 
   try {
     await apiFetch('anexo.php', { method: 'POST', body: JSON.stringify({ action: 'remove', file: c.anexoContrato }) });
@@ -1411,14 +1767,13 @@ function openReajuste(contratoId) {
   openModal('modalReajuste');
 }
 
-formReajuste.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(formReajuste, async () => {
   const id = document.getElementById('reajusteContratoId').value;
   const c = state.contratos.find(x => x.id === id);
   if (!c) return;
   const valorAntigo = c.aluguel;
   const novoValor = Number(document.getElementById('reajusteNovoValor').value) || 0;
-  if (novoValor <= 0) return;
+  if (novoValor <= 0) return false;
 
   c.aluguel = novoValor;
   c.dataUltimoReajuste = todayStr();
@@ -1455,8 +1810,7 @@ function abrirDevolucaoCaucao(contratoId) {
   openModal('modalDevolucaoCaucao');
 }
 
-formDevolucaoCaucao.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(formDevolucaoCaucao, async () => {
   const id = document.getElementById('devCaucaoContratoId').value;
   const c = state.contratos.find(x => x.id === id);
   if (!c) return;
@@ -1581,8 +1935,7 @@ document.getElementById('pagValor').addEventListener('input', () => {
   );
 });
 
-formPagamento.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(formPagamento, async () => {
   const dividaId = document.getElementById('pagDividaId').value;
   const achado = encontrarDivida(dividaId);
   if (!achado) return;
@@ -2689,10 +3042,15 @@ function renderDespesasPagination(totalPaginas, totalDespesas) {
   });
 }
 
-function excluirDespesa(id) {
+async function excluirDespesa(id) {
   const d = state.despesas.find(x => x.id === id);
   if (!d) return;
-  if (!confirm(`Excluir a despesa "${d.descricao}" de ${formatCurrency(d.valor)}?`)) return;
+  if (!(await confirmar({
+    titulo: 'Excluir esta despesa?',
+    mensagem: `"${d.descricao}", de ${formatCurrency(d.valor)}, lançada em ${formatDate(d.data)}.`,
+    acao: 'Excluir despesa',
+    perigo: true,
+  }))) return;
   state.despesas = state.despesas.filter(x => x.id !== id);
   registrarAuditoria('despesa_excluida', `Despesa excluída: ${d.descricao} (${formatCurrency(d.valor)})`);
   saveState();
@@ -2737,8 +3095,7 @@ document.getElementById('btnCancelarEdicaoDespesa').addEventListener('click', ca
 // impressão de que dá para pôr a despesa numa carteira diferente do contrato.
 document.getElementById('despContrato').addEventListener('change', atualizarVisibilidadeCamposCarteira);
 
-formDespesa.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(formDespesa, async () => {
   const despesaId = document.getElementById('despesaId').value;
   const data = document.getElementById('despData').value;
   const descricao = document.getElementById('despDescricao').value.trim();
@@ -2746,7 +3103,7 @@ formDespesa.addEventListener('submit', (e) => {
   const contratoId = document.getElementById('despContrato').value || null;
   // despesa ligada a contrato herda a carteira dele: não guarda carteira própria
   const carteiraId = contratoId ? '' : (document.getElementById('despCarteira').value || '');
-  if (!data || !descricao || valor <= 0) return;
+  if (!data || !descricao || valor <= 0) return false;
 
   if (despesaId) {
     const d = state.despesas.find(x => x.id === despesaId);
@@ -2834,8 +3191,7 @@ function renderConfig() {
   renderReciboConfig();
 }
 
-configForm.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(configForm, async () => {
   state.config.taxaJurosMensal = Number(document.getElementById('configTaxaJuros').value) || 0;
   state.config.taxaMultaPercent = Number(document.getElementById('configTaxaMulta').value) || 0;
   saveState();
@@ -2847,8 +3203,7 @@ configForm.addEventListener('submit', (e) => {
 });
 
 const configPadraoForm = document.getElementById('configPadraoForm');
-configPadraoForm.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(configPadraoForm, async () => {
   state.config.corretorPercentualPadrao = Number(document.getElementById('configCorretorPercentualPadrao').value) || 0;
   saveState();
   const msg = document.getElementById('configPadraoSaved');
@@ -2858,8 +3213,7 @@ configPadraoForm.addEventListener('submit', (e) => {
 });
 
 const configReajusteForm = document.getElementById('configReajusteForm');
-configReajusteForm.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(configReajusteForm, async () => {
   state.config.percentualReajusteSugerido = Number(document.getElementById('configPercentualReajusteSugerido').value) || 0;
   saveState();
   const msg = document.getElementById('configReajusteSaved');
@@ -2972,10 +3326,15 @@ function cancelarEdicaoPessoa() {
 
 document.getElementById('btnCancelarEdicaoPessoa').addEventListener('click', cancelarEdicaoPessoa);
 
-function removePessoa(id) {
+async function removePessoa(id) {
   const p = state.pessoas.find(x => x.id === id);
   if (!p) return;
-  if (!confirm(`Remover "${p.nome}" da lista de pessoas? Contratos/pagamentos que já usam esse nome não são afetados.`)) return;
+  if (!(await confirmar({
+    titulo: `Remover ${p.nome} da lista de pessoas?`,
+    mensagem: 'Contratos e pagamentos que já usam esse nome continuam como estão.',
+    acao: 'Remover pessoa',
+    perigo: true,
+  }))) return;
   state.pessoas = state.pessoas.filter(x => x.id !== id);
   if (document.getElementById('pessoaId').value === id) cancelarEdicaoPessoa();
   saveState();
@@ -2983,8 +3342,7 @@ function removePessoa(id) {
   showToast('Pessoa removida.', 'success');
 }
 
-addPessoaForm.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(addPessoaForm, async () => {
   const pessoaId = document.getElementById('pessoaId').value;
   const nome = document.getElementById('newPessoaNome').value.trim();
   const carteiraId = document.getElementById('newPessoaCarteira').value || '';
@@ -3086,7 +3444,7 @@ document.getElementById('btnCancelarEdicaoCarteira').addEventListener('click', c
 
 // Remover uma carteira NÃO apaga nada: os contratos, imóveis e despesas dela
 // continuam existindo, só voltam a contar como "sem carteira" (imóvel próprio).
-function removerCarteira(id) {
+async function removerCarteira(id) {
   const c = carteiraPorId(id);
   if (!c) return;
   const contratos = state.contratos.filter(x => (x.carteiraId || '') === c.id).length;
@@ -3094,7 +3452,12 @@ function removerCarteira(id) {
   const aviso = (contratos || imoveis)
     ? `\n\n${contratos} contrato(s) e ${imoveis} imóvel(is) usam esta carteira. Nada é apagado: eles passam a ficar sem carteira.`
     : '';
-  if (!confirm(`Remover a carteira "${c.nome}"?${aviso}`)) return;
+  if (!(await confirmar({
+    titulo: `Remover a carteira "${c.nome}"?`,
+    mensagem: aviso.trim() || 'Nenhum contrato ou imóvel usa esta carteira.',
+    acao: 'Remover carteira',
+    perigo: true,
+  }))) return;
 
   state.carteiras = state.carteiras.filter(x => x.id !== id);
   state.contratos.forEach(x => { if (x.carteiraId === id) x.carteiraId = ''; });
@@ -3116,8 +3479,7 @@ const LABELS_CARTEIRA = {
   documento: 'CPF / CNPJ', observacao: 'Observação',
 };
 
-formCarteira.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(formCarteira, async () => {
   const id = document.getElementById('carteiraId').value;
   const nome = document.getElementById('carteiraNome').value.trim();
   const proprietario = document.getElementById('carteiraProprietario').value.trim();
@@ -3203,10 +3565,15 @@ function renderImoveis() {
   });
 }
 
-function removeImovel(id) {
+async function removeImovel(id) {
   const i = state.imoveis.find(x => x.id === id);
   if (!i) return;
-  if (!confirm(`Remover "${i.nome}" da lista de imóveis? Contratos que já usam esse imóvel não são afetados.`)) return;
+  if (!(await confirmar({
+    titulo: `Remover "${i.nome}" da lista de imóveis?`,
+    mensagem: 'Contratos que já usam esse imóvel continuam como estão.',
+    acao: 'Remover imóvel',
+    perigo: true,
+  }))) return;
   state.imoveis = state.imoveis.filter(x => x.id !== id);
   if (document.getElementById('imovelId').value === id) cancelarEdicaoImovel();
   saveState();
@@ -3242,8 +3609,7 @@ function cancelarEdicaoImovel() {
 
 document.getElementById('btnCancelarEdicaoImovel').addEventListener('click', cancelarEdicaoImovel);
 
-formImovel.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(formImovel, async () => {
   const imovelId = document.getElementById('imovelId').value;
   const nomeInput = document.getElementById('newImovelNome');
   const nome = nomeInput.value.trim();
@@ -3308,8 +3674,7 @@ function renderUsuarios() {
 
 const accountForm = document.getElementById('accountForm');
 
-accountForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
+aoEnviar(accountForm, async () => {
   const newUsername = document.getElementById('accUsername').value.trim();
   const currentPassword = document.getElementById('accCurrentPassword').value;
   const newPassword = document.getElementById('accNewPassword').value;
@@ -3353,13 +3718,17 @@ accountForm.addEventListener('submit', async (e) => {
 /* ===================== SEGURANÇA (regenerar COOKIE_SECRET) ===================== */
 const regenerateSecretForm = document.getElementById('regenerateSecretForm');
 
-regenerateSecretForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
+aoEnviar(regenerateSecretForm, async () => {
   const currentPassword = document.getElementById('secretCurrentPassword').value;
   const errorEl = document.getElementById('regenerateSecretError');
   errorEl.classList.add('hidden');
 
-  if (!confirm('Todo mundo que estiver conectado em outro computador ou navegador vai precisar entrar de novo. Você continua conectado. Deseja continuar?')) return;
+  if (!(await confirmar({
+    titulo: 'Desconectar todos os outros acessos?',
+    mensagem: 'Todo mundo que estiver conectado em outro computador ou navegador vai precisar entrar de novo. Você continua conectado.',
+    acao: 'Desconectar os outros acessos',
+    perigo: true,
+  }))) return false;
 
   try {
     const res = await apiFetch('regenerate_secret.php', {
@@ -3414,27 +3783,35 @@ function renderUsers(users) {
 }
 
 async function removeUser(id, username) {
-  if (!confirm('Remover este usuário? Ele não vai mais conseguir fazer login no sistema.')) return;
-  const currentPassword = prompt('Confirme sua senha atual para remover este usuário:');
-  if (currentPassword === null) return;
-  try {
-    const res = await apiFetch('users.php', { method: 'POST', body: JSON.stringify({ action: 'remove', id, currentPassword }) });
-    const data = await res.json();
-    if (res.ok && data.ok) {
-      registrarAuditoria('usuario_removido', `Usuário removido: ${username}`);
-      saveState();
-      showToast('Usuário removido.', 'success');
-      loadUsers();
-    } else {
-      showToast(data.error || 'Não foi possível remover o usuário.', 'error');
-    }
-  } catch (err) {
-    showToast('Não foi possível conectar ao servidor.', 'error');
-  }
+  let removido = false;
+  await pedirTexto({
+    titulo: `Remover o acesso de ${username}?`,
+    mensagem: `${username} não vai mais conseguir entrar no sistema. Para confirmar, informe a sua senha atual.`,
+    rotulo: 'Sua senha atual',
+    tipo: 'password',
+    autocomplete: 'current-password',
+    acao: 'Remover usuário',
+    perigo: true,
+    validar: (senha) => senha ? null : 'Informe a sua senha atual.',
+    aoConfirmar: async (currentPassword) => {
+      try {
+        const res = await apiFetch('users.php', { method: 'POST', body: JSON.stringify({ action: 'remove', id, currentPassword }) });
+        const data = await res.json();
+        if (res.ok && data.ok) { removido = true; return null; }
+        return data.error || 'Não foi possível remover o usuário.';
+      } catch (err) {
+        return 'Não foi possível conectar ao servidor. Confira a internet e tente de novo.';
+      }
+    },
+  });
+  if (!removido) return;
+  registrarAuditoria('usuario_removido', `Usuário removido: ${username}`);
+  saveState();
+  showToast(`O acesso de ${username} foi removido.`, 'success');
+  loadUsers();
 }
 
-addUserForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
+aoEnviar(addUserForm, async () => {
   const username = document.getElementById('newUserUsername').value.trim();
   const password = document.getElementById('newUserPassword').value;
   const confirmPassword = document.getElementById('newUserConfirmPassword').value;
@@ -3503,7 +3880,12 @@ document.getElementById('inputImportBackup').addEventListener('change', (e) => {
       showToast('Arquivo de backup inválido (formato inesperado).', 'error');
       return;
     }
-    if (!confirm('Restaurar este backup vai substituir TODOS os dados atuais (contratos e configurações). Deseja continuar?')) return;
+    if (!(await confirmar({
+      titulo: 'Restaurar este backup?',
+      mensagem: `Todos os dados atuais — contratos, pagamentos, despesas e configurações — serão substituídos pelos do arquivo ${file.name}. Se quiser guardar os dados de agora, exporte um backup antes.`,
+      acao: 'Substituir pelos dados do backup',
+      perigo: true,
+    }))) return;
 
     state = parsed;
     if (precisaMigrarContratos(state.contratos)) {
@@ -3532,12 +3914,15 @@ document.getElementById('inputImportBackup').addEventListener('change', (e) => {
 
 /* ===================== ZONA DE PERIGO: EXCLUIR TODOS OS DADOS ===================== */
 document.getElementById('btnDeleteDatabase').addEventListener('click', async () => {
-  if (!confirm('Isso vai APAGAR PERMANENTEMENTE todos os contratos, pagamentos e configurações salvos no servidor. Esta ação não pode ser desfeita. Deseja continuar?')) return;
-  const digitado = prompt('Para confirmar, digite EXCLUIR (em maiúsculas):');
-  if (digitado !== 'EXCLUIR') {
-    showToast('Exclusão cancelada.', 'error');
-    return;
-  }
+  const digitado = await pedirTexto({
+    titulo: 'Excluir todos os dados?',
+    mensagem: 'Isso apaga para sempre todos os contratos, pagamentos, despesas e configurações salvos no servidor. Os usuários e senhas de acesso continuam. Não dá para desfazer: exporte um backup antes, se quiser guardar os dados.',
+    rotulo: 'Para confirmar, digite EXCLUIR',
+    acao: 'Excluir todos os dados',
+    perigo: true,
+    validar: (v) => v === 'EXCLUIR' ? null : 'Digite EXCLUIR, em letras maiúsculas, para confirmar.',
+  });
+  if (digitado === null) return;
   state = estadoVazio();
   definirCarteiraAtiva('', true);
   reciboFormSujo = false;
@@ -3940,8 +4325,7 @@ function lerFormularioRecibo() {
   };
 }
 
-document.getElementById('formRecibo').addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(document.getElementById('formRecibo'), async () => {
   state.config.recibo = lerFormularioRecibo();
   reciboFormSujo = false;
   saveState();
@@ -3968,8 +4352,12 @@ document.getElementById('btnPreviaRecibo').addEventListener('click', () => {
   );
 });
 
-document.getElementById('btnRestaurarRecibo').addEventListener('click', () => {
-  if (!confirm('Restaurar o texto padrão do recibo? O texto atual será substituído (a cidade é mantida).')) return;
+document.getElementById('btnRestaurarRecibo').addEventListener('click', async () => {
+  if (!(await confirmar({
+    titulo: 'Voltar ao texto padrão do recibo?',
+    mensagem: 'O título, o corpo e o rodapé que estão na tela são trocados pelo texto de fábrica (a cidade é mantida). Nada é salvo até você clicar em "Salvar texto do recibo".',
+    acao: 'Usar o texto padrão',
+  }))) return;
   const cidade = document.getElementById('reciboCidade').value;
   document.getElementById('reciboTitulo').value = RECIBO_PADRAO.titulo;
   document.getElementById('reciboCorpo').value = RECIBO_PADRAO.corpo;
@@ -5944,6 +6332,10 @@ document.getElementById('btnExportPDF').addEventListener('click', () => {
 
 /* ===================== RENDER ALL ===================== */
 function renderAll() {
+  preservandoFoco(renderTudo);
+}
+
+function renderTudo() {
   renderDashboard();
   renderPessoasConfig();
   renderImoveis();

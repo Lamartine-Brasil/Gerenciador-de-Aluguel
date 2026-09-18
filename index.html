@@ -90,7 +90,7 @@
       <div class="login-logo"><svg class="icon"><use href="#icon-home"></use></svg></div>
       <h1>Bem-vindo de volta</h1>
       <p class="login-sub">Acesse o painel administrativo</p>
-      <form id="loginForm" autocomplete="off">
+      <form id="loginForm" data-sem-rascunho>
         <label class="field">
           <span>Usuário</span>
           <input type="text" id="loginUser" name="username" placeholder="Seu usuário" required autocomplete="username">
@@ -1149,8 +1149,8 @@
 <div id="modalContrato" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalContratoTitle">
   <div class="modal">
     <div class="modal-header">
-      <h3 id="modalContratoTitle">Novo contrato</h3>
-      <button class="modal-close" data-close aria-label="Fechar">&times;</button>
+      <h2 id="modalContratoTitle" tabindex="-1">Novo contrato</h2>
+      <button type="button" class="modal-close" data-close aria-label="Fechar">&times;</button>
     </div>
     <form id="formContrato" class="modal-body">
       <input type="hidden" id="contratoId">
@@ -1269,11 +1269,11 @@
 </div>
 
 <!-- ===================== MODAL: EDITAR CONTRATO (dados compartilhados) ===================== -->
-<div id="modalContratoInfo" class="modal-overlay hidden" role="dialog" aria-modal="true">
+<div id="modalContratoInfo" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalContratoInfoTitulo">
   <div class="modal modal-sm">
     <div class="modal-header">
-      <h3>Editar contrato</h3>
-      <button class="modal-close" data-close aria-label="Fechar">&times;</button>
+      <h2 id="modalContratoInfoTitulo" tabindex="-1">Editar contrato</h2>
+      <button type="button" class="modal-close" data-close aria-label="Fechar">&times;</button>
     </div>
     <form id="formContratoInfo" class="modal-body">
       <input type="hidden" id="infoContratoId">
@@ -1344,11 +1344,11 @@
 </div>
 
 <!-- ===================== MODAL: PAGAMENTO ===================== -->
-<div id="modalPagamento" class="modal-overlay hidden" role="dialog" aria-modal="true">
+<div id="modalPagamento" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalPagamentoTitulo">
   <div class="modal modal-sm">
     <div class="modal-header">
-      <h3>Registrar pagamento</h3>
-      <button class="modal-close" data-close aria-label="Fechar">&times;</button>
+      <h2 id="modalPagamentoTitulo" tabindex="-1">Registrar pagamento</h2>
+      <button type="button" class="modal-close" data-close aria-label="Fechar">&times;</button>
     </div>
     <form id="formPagamento" class="modal-body">
       <input type="hidden" id="pagDividaId">
@@ -1426,11 +1426,11 @@
 </div>
 
 <!-- ===================== MODAL: REAJUSTE DE VALOR ===================== -->
-<div id="modalReajuste" class="modal-overlay hidden" role="dialog" aria-modal="true">
+<div id="modalReajuste" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalReajusteTitulo">
   <div class="modal modal-sm">
     <div class="modal-header">
-      <h3>Reajustar valor do aluguel</h3>
-      <button class="modal-close" data-close aria-label="Fechar">&times;</button>
+      <h2 id="modalReajusteTitulo" tabindex="-1">Reajustar valor do aluguel</h2>
+      <button type="button" class="modal-close" data-close aria-label="Fechar">&times;</button>
     </div>
     <form id="formReajuste" class="modal-body">
       <input type="hidden" id="reajusteContratoId">
@@ -1454,11 +1454,11 @@
 </div>
 
 <!-- ===================== MODAL: DEVOLUÇÃO DE CAUÇÃO ===================== -->
-<div id="modalDevolucaoCaucao" class="modal-overlay hidden" role="dialog" aria-modal="true">
+<div id="modalDevolucaoCaucao" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalDevolucaoCaucaoTitulo">
   <div class="modal modal-sm">
     <div class="modal-header">
-      <h3>Devolver caução</h3>
-      <button class="modal-close" data-close aria-label="Fechar">&times;</button>
+      <h2 id="modalDevolucaoCaucaoTitulo" tabindex="-1">Devolver caução</h2>
+      <button type="button" class="modal-close" data-close aria-label="Fechar">&times;</button>
     </div>
     <form id="formDevolucaoCaucao" class="modal-body">
       <input type="hidden" id="devCaucaoContratoId">
@@ -1485,11 +1485,11 @@
 </div>
 
 <!-- ===================== MODAL: HISTÓRICO DO CONTRATO ===================== -->
-<div id="modalHistoricoContrato" class="modal-overlay hidden" role="dialog" aria-modal="true">
+<div id="modalHistoricoContrato" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalHistoricoContratoTitulo" data-foco-inicial="#modalHistoricoContratoTitulo">
   <div class="modal">
     <div class="modal-header">
-      <h3>Histórico do contrato</h3>
-      <button class="modal-close" data-close aria-label="Fechar">&times;</button>
+      <h2 id="modalHistoricoContratoTitulo" tabindex="-1">Histórico do contrato</h2>
+      <button type="button" class="modal-close" data-close aria-label="Fechar">&times;</button>
     </div>
     <div class="modal-body">
       <p class="modal-subtitle" id="histContratoInfo"></p>
@@ -1499,8 +1499,85 @@
   </div>
 </div>
 
-<!-- toast -->
-<div id="toast" class="toast hidden"></div>
+<!-- ===================== DIÁLOGO DE CONFIRMAÇÃO (substitui confirm() e prompt()) ===================== -->
+<div id="modalConfirmacao" class="modal-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="confTitulo" aria-describedby="confMensagem">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 id="confTitulo" tabindex="-1"></h2>
+    </div>
+    <form id="formConfirmacao" class="modal-body" novalidate data-sem-rascunho>
+      <p class="modal-subtitle modal-mensagem" id="confMensagem"></p>
+      <label class="field hidden" id="confCampo">
+        <span id="confRotulo"></span>
+        <input type="text" id="confEntrada" autocomplete="off" aria-describedby="confErro">
+      </label>
+      <p id="confErro" class="error-msg hidden"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="confCancelar">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="confOk">Confirmar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== CONFLITO: alguém gravou antes ===================== -->
+<div id="modalConflito" class="modal-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="conflitoTitulo" aria-describedby="conflitoTexto" data-foco-inicial="#btnConflitoRecarregar" data-sem-fechar-fora>
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 id="conflitoTitulo" tabindex="-1">Os dados foram alterados em outro lugar</h2>
+    </div>
+    <div class="modal-body">
+      <div id="conflitoTexto">
+        <p class="modal-subtitle">Enquanto você trabalhava, os dados foram alterados em outra aba ou por outro usuário. Para não apagar o que foi feito lá, <strong>a sua última alteração não foi salva</strong>.</p>
+        <p class="modal-subtitle">Carregue os dados atuais e faça a alteração de novo. Se preferir guardar uma cópia do que está na sua tela antes, baixe as suas alterações.</p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btnConflitoBaixar"><svg class="icon"><use href="#icon-download"></use></svg> Baixar minhas alterações</button>
+        <button type="button" class="btn btn-primary" id="btnConflitoRecarregar"><svg class="icon"><use href="#icon-refresh"></use></svg> Carregar os dados atuais</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== SESSÃO EXPIRADA: entrar de novo sem recarregar ===================== -->
+<div id="modalSessao" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="sessaoTitulo" aria-describedby="sessaoTexto" data-sem-fechar-fora>
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 id="sessaoTitulo" tabindex="-1">Sua sessão expirou</h2>
+    </div>
+    <form id="formSessao" class="modal-body" data-sem-rascunho>
+      <p class="modal-subtitle" id="sessaoTexto">Entre de novo para continuar. O que você estava fazendo continua aqui e é salvo assim que você entrar.</p>
+      <label class="field">
+        <span>Usuário</span>
+        <input type="text" id="sessaoUsuario" required autocomplete="username">
+      </label>
+      <label class="field">
+        <span>Senha</span>
+        <input type="password" id="sessaoSenha" required autocomplete="current-password" aria-describedby="sessaoErro">
+      </label>
+      <p id="sessaoErro" class="error-msg hidden"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btnSessaoCancelar">Agora não</button>
+        <button type="submit" class="btn btn-primary">Entrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== AVISOS =====================
+     Duas regiões fixas, sempre presentes no HTML (uma região de anúncio que
+     aparece junto com o texto não é lida pelos leitores de tela):
+     sucesso em role="status" (some sozinho), erro em role="alert" (fica até
+     ser fechado). -->
+<div id="toastErro" class="toast toast-error" role="alert">
+  <span id="toastErroTexto"></span>
+  <span class="toast-acoes">
+    <button type="button" class="btn btn-ghost btn-sm hidden" id="toastErroAcao"></button>
+    <button type="button" class="toast-fechar" id="toastErroFechar" aria-label="Fechar aviso">&times;</button>
+  </span>
+</div>
+<!-- vem depois do de erro no HTML para subir quando os dois aparecem juntos -->
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script src="index.js"></script>
 <script src="ui.js"></script>

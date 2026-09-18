@@ -64,6 +64,15 @@
   border-color: var(--danger-border);
 }
 .btn-danger:hover:not(:disabled) { background: var(--danger); color: #fff; border-color: var(--danger); }
+/* Botão de confirmação de uma ação destrutiva (diálogo "Excluir ..."): cheio,
+   para não ser confundido com o "Cancelar" ao lado. `--text-invert` mantém o
+   contraste nos dois temas (texto escuro sobre o vermelho claro do tema escuro). */
+.btn-danger.btn-danger-forte,
+.btn-danger.btn-danger-forte:hover:not(:disabled) {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--text-invert);
+}
 
 .btn-success {
   background: var(--success-bg);
@@ -553,7 +562,10 @@ select.input {
   background: var(--bg-card);
   border-bottom: 1px solid var(--border);
 }
+.modal-header h2,
 .modal-header h3 { font-size: var(--text-md); font-weight: 650; }
+.modal-header h2:focus { outline: none; }
+.modal-mensagem { white-space: pre-line; color: var(--text); font-size: var(--text-base); }
 
 .modal-close {
   display: flex;
@@ -856,6 +868,46 @@ select.input {
 }
 .toast.toast-success { border-color: var(--success-border); color: var(--success); }
 .toast.toast-error   { border-color: var(--danger-border);  color: var(--danger); }
+
+/* Erro: não some sozinho, tem "Fechar" e às vezes uma ação ("Tentar de novo").
+   Quebra em mais de uma linha, então o formato de pílula vira um cartão. */
+.toast.toast-error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: left;
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5);
+  max-width: min(560px, calc(100vw - var(--space-5)));
+}
+.toast-acoes { display: inline-flex; align-items: center; gap: var(--space-2); flex-shrink: 0; }
+.toast-fechar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px;
+  border-radius: var(--radius-xs);
+  color: var(--text-dim);
+  font-size: var(--text-lg);
+}
+.toast-fechar:hover { background: var(--surface-2); color: var(--text); }
+/* Com o erro na tela, o aviso de sucesso sobe para não ficar por cima dele. */
+.toast-error.is-visivel + .toast { bottom: calc(var(--space-5) + 72px); }
+
+/* As duas regiões de aviso ficam sempre no HTML — é o que faz o leitor de tela
+   anunciar quando o texto muda. Vazias (ou fechadas), somem da tela mas não da
+   árvore de acessibilidade. */
+.toast:empty,
+.toast-error:not(.is-visivel) {
+  position: fixed;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
+  box-shadow: none;
+  animation: none;
+}
+/* fechado, os botões do aviso de erro não podem receber Tab */
+.toast-error:not(.is-visivel) .toast-acoes { display: none; }
 
 /* =============================================================================
    SKELETON / LOADING
