@@ -45,6 +45,65 @@ Gravidade:
 | baixo | 8 | H, R, S, U13, U16–U19 |
 | para decidir | 3 | U20, U21, U22 |
 
+## Status na entrega
+
+Todos os itens críticos, altos, médios e baixos foram corrigidos, com exceção
+dos que dependem de decisão. Cada correção tem teste em `tests/specs/`
+(84 testes passando no Chromium; ver "Limitação" acima sobre o Firefox).
+
+| Item | Status | Commit |
+|---|---|---|
+| A · falha ao carregar | corrigido | 7510ff8 |
+| B · o último a salvar apaga o outro | corrigido (inclusive dívidas novas em duas abas) | 7510ff8 |
+| C · "salvo" antes de salvar | corrigido | 7510ff8 |
+| D · sessão expirada | corrigido | 7510ff8 |
+| E · gravação não atômica | corrigido (0 leituras quebradas em 120) | 3efb60c |
+| F · chave do cookie pública; auth.json no Git | corrigido | 9549253 |
+| G · senha em `prompt()` | corrigido | eae9a78 |
+| H · `confirm()` genérico | corrigido | eae9a78 |
+| I · modais sem controle de foco | corrigido | eae9a78 |
+| J · gaveta fechada recebendo foco | corrigido | b93dbe9 |
+| K · foco perdido ao redesenhar | corrigido | 8cca01b |
+| L · menus do topo | corrigido (padrão simples, sem `role="menu"`) | b93dbe9 |
+| M · abas de Configurações | corrigido (links com `aria-current`) | 8cca01b |
+| N · gráficos só com mouse | corrigido | fa2c9e0 |
+| O · "Pular para o conteúdo" | corrigido | 8cca01b |
+| P · avisos não anunciados | corrigido | eae9a78 |
+| Q · atalhos de uma tecla | corrigido (N/n, ?, desligáveis) | 8cca01b |
+| R · botões de linha com nomes iguais | corrigido | a586532 |
+| S · nomes com a sidebar recolhida | corrigido (`aria-label` nos links) | 8cca01b |
+| T · foco atrás do cabeçalho fixo | corrigido | b93dbe9 |
+| U1 · campos de dinheiro | corrigido (aprovado: texto com `inputmode="decimal"`) | cefcf0c |
+| U2 · login piscando no F5 | corrigido | 7510ff8 |
+| U3 · Dashboard desatualizado | corrigido | 8cca01b |
+| U4 · "Próximo vencimento" | corrigido (aprovado) | a586532 |
+| U5 · CSV ignora a busca | corrigido | a586532 |
+| U6 · 320 px | corrigido | e4b322d |
+| U7 · contraste | corrigido | e4b322d, ba40361 |
+| U8 · estrutura | corrigido | e4b322d, ba40361 |
+| U9 · sair não limpa a memória | corrigido | 7510ff8 |
+| U10 · jargão | corrigido | 9549253 |
+| U11 · estados vazios | corrigido | a586532 |
+| U12 · Auditoria incompleta | corrigido | a586532 |
+| U13 · aviso do pagamento | corrigido | a586532 |
+| U14 · Voltar e F5 | corrigido (Parte 1) | 8cca01b |
+| U15 · envio duplo | corrigido (botão desabilitado enquanto grava) | 7510ff8 |
+| U16 · título "Últimos contratos" | corrigido | a586532 |
+| U17 · anexo | corrigido | 7510ff8, 14de076 |
+| U18 · `autocomplete="off"` no login | corrigido | eae9a78 |
+| U19 · `migrarNumerosContrato()` | pendente (caso raro, só dados muito antigos) | — |
+| U20 · comissão por pagamento | **depende de decisão** (combinado não mexer) | — |
+| U21 · texto do card "Total em atraso" | corrigido no `etapas.txt` (aprovado) | a586532 |
+| U22 · nomes inconsistentes | **depende de decisão** (só listados) | — |
+| Firefox | **pendente**: configurado, mas não roda nesta máquina | — |
+| Apache real | **pendente**: `.htaccess` de `data/` só se confirma numa hospedagem | — |
+
+Achados durante a correção (já corrigidos): o card de despesas do Dashboard
+não acompanhava lançamentos; preencher formulário por código contava como
+"alteração não salva"; "Editar" e "Nova despesa" apagavam o que estava
+digitado sem avisar; o botão da Zona de perigo tinha contraste 4:1; o campo
+de anexo não tinha rótulo; o link de autoria tinha 18 px de altura.
+
 ## Inventário (o que existe em cada tela)
 
 Tudo abaixo foi exercitado com mouse; "ok" quer dizer que funcionou e gravou

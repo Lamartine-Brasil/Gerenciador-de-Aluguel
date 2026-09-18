@@ -574,8 +574,9 @@ inclusive a carteira selecionada.
 3.3 Backend
 - [x] PHP puro em `api/`, sem framework, um arquivo por endpoint, comunicação por `fetch()`
       com JSON
-- [x] Testado localmente com PHP 8.5 (`php -S`): login, troca de senha, troca da chave do
-      cookie, leitura/gravação e erros (400/401/409) — ver testes automatizados em `tests/`
+- [x] Testado com PHP 8.5 (`php -S`, inclusive com vários processos e numa subpasta):
+      login, troca de senha, troca da chave do cookie, leitura/gravação e erros
+      (400/401/409) — ver `tests/`
 
 3.4 Interface e design
 - [x] HTML, CSS e JS puros — nenhum framework, nenhuma dependência de Node/npm/Composer
@@ -668,7 +669,18 @@ inclusive a carteira selecionada.
 - [x] Texto vindo do usuário sempre escapado antes de virar HTML, inclusive no recibo e no
       PDF (que são janelas novas montadas por string)
 
-3.6 Documentação
+3.6 Testes automatizados
+- [x] `tests/` com Playwright e axe, isolado do sistema (npm só lá dentro; resultados e
+      `node_modules` fora do Git). Cada teste sobe o próprio `php -S` com uma pasta de dados
+      temporária (`ALUGUEL_DATA_DIR`), relógio parado em 17/09/2026 e impressão
+      neutralizada. Cobre rotas e F5, Voltar/Avançar, login com link direto, fluxos só com
+      teclado e só com mouse, modais, proteção dos dados (A a F), axe nos dois temas, área
+      clicável, 320 px / zoom 200%, campos de valor e subpasta. Como rodar: README, "Testes
+      automatizados"
+- [ ] Firefox: configurado, mas não foi possível rodar na máquina em que os testes foram
+      escritos (o Firefox do Playwright não abre nela); rodar numa máquina em que abra
+
+3.7 Documentação
 - [x] `README.md` com foco em iniciantes: credenciais em destaque, passo a passo de
       instalação/hospedagem, FAQ, e os detalhes técnicos no fim
 - [x] Este arquivo, organizado por conceito e por tela, sem repetir a mesma informação em
@@ -680,7 +692,8 @@ inclusive a carteira selecionada.
 
 4.1 Pendente antes de produção
 - [ ] Testar em hospedagem real com Apache: confirmar que o `.htaccess` bloqueia `data/`
-      pela URL (o servidor embutido do PHP usado nos testes locais não valida isso)
+      pela URL (o servidor embutido do PHP usado nos testes locais não valida isso; o
+      funcionamento numa subpasta é coberto pelos testes)
 - [ ] Trocar a senha padrão (`admin`/`12345678`) logo depois do primeiro deploy
 - [ ] O rate limiting do login é só por IP, sem CAPTCHA e sem 2FA: pode falso-positivar
       várias pessoas atrás do mesmo IP/NAT (um escritório, por exemplo) e não impede um
@@ -733,10 +746,9 @@ Cada item é uma melhoria em algo que JÁ existe, ou uma correção de uma lacun
     para oferecer "desfazer" no toast por alguns segundos, ou restaurar a partir do
     evento de auditoria.
 
- 9. **Versionar os scripts de auditoria e de teste.** As regras de dinheiro e as afirmações
-    deste documento são conferidas por três scripts em Node (sem framework): um checa o
-    código por leitura estática, outro executa o sistema num DOM falso e exercita cada
-    comportamento, e um terceiro confere só as contas. Eles pegaram problemas reais — o
-    recibo recalculando a comissão por fora, cards com espaçamento dobrado em
-    Configurações — mas ainda vivem fora do repositório. Trazer para dentro evitaria que
-    essas regressões voltassem em silêncio.
+ 9. **Comissão contada por pagamento nos Relatórios.** `calcularRelatorio()` soma
+    `comissaoCorretor()` uma vez por pagamento, e `valorLiquidoPagamento()` desconta a
+    comissão em cada pagamento. Com um pagamento por dívida (o que a tela permite hoje) não
+    há diferença; mas uma dívida com dois pagamentos (dados antigos ou importados) sai com
+    a comissão em dobro no extrato e no líquido. É regra financeira: fica para decisão do
+    dono do sistema (item U20 de `docs/revisao-funcional.md`).

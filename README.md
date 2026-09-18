@@ -844,6 +844,36 @@ texto. A aba Auditoria também tem filtros por ano, mês e usuário.
 
 Mantém só os últimos 300 eventos — os mais antigos são descartados automaticamente.
 
+### Testes automatizados
+
+Os testes ficam em `tests/`, com as próprias dependências (Playwright e axe). O sistema em
+si continua sem dependência nenhuma: `tests/node_modules` só existe na máquina de quem roda
+os testes e não vai para a hospedagem.
+
+```bash
+cd tests
+npm install
+npx playwright install chromium firefox
+npm test                 # Chromium e Firefox
+npm run test:chromium    # só Chromium
+npm run report           # abre o relatório da última execução
+```
+
+Precisa de PHP e Node.js 18+ instalados. Cada teste sobe o próprio `php -S` numa porta
+livre, com uma pasta de dados temporária preenchida a partir de dados fictícios
+(`tests/fixtures/dados.js`) — os testes **nunca** tocam em `data/` nem em `contratos/`. Isso
+funciona porque `api/config.php` aceita as variáveis de ambiente `ALUGUEL_DATA_DIR` e
+`ALUGUEL_CONTRATOS_DIR` (só quando definidas; numa hospedagem nada muda). O relógio do
+navegador fica parado em 17/09/2026, então "em atraso" e "a vencer" dão sempre o mesmo
+resultado, e a janela de impressão (recibo e PDF) é neutralizada.
+
+O que é coberto (`tests/specs/`): todas as rotas abertas direto e depois do F5, Voltar e
+Avançar, link direto sem login; fluxo principal só com teclado e só com mouse; modais
+(foco, Tab, Esc, confirmação ao descartar); proteção dos dados (falha ao carregar, conflito
+entre abas, dívidas novas em duas abas, gravação que falha, sessão expirada, leituras e
+gravações simultâneas, cookie forjado); axe em todas as telas nos dois temas; área
+clicável; 320 px e zoom de 200%; campos de valor; e o sistema servido numa subpasta.
+
 ### Requisitos técnicos
 
 - PHP 7.4+ (testado com PHP 8.5) com suporte a `setcookie()` com array de opções,
