@@ -100,9 +100,11 @@ o projeto não tem dependências.
 Este sistema foi feito para hospedagem compartilhada comum com **PHP + Apache** (cPanel,
 Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servidor.
 
-1. **Envie os arquivos**: copie a pasta inteira do projeto (`index.html`, `index.js`,
-   `ui.js`, `css/`, `api/`, `data/`, `contratos/`) para a hospedagem, mantendo a mesma
-   organização de pastas
+1. **Envie os arquivos**: copie para a hospedagem `index.html`, `index.js`, `ui.js`,
+   `css/`, `api/`, `data/` e `contratos/`, mantendo a mesma organização de pastas. Numa
+   instalação nova, `data/` e `contratos/` só têm o `.htaccess` que as protege — o resto é
+   criado sozinho no primeiro acesso. `tests/`, `docs/` e `agents.md` são para quem
+   desenvolve e não precisam ir para o servidor
 2. **Acesse pelo navegador** e faça login com `admin` / `12345678`
 3. **Troque a senha na hora**, como explicado na seção acima
 4. **Não precisa gerar chave nenhuma**: a chave que protege o login contra falsificação é
@@ -340,7 +342,7 @@ existindo, só voltam a ficar sem carteira.
 - **Tema claro/escuro** — segue automaticamente o tema do seu sistema operacional até você
   escolher manualmente; a partir daí fica salvo no navegador
 - **Interface responsiva** — sidebar recolhível no computador (o estado fica salvo) e
-  gaveta no celular; funciona de 360px até telas grandes
+  gaveta no celular; funciona de 320px até telas grandes, e com zoom de até 200%
 - **Login protegido** — sessão de 30 dias, não desloga ao fechar o navegador. Suporta
   múltiplos usuários administradores, todos com o mesmo nível de acesso
 - **Atalhos de teclado** — `N` abre um novo contrato, `/` vai para a busca do topo, `?`
@@ -408,10 +410,11 @@ ficar antes de salvar.
 
 ```
 index.html           Estrutura da página (login + sidebar + header + telas + modais)
-index.js             Toda a lógica do front-end (dados, regras, renderização)
+index.js             Toda a lógica do front-end (dados, regras, renderização, gravação
+                      com controle de versão, rotas de cada tela, modais e foco)
 ui.js                Camada de interface: sidebar recolhível, drawer no celular,
-                      menus suspensos, busca do header, notificações, abas de
-                      Configurações. Não contém regra de negócio nem chamada de API.
+                      menus do topo, notificações, "mostrar mais dívidas". Não contém
+                      regra de negócio, chamada de API nem navegação entre telas.
 
 css/tokens.css       Variáveis do design system (cores, tipografia, espaçamento,
                       raios, sombras, animações) + tema claro/escuro + utilitários
@@ -461,7 +464,19 @@ data/.htaccess       Bloqueia acesso direto via URL a tudo dentro de data/
 contratos/           Arquivos de contrato assinado anexados (PDF/JPG/PNG), renomeados
                       para nomedoinquilino-imovel-idcurto.ext (criado automaticamente)
 contratos/.htaccess  Bloqueia acesso direto via URL a tudo dentro de contratos/
+
+tests/               Testes de navegador (Playwright + axe), com dependências próprias;
+                      ver "Testes automatizados". tests/diagnostico/ guarda os scripts
+                      da revisão de funcionamento
+docs/revisao-funcional.md  Relatório da revisão de funcionamento, usabilidade e acesso
+                      por teclado e mouse: cada problema, gravidade e status
+agents.md            Contexto para retomar o trabalho (pedido, regras combinadas,
+                      decisões tomadas, o que está feito e o que ficou pendente)
 ```
+
+`data/` e `contratos/` ficam **inteiras fora do Git**, com exceção dos dois `.htaccess`:
+são os dados de cada instalação (inclusive senhas, a chave do login e os contratos
+assinados dos inquilinos) e não podem acabar num commit.
 
 ### Como o login funciona
 
