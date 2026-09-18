@@ -229,11 +229,11 @@
         <div class="topbar-divider" aria-hidden="true"></div>
 
         <div class="dropdown" id="uiNotifications">
-          <button type="button" class="icon-btn" id="uiNotifButton" aria-label="Notificações" aria-haspopup="true" aria-expanded="false">
+          <button type="button" class="icon-btn" id="uiNotifButton" aria-label="Notificações" aria-expanded="false">
             <svg class="icon"><use href="#icon-bell"></use></svg>
             <span class="notif-badge hidden" id="uiNotifBadge">0</span>
           </button>
-          <div class="dropdown-menu dropdown-menu-lg hidden" id="uiNotifMenu" role="menu" aria-label="Notificações">
+          <div class="dropdown-menu dropdown-menu-lg hidden" id="uiNotifMenu">
             <div class="dropdown-header">Notificações <span id="uiNotifSummary"></span></div>
             <div class="notif-list" id="uiNotifList"></div>
           </div>
@@ -246,12 +246,13 @@
         <button id="btnThemeToggle" class="icon-btn" title="Alternar tema claro/escuro" aria-label="Alternar tema claro/escuro"></button>
 
         <div class="dropdown" id="uiUserMenu">
-          <button type="button" class="user-chip" id="uiUserButton" aria-haspopup="true" aria-expanded="false">
+          <button type="button" class="user-chip" id="uiUserButton" aria-expanded="false">
             <span class="avatar" id="uiUserAvatar" aria-hidden="true">A</span>
+            <span class="sr-only">Menu da conta: </span>
             <span class="user-chip-name" id="currentUserName">admin</span>
-            <svg class="icon"><use href="#icon-chevron-down"></use></svg>
+            <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
           </button>
-          <div class="dropdown-menu hidden" id="uiUserDropdown" role="menu">
+          <div class="dropdown-menu hidden" id="uiUserDropdown">
             <div class="dropdown-header">Conta</div>
             <a class="dropdown-item" href="#/configuracoes">
               <svg class="icon" aria-hidden="true"><use href="#icon-gear"></use></svg> Configurações

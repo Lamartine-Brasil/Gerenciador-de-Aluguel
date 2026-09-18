@@ -474,7 +474,8 @@
 @media (max-width: 720px) {
   .topbar-search { flex: 1 1 auto; }
   .kbd-hint { display: none; }
-  .user-chip-name { display: none; }
+  /* some da tela, mas continua sendo o nome do botão para o leitor de tela */
+  .user-chip-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .user-chip { padding: 4px; }
   .btn-label-full { display: none; }
   .topbar-divider { display: none; }

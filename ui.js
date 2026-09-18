@@ -53,38 +53,66 @@
   }
 
   /* ===========================================================================
-     DRAWER — sidebar vira gaveta no celular
+     DRAWER — sidebar vira gaveta no celular (até 960px, o que inclui um
+     computador com zoom de 200%)
+     Fechada, a gaveta só sai da tela com `transform` — sem `inert`, o Tab
+     continuava passando pelos itens invisíveis do menu. Aberta, ela recebe o
+     foco e o resto da página fica inerte, como num modal.
   =========================================================================== */
+  const sidebar = $('#uiSidebar');
+  const conteudo = $('.app-main');
+  const drawerToggle = $('#uiDrawerToggle');
+  const ehGaveta = window.matchMedia('(max-width: 960px)');
   let backdropEl = null;
+
+  function gavetaAberta() { return root.getAttribute('data-drawer') === 'open'; }
+
+  function sincronizarGaveta() {
+    const aberta = gavetaAberta();
+    if (sidebar) sidebar.inert = ehGaveta.matches && !aberta;
+    if (conteudo) conteudo.inert = ehGaveta.matches && aberta;
+  }
 
   function openDrawer() {
     root.setAttribute('data-drawer', 'open');
-    const btn = $('#uiDrawerToggle');
-    if (btn) btn.setAttribute('aria-expanded', 'true');
+    if (drawerToggle) {
+      drawerToggle.setAttribute('aria-expanded', 'true');
+      drawerToggle.setAttribute('aria-label', 'Fechar menu');
+    }
     if (!backdropEl) {
       backdropEl = document.createElement('div');
       backdropEl.className = 'sidebar-backdrop';
-      backdropEl.addEventListener('click', closeDrawer);
+      backdropEl.addEventListener('click', () => closeDrawer({ devolverFoco: true }));
       document.body.appendChild(backdropEl);
     }
+    sincronizarGaveta();
+    const alvo = $('#tabsNav .tab-btn.active') || $('#tabsNav .tab-btn');
+    if (alvo) alvo.focus();
   }
 
-  function closeDrawer() {
+  function closeDrawer(opcoes = {}) {
+    const estavaAberta = gavetaAberta();
     root.removeAttribute('data-drawer');
-    const btn = $('#uiDrawerToggle');
-    if (btn) btn.setAttribute('aria-expanded', 'false');
+    if (drawerToggle) {
+      drawerToggle.setAttribute('aria-expanded', 'false');
+      drawerToggle.setAttribute('aria-label', 'Abrir menu');
+    }
     if (backdropEl) {
       backdropEl.remove();
       backdropEl = null;
     }
+    sincronizarGaveta();
+    if (estavaAberta && opcoes.devolverFoco && drawerToggle && ehGaveta.matches) drawerToggle.focus();
   }
 
-  const drawerToggle = $('#uiDrawerToggle');
   if (drawerToggle) {
     drawerToggle.addEventListener('click', () => {
-      root.getAttribute('data-drawer') === 'open' ? closeDrawer() : openDrawer();
+      gavetaAberta() ? closeDrawer({ devolverFoco: true }) : openDrawer();
     });
   }
+  // ao passar de celular para computador (ou tirar o zoom), a gaveta deixa de existir
+  ehGaveta.addEventListener('change', () => { if (!ehGaveta.matches) closeDrawer(); sincronizarGaveta(); });
+  sincronizarGaveta();
 
   /* ===========================================================================
      NAVEGAÇÃO
@@ -98,7 +126,12 @@
   });
 
   /* ===========================================================================
-     DROPDOWNS (notificações e usuário)
+     MENUS DO TOPO (notificações e usuário)
+     Padrão simples: um botão que abre e fecha uma lista comum de botões e
+     links (aria-expanded + aria-controls). Não usamos role="menu": ele promete
+     navegação por setas que um leitor de tela espera encontrar. Tab percorre os
+     itens normalmente; Esc fecha e devolve o foco ao botão; sair do menu com o
+     Tab ou clicar fora também fecha.
   =========================================================================== */
   const dropdowns = [
     { button: $('#uiNotifButton'), menu: $('#uiNotifMenu') },
@@ -114,27 +147,35 @@
   }
 
   dropdowns.forEach(d => {
-    d.button.addEventListener('click', (e) => {
-      e.stopPropagation();
+    d.button.setAttribute('aria-controls', d.menu.id);
+    d.button.addEventListener('click', () => {
       const aberto = !d.menu.classList.contains('hidden');
       closeAllDropdowns(d);
       d.menu.classList.toggle('hidden', aberto);
       d.button.setAttribute('aria-expanded', String(!aberto));
     });
-    // Clique dentro do menu não fecha os outros por borbulhamento; mas escolher
-    // um item (inclusive "Sair") sempre fecha o menu.
+    // escolher um item (inclusive "Sair") fecha o menu
     d.menu.addEventListener('click', (e) => {
-      e.stopPropagation();
       if (e.target.closest('.dropdown-item, .notif-item')) closeAllDropdowns();
+    });
+    d.button.parentElement.addEventListener('focusout', (e) => {
+      if (e.relatedTarget && !d.button.parentElement.contains(e.relatedTarget)) closeAllDropdowns();
     });
   });
 
-  document.addEventListener('click', () => closeAllDropdowns());
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.dropdown')) closeAllDropdowns();
+  });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
+    if (e.key !== 'Escape') return;
+    const aberto = dropdowns.find(d => !d.menu.classList.contains('hidden'));
+    if (aberto) {
+      const focoDentro = aberto.button.parentElement.contains(document.activeElement);
       closeAllDropdowns();
-      closeDrawer();
+      if (focoDentro) aberto.button.focus();
+      return;
     }
+    if (gavetaAberta()) closeDrawer({ devolverFoco: true });
   });
 
   /* ===========================================================================
@@ -195,7 +236,6 @@
         const botao = document.createElement('button');
         botao.type = 'button';
         botao.className = 'notif-item';
-        botao.setAttribute('role', 'menuitem');
 
         const ponto = document.createElement('span');
         ponto.className = 'notif-dot ' + item.cor;

@@ -181,6 +181,11 @@
 html {
   height: 100%;
   -webkit-text-size-adjust: 100%;
+  /* O cabeçalho é fixo (sticky): sem isto, o elemento que recebe o foco ao
+     tabular de baixo para cima pode ficar escondido atrás dele. O espaço de baixo
+     é o dos avisos. */
+  scroll-padding-top: calc(var(--topbar-h) + var(--space-3));
+  scroll-padding-bottom: 96px;
 }
 
 body {
