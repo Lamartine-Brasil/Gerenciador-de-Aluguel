@@ -11,3 +11,4 @@ data/auth.json
 data/cookie_secret.php
 data/dados.lock
 data/*.tmp-*
+tests/diagnostico/out/
