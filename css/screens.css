@@ -940,6 +940,9 @@
 
 .danger-zone { border-color: var(--danger-border); background: var(--danger-bg); }
 .danger-zone > h2 { color: var(--danger); }
+/* O cartão já tem fundo vermelho claro: o botão vermelho claro por cima ficava
+   com contraste baixo (4:1). Fundo da superfície, mesmo texto vermelho. */
+.danger-zone .btn-danger:not(:hover) { background: var(--surface); }
 .danger-zone .modal-subtitle { color: var(--text-dim); }
 
 /* -----------------------------------------------------------------------------

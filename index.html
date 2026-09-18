@@ -1384,7 +1384,7 @@
         </div>
       </div>
       <div class="field" id="fAnexoSection">
-        <span>Contrato assinado (anexo)</span>
+        <label for="fAnexoInput" id="fAnexoRotulo">Contrato assinado (anexo)</label>
         <div id="fAnexoAtual" class="total-preview hidden">
           <span id="fAnexoNome"></span>
           <div class="contrato-actions">
@@ -1392,7 +1392,7 @@
             <button type="button" class="btn btn-danger btn-sm" id="btnRemoverAnexo"><svg class="icon"><use href="#icon-trash"></use></svg> Remover</button>
           </div>
         </div>
-        <input type="file" id="fAnexoInput" accept=".pdf,.jpg,.jpeg,.png">
+        <input type="file" id="fAnexoInput" accept=".pdf,.jpg,.jpeg,.png" aria-describedby="fAnexoStatus">
         <p class="modal-subtitle" id="fAnexoStatus">PDF, JPG ou PNG, até 15MB. Enviado automaticamente ao escolher o arquivo.</p>
       </div>
       <div class="modal-actions">
