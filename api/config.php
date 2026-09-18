@@ -26,6 +26,10 @@ define('ANEXO_TIPOS_PERMITIDOS', ['pdf' => 'application/pdf', 'jpg' => 'image/jp
 define('ANEXO_TAMANHO_MAXIMO', 15 * 1024 * 1024); // 15MB
 
 define('LOGIN_ATTEMPTS_FILE', DATA_DIR . '/login_attempts.json');
+// Trava das gravações. É um arquivo à parte (e não o próprio dados.json) porque
+// a gravação troca o arquivo de dados inteiro por outro (rename), e uma trava
+// presa ao arquivo antigo deixaria de valer no meio do caminho.
+define('LOCK_FILE', DATA_DIR . '/dados.lock');
 define('LOGIN_MAX_TENTATIVAS', 5);
 define('LOGIN_BLOQUEIO_SEGUNDOS', 15 * 60); // 15 minutos de bloqueio após esgotar as tentativas
 
@@ -66,25 +70,77 @@ function slugify($text) {
     return $text !== '' ? $text : 'arquivo';
 }
 
-function ensureDataFile() {
+function ensureDataDir() {
     if (!is_dir(DATA_DIR)) {
         mkdir(DATA_DIR, 0755, true);
     }
-    if (!file_exists(DATA_FILE)) {
+}
+
+// Grava um arquivo de uma vez só: escreve tudo num temporário na mesma pasta e
+// troca pelo definitivo com rename(), que é atômico no sistema de arquivos. Quem
+// lê no meio de uma gravação pega o arquivo antigo inteiro ou o novo inteiro —
+// nunca um pedaço. Truncar e reescrever o próprio arquivo, como era antes,
+// deixava leituras simultâneas com o JSON pela metade.
+function gravarArquivoAtomico($caminho, $conteudo) {
+    $tmp = $caminho . '.tmp-' . bin2hex(random_bytes(6));
+    if (file_put_contents($tmp, $conteudo) === false) {
+        @unlink($tmp);
+        return false;
+    }
+    @chmod($tmp, 0644);
+    if (!@rename($tmp, $caminho)) {
+        @unlink($tmp);
+        return false;
+    }
+    return true;
+}
+
+// Executa $fn com a trava das gravações: exclusiva para quem vai ler-e-gravar,
+// compartilhada para quem só lê. Todo "ler, alterar e gravar" precisa estar
+// inteiro dentro de uma trava exclusiva, senão duas requisições ao mesmo tempo
+// perdem a alteração uma da outra.
+function comTrava($exclusiva, $fn) {
+    // Reentrante: quem já está com a trava (ex: atualizarAuth → readAuth →
+    // ensureAuthFile) não pede de novo — um segundo flock no mesmo processo
+    // esperaria por ele mesmo para sempre.
+    static $nivel = 0;
+    if ($nivel > 0) return $fn();
+    ensureDataDir();
+    $fp = fopen(LOCK_FILE, 'c');
+    if ($fp === false) {
+        throw new RuntimeException('Não foi possível abrir a trava de gravação em ' . LOCK_FILE);
+    }
+    flock($fp, $exclusiva ? LOCK_EX : LOCK_SH);
+    $nivel++;
+    try {
+        return $fn();
+    } finally {
+        $nivel--;
+        flock($fp, LOCK_UN);
+        fclose($fp);
+    }
+}
+
+function ensureDataFile() {
+    ensureDataDir();
+    if (file_exists(DATA_FILE)) return;
+    comTrava(true, function () {
+        if (file_exists(DATA_FILE)) return;
         $default = [
             'contratos' => [],
             'config' => ['taxaJurosMensal' => 1, 'taxaMultaPercent' => 2],
             'auditoria' => [],
+            'versao' => 0,
         ];
-        file_put_contents(DATA_FILE, json_encode($default, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
-    }
+        gravarArquivoAtomico(DATA_FILE, json_encode($default, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    });
 }
 
 function ensureAuthFile() {
-    if (!is_dir(DATA_DIR)) {
-        mkdir(DATA_DIR, 0755, true);
-    }
-    if (!file_exists(AUTH_FILE)) {
+    ensureDataDir();
+    if (file_exists(AUTH_FILE)) return;
+    comTrava(true, function () {
+        if (file_exists(AUTH_FILE)) return;
         $default = [
             'users' => [
                 [
@@ -94,8 +150,8 @@ function ensureAuthFile() {
                 ],
             ],
         ];
-        file_put_contents(AUTH_FILE, json_encode($default, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
-    }
+        gravarArquivoAtomico(AUTH_FILE, json_encode($default, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    });
 }
 
 function generateUserId() {
@@ -123,32 +179,32 @@ function readAuth() {
         return $migrated;
     }
 
+    // Arquivo existente mas ilegível: ninguém entra. Antes isso devolvia o
+    // usuário padrão admin/12345678 — um auth.json corrompido virava uma porta
+    // aberta com a senha que está no README. Para voltar ao padrão, apague o
+    // arquivo (ver README, "Perdi a senha").
     if (!is_array($data) || empty($data['users']) || !is_array($data['users'])) {
-        return [
-            'users' => [
-                [
-                    'id' => generateUserId(),
-                    'username' => DEFAULT_USERNAME,
-                    'passwordHash' => password_hash(DEFAULT_PASSWORD, PASSWORD_DEFAULT),
-                ],
-            ],
-        ];
+        return ['users' => []];
     }
 
     return $data;
 }
 
+// Quem chama deve estar dentro de comTrava(true, ...) quando leu o auth.json
+// para alterar — ver atualizarAuth().
 function writeAuth($auth) {
-    $fp = fopen(AUTH_FILE, 'c+');
-    if ($fp === false) return false;
-    flock($fp, LOCK_EX);
-    ftruncate($fp, 0);
-    rewind($fp);
-    fwrite($fp, json_encode($auth, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-    fflush($fp);
-    flock($fp, LOCK_UN);
-    fclose($fp);
-    return true;
+    return gravarArquivoAtomico(AUTH_FILE, json_encode($auth, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+}
+
+// Lê, altera e grava o auth.json sob a trava exclusiva: dois administradores
+// adicionando usuários ao mesmo tempo não perdem a alteração um do outro.
+// $fn recebe o auth atual e devolve o novo (ou null para não gravar nada).
+function atualizarAuth($fn) {
+    return comTrava(true, function () use ($fn) {
+        $novo = $fn(readAuth());
+        if ($novo === null) return true;
+        return writeAuth($novo);
+    });
 }
 
 function findUserByUsername($auth, $username) {
@@ -181,16 +237,8 @@ function lerTentativasLogin() {
 }
 
 function salvarTentativasLogin($tentativas) {
-    if (!is_dir(DATA_DIR)) mkdir(DATA_DIR, 0755, true);
-    $fp = fopen(LOGIN_ATTEMPTS_FILE, 'c+');
-    if ($fp === false) return;
-    flock($fp, LOCK_EX);
-    ftruncate($fp, 0);
-    rewind($fp);
-    fwrite($fp, json_encode($tentativas));
-    fflush($fp);
-    flock($fp, LOCK_UN);
-    fclose($fp);
+    ensureDataDir();
+    gravarArquivoAtomico(LOGIN_ATTEMPTS_FILE, json_encode($tentativas));
 }
 
 // Quantos segundos ainda faltam de bloqueio para este IP (0 = pode tentar).
@@ -202,22 +250,26 @@ function segundosBloqueadoLogin($ip) {
 }
 
 function registrarTentativaLoginFalha($ip) {
-    $tentativas = lerTentativasLogin();
-    $agora = time();
-    // limpa entradas velhas pra o arquivo não crescer pra sempre
-    foreach ($tentativas as $chave => $t) {
-        if ($agora - $t['lastAttempt'] > LOGIN_BLOQUEIO_SEGUNDOS * 4) unset($tentativas[$chave]);
-    }
-    if (!isset($tentativas[$ip])) $tentativas[$ip] = ['count' => 0, 'lastAttempt' => 0];
-    $tentativas[$ip]['count']++;
-    $tentativas[$ip]['lastAttempt'] = $agora;
-    salvarTentativasLogin($tentativas);
+    comTrava(true, function () use ($ip) {
+        $tentativas = lerTentativasLogin();
+        $agora = time();
+        // limpa entradas velhas pra o arquivo não crescer pra sempre
+        foreach ($tentativas as $chave => $t) {
+            if ($agora - $t['lastAttempt'] > LOGIN_BLOQUEIO_SEGUNDOS * 4) unset($tentativas[$chave]);
+        }
+        if (!isset($tentativas[$ip])) $tentativas[$ip] = ['count' => 0, 'lastAttempt' => 0];
+        $tentativas[$ip]['count']++;
+        $tentativas[$ip]['lastAttempt'] = $agora;
+        salvarTentativasLogin($tentativas);
+    });
 }
 
 function limparTentativasLogin($ip) {
-    $tentativas = lerTentativasLogin();
-    if (isset($tentativas[$ip])) {
-        unset($tentativas[$ip]);
-        salvarTentativasLogin($tentativas);
-    }
+    comTrava(true, function () use ($ip) {
+        $tentativas = lerTentativasLogin();
+        if (isset($tentativas[$ip])) {
+            unset($tentativas[$ip]);
+            salvarTentativasLogin($tentativas);
+        }
+    });
 }

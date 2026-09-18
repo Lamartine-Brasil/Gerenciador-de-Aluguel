@@ -9,7 +9,7 @@ ensureDataFile();
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
-    echo file_get_contents(DATA_FILE);
+    echo comTrava(false, function () { return file_get_contents(DATA_FILE); });
     exit;
 }
 
@@ -21,19 +21,14 @@ if ($method === 'POST') {
         exit;
     }
 
-    $fp = fopen(DATA_FILE, 'c+');
-    if ($fp === false) {
+    $gravou = comTrava(true, function () use ($decoded) {
+        return gravarArquivoAtomico(DATA_FILE, json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    });
+    if (!$gravou) {
         http_response_code(500);
         echo json_encode(['ok' => false, 'error' => 'Não foi possível salvar os dados.']);
         exit;
     }
-    flock($fp, LOCK_EX);
-    ftruncate($fp, 0);
-    rewind($fp);
-    fwrite($fp, json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-    fflush($fp);
-    flock($fp, LOCK_UN);
-    fclose($fp);
 
     echo json_encode(['ok' => true]);
     exit;

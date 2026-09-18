@@ -17,44 +17,46 @@ $newUsername = trim((string)($input['newUsername'] ?? ''));
 $newPassword = (string)($input['newPassword'] ?? '');
 
 $currentUsername = getAuthenticatedUsername();
-$auth = readAuth();
-$userIndex = null;
-foreach ($auth['users'] as $i => $u) {
-    if (hash_equals($u['username'], $currentUsername)) { $userIndex = $i; break; }
-}
+$erro = null;
 
-if ($userIndex === null || !password_verify($currentPassword, $auth['users'][$userIndex]['passwordHash'])) {
-    http_response_code(401);
-    echo json_encode(['ok' => false, 'error' => 'Senha atual incorreta.']);
-    exit;
-}
-
-if ($newUsername === '') {
-    http_response_code(400);
-    echo json_encode(['ok' => false, 'error' => 'Informe um nome de usuário.']);
-    exit;
-}
-
-if ($newPassword !== '' && strlen($newPassword) < 8) {
-    http_response_code(400);
-    echo json_encode(['ok' => false, 'error' => 'A nova senha deve ter pelo menos 8 caracteres.']);
-    exit;
-}
-
-foreach ($auth['users'] as $i => $u) {
-    if ($i !== $userIndex && strcasecmp($u['username'], $newUsername) === 0) {
-        http_response_code(400);
-        echo json_encode(['ok' => false, 'error' => 'Já existe outro usuário com esse nome.']);
-        exit;
+// Tudo entre ler e gravar o auth.json acontece sob a trava exclusiva.
+$gravou = atualizarAuth(function ($auth) use ($currentUsername, $currentPassword, $newUsername, $newPassword, &$erro) {
+    $userIndex = null;
+    foreach ($auth['users'] as $i => $u) {
+        if (hash_equals($u['username'], $currentUsername)) { $userIndex = $i; break; }
     }
+    if ($userIndex === null || !password_verify($currentPassword, $auth['users'][$userIndex]['passwordHash'])) {
+        $erro = [401, 'Senha atual incorreta.'];
+        return null;
+    }
+    if ($newUsername === '') {
+        $erro = [400, 'Informe um nome de usuário.'];
+        return null;
+    }
+    if ($newPassword !== '' && strlen($newPassword) < 8) {
+        $erro = [400, 'A nova senha deve ter pelo menos 8 caracteres.'];
+        return null;
+    }
+    foreach ($auth['users'] as $i => $u) {
+        if ($i !== $userIndex && strcasecmp($u['username'], $newUsername) === 0) {
+            $erro = [400, 'Já existe outro usuário com esse nome.'];
+            return null;
+        }
+    }
+    $auth['users'][$userIndex]['username'] = $newUsername;
+    if ($newPassword !== '') {
+        $auth['users'][$userIndex]['passwordHash'] = password_hash($newPassword, PASSWORD_DEFAULT);
+    }
+    return $auth;
+});
+
+if ($erro !== null) {
+    http_response_code($erro[0]);
+    echo json_encode(['ok' => false, 'error' => $erro[1]]);
+    exit;
 }
 
-$auth['users'][$userIndex]['username'] = $newUsername;
-if ($newPassword !== '') {
-    $auth['users'][$userIndex]['passwordHash'] = password_hash($newPassword, PASSWORD_DEFAULT);
-}
-
-if (!writeAuth($auth)) {
+if (!$gravou) {
     http_response_code(500);
     echo json_encode(['ok' => false, 'error' => 'Não foi possível salvar as alterações.']);
     exit;

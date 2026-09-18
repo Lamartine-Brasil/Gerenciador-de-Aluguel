@@ -517,7 +517,16 @@ inclusive a carteira selecionada.
 - [x] Tudo em arquivos no servidor: `data/dados.json` (contratos, dívidas, pagamentos,
       imóveis, carteiras, pessoas, despesas, configuração, auditoria) e `data/auth.json`
       (usuários), ambos bloqueados por `.htaccess`
-- [x] Gravação protegida com `flock` e escrita atômica (temporário + `rename()`)
+- [x] Gravação atômica: cada arquivo (`dados.json`, `auth.json`, `login_attempts.json`) é
+      escrito inteiro num temporário na mesma pasta e trocado pelo definitivo com
+      `rename()` (`gravarArquivoAtomico()`). Quem lê no meio de uma gravação pega o
+      arquivo antigo ou o novo, nunca um pedaço — antes o arquivo era truncado e
+      reescrito no lugar, e leituras simultâneas chegavam a pegar o JSON pela metade
+- [x] Trava num arquivo à parte (`data/dados.lock`, `comTrava()`): exclusiva em todo
+      "ler, alterar e gravar", compartilhada na leitura. Não fica no próprio
+      `dados.json` porque o `rename()` troca o arquivo e a trava ficaria no antigo
+- [x] `auth.json` ilegível não cai mais no usuário padrão: ninguém entra até o arquivo
+      ser corrigido ou apagado (apagado, ele é recriado com `admin`/`12345678`)
 - [x] Migrações automáticas e transparentes no carregamento, sem ação manual: contratos
       "planos" viram contratos com dívidas; contratos sem número recebem um; `corretores`
       vira `pessoas`; ausência de `pessoas`/`imoveis`/`carteiras`/`despesas` vira lista
