@@ -16,7 +16,7 @@
 
 :root {
   /* ---------- Identidade / marca ---------- */
-  --accent:          #7c8cff;
+  --accent:          #8090ff; /* contraste ≥ 4,5:1 também sobre --accent-soft */
   --accent-hover:    #94a1ff;
   --accent-active:   #6a7bf5;
   --accent-soft:     rgba(124, 140, 255, 0.14);
@@ -43,7 +43,7 @@
   /* ---------- Texto ---------- */
   --text:       #e9ecf4;
   --text-dim:   #99a1b4;
-  --text-faint: #6c748a;
+  --text-faint: #8890a6; /* ≥ 4,5:1 sobre todas as superfícies do tema */
   --text-invert: #0a0c11;
 
   /* ---------- Semânticas ---------- */
@@ -127,7 +127,7 @@
    TEMA CLARO
 ============================================================================= */
 :root[data-theme="light"] {
-  --accent:          #4c5fe0;
+  --accent:          #4255d6;
   --accent-hover:    #4053d4;
   --accent-active:   #3646be;
   --accent-soft:     rgba(76, 95, 224, 0.10);
@@ -151,16 +151,16 @@
 
   --text:       #101322;
   --text-dim:   #5a6479;
-  --text-faint: #858da0;
+  --text-faint: #636b7e;
   --text-invert: #ffffff;
 
-  --success:        #0a7d57;
+  --success:        #047751;
   --success-bg:     rgba(10, 125, 87, 0.10);
   --success-border: rgba(10, 125, 87, 0.26);
-  --danger:         #d23b31;
+  --danger:         #c42d23;
   --danger-bg:      rgba(210, 59, 49, 0.09);
   --danger-border:  rgba(210, 59, 49, 0.26);
-  --warn:           #a56a00;
+  --warn:           #975c00;
   --warn-bg:        rgba(165, 106, 0, 0.10);
   --warn-border:    rgba(165, 106, 0, 0.26);
   --info:           #2563eb;

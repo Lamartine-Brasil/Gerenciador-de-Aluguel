@@ -638,7 +638,16 @@ inclusive a carteira selecionada.
 - [x] Preencher um formulário por código (abrir para editar, trocar a carteira ativa,
       redesenhar a tela) não conta como alteração; clicar em "Editar" ou "Nova despesa"
       com algo digitado e não salvo pergunta antes de descartar
-- [x] Responsivo de 360px a telas grandes
+- [x] Responsivo de 320px a telas grandes, e com zoom de 200%: nada vaza nem fica cortado;
+      rolagem horizontal só dentro de tabelas
+- [x] Contraste de pelo menos 4,5:1 nos dois temas (axe sem violações em nenhuma tela):
+      `--text-faint`, `--accent` e, no tema claro, `--success`, `--danger` e `--warn` foram
+      ajustados só no brilho, mantendo o tom; zeros e dias de fora do mês continuam
+      apagados, mas legíveis
+- [x] Estrutura: `nav`, `header` e `main` em todas as telas (login também); um `h1` por tela
+      e cartões com `h2`, sem pular nível; `th scope="col"` em todas as tabelas, e a coluna
+      de ações com nome para leitor de tela; tabelas roláveis de Relatórios alcançáveis e
+      com nome; link "Pular para o conteúdo" como primeiro item do Tab
 - [x] Atalhos: `N` (ou `n`) novo contrato, `/` busca do topo, `?` lista de atalhos, `Esc`
       fecha modais — inativos enquanto o foco está num campo. Os de uma tecla podem ser
       desligados em Configurações › Financeiro (preferência do navegador,

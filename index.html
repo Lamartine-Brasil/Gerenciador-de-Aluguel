@@ -110,7 +110,7 @@
     <span class="login-foot">Dados armazenados no seu próprio servidor.</span>
   </aside>
 
-  <div class="login-main">
+  <main class="login-main">
     <div class="login-card">
       <div class="login-logo"><svg class="icon"><use href="#icon-home"></use></svg></div>
       <h1>Bem-vindo de volta</h1>
@@ -133,7 +133,7 @@
         <a href="https://github.com/Lamartine-Brasil" target="_blank" rel="noopener noreferrer">Lamartine Barbosa</a>
       </p>
     </div>
-  </div>
+  </main>
 
 </section>
 
@@ -141,7 +141,7 @@
 <div id="app" class="app hidden">
 
   <!-- Primeiro item do Tab em qualquer tela: pula o menu e o cabeçalho. -->
-  <a class="pular-conteudo" href="#conteudo" id="linkPularConteudo">Pular para o conteúdo</a>
+  <nav aria-label="Acesso rápido"><a class="pular-conteudo" href="#conteudo" id="linkPularConteudo">Pular para o conteúdo</a></nav>
 
   <!-- ---------- SIDEBAR ---------- -->
   <aside class="sidebar" id="uiSidebar">
@@ -369,7 +369,7 @@
 
           <aside class="split-aside">
             <div class="card">
-              <h3 id="formImovelTitle"><svg class="icon"><use href="#icon-plus"></use></svg> Novo imóvel</h3>
+              <h2 id="formImovelTitle"><svg class="icon"><use href="#icon-plus"></use></svg> Novo imóvel</h2>
               <p class="modal-subtitle">Cadastre aqui os imóveis para escolher pela lista ao criar um contrato, sem digitar o endereço toda vez.</p>
               <form id="formImovel" class="config-form">
                 <input type="hidden" id="imovelId">
@@ -408,7 +408,7 @@
         <div class="toolbar">
           <div class="search-wrap">
             <svg class="icon search-wrap-icon"><use href="#icon-search"></use></svg>
-            <input type="search" id="searchContratos" class="input" placeholder="Buscar por inquilino, imóvel ou #número..." title="Atalho: /">
+            <input type="search" id="searchContratos" class="input" placeholder="Buscar por inquilino, imóvel ou #número..." aria-label="Buscar contratos por inquilino, imóvel, número ou carteira">
           </div>
           <select id="filterAno" class="input select" aria-label="Filtrar por ano"></select>
           <select id="filterMes" class="input select" aria-label="Filtrar por mês">
@@ -564,7 +564,7 @@
 
         <div class="card chart-card">
           <!-- Um único filho: o `gap` do flex no h3 separaria o texto do ano. -->
-          <h3><span>Despesas por mês em <span id="despesasChartAno"></span></span></h3>
+          <h2><span>Despesas por mês em <span id="despesasChartAno"></span></span></h2>
           <canvas id="chartDespesasAno" height="240"></canvas>
         </div>
 
@@ -575,7 +575,7 @@
         <div class="split-layout split-layout-form-first">
           <aside class="split-aside">
             <div class="card">
-              <h3 id="formDespesaTitle">Nova despesa</h3>
+              <h2 id="formDespesaTitle">Nova despesa</h2>
               <p class="modal-subtitle">Cadastro rápido: depois de salvar, o formulário fica pronto para o próximo lançamento com a mesma data.</p>
               <form id="formDespesa" class="config-form">
                 <input type="hidden" id="despesaId">
@@ -632,31 +632,31 @@
 
         <div class="charts-grid">
           <div class="card chart-card">
-            <h3>Dívidas por status</h3>
+            <h2>Dívidas por status</h2>
             <canvas id="chartStatus" height="230"></canvas>
             <div class="chart-legend" id="legendStatus"></div>
           </div>
           <div class="card chart-card">
-            <h3>Pagamentos por forma (líquido)</h3>
+            <h2>Pagamentos por forma (líquido)</h2>
             <canvas id="chartFormaPagamento" height="230"></canvas>
             <div class="chart-legend" id="legendFormaPagamento"></div>
           </div>
           <div class="card chart-card chart-card-wide">
-            <h3>Receita líquida × despesas por mês</h3>
+            <h2>Receita líquida × despesas por mês</h2>
             <canvas id="chartReceitaMensal" height="260"></canvas>
             <div class="chart-legend" id="legendReceitaMensal"></div>
           </div>
           <div class="card chart-card">
-            <h3>Total em atraso por mês</h3>
+            <h2>Total em atraso por mês</h2>
             <canvas id="chartAtrasoEvolucao" height="240"></canvas>
           </div>
           <div class="card chart-card">
-            <h3>Despesas por mês</h3>
+            <h2>Despesas por mês</h2>
             <canvas id="chartDespesasMensal" height="240"></canvas>
           </div>
           <div class="card chart-card chart-card-wide">
             <div class="panel-header panel-header-tight">
-              <h3>Inadimplência — quem mais atrasa</h3>
+              <h2>Inadimplência — quem mais atrasa</h2>
               <select id="inadimplenciaAgrupador" class="input select" aria-label="Agrupar inadimplência">
                 <option value="inquilino">Por inquilino</option>
                 <option value="imovel">Por imóvel</option>
@@ -739,63 +739,63 @@
         </div>
 
         <!-- A conta aberta do que entrou: bruto, o que foi repassado, e o que sobrou -->
-        <div class="card table-card">
-          <h3>Como se chega ao recebido líquido</h3>
+        <div class="card table-card" tabindex="0" role="region" aria-labelledby="tituloTabelaRel1">
+          <h2 id="tituloTabelaRel1">Como se chega ao recebido líquido</h2>
           <p class="modal-subtitle">Os cards acima e todas as tabelas mostram o valor <strong>líquido</strong>. Esta é a conta que leva até ele, somando os pagamentos do período escolhido.</p>
           <table class="report-table">
             <tbody id="relatorioExtratoBody"></tbody>
           </table>
         </div>
 
-        <div class="card table-card hidden" id="relatorioCarteiraCard">
-          <h3>Por carteira <span data-periodo>no ano</span></h3>
+        <div class="card table-card hidden" id="relatorioCarteiraCard" tabindex="0" role="region" aria-labelledby="tituloTabelaCarteira">
+          <h2 id="tituloTabelaCarteira">Por carteira <span data-periodo>no ano</span></h2>
           <p class="modal-subtitle">Quanto cada proprietário rendeu no período escolhido. Aparece só quando há carteiras cadastradas e nenhuma está filtrada no topo — com uma carteira escolhida, o relatório inteiro já é dela.</p>
           <table class="report-table">
             <thead>
-              <tr><th>Carteira</th><th>Contratos</th><th>Recebido (líquido)</th><th>Despesas</th><th>Em atraso</th><th>Resultado</th></tr>
+              <tr><th scope="col">Carteira</th><th scope="col">Contratos</th><th scope="col">Recebido (líquido)</th><th scope="col">Despesas</th><th scope="col">Em atraso</th><th scope="col">Resultado</th></tr>
             </thead>
             <tbody id="relatorioCarteiraBody"></tbody>
           </table>
         </div>
 
-        <div class="card table-card">
-          <h3>Pagamentos por forma <span data-periodo>no ano</span></h3>
+        <div class="card table-card" tabindex="0" role="region" aria-labelledby="tituloTabelaRel2">
+          <h2 id="tituloTabelaRel2">Pagamentos por forma <span data-periodo>no ano</span></h2>
           <table class="report-table">
             <thead>
-              <tr><th>Forma</th><th>Quantidade</th><th>Recebido (bruto)</th><th>Recebido (líquido)</th></tr>
+              <tr><th scope="col">Forma</th><th scope="col">Quantidade</th><th scope="col">Recebido (bruto)</th><th scope="col">Recebido (líquido)</th></tr>
             </thead>
             <tbody id="relatorioFormaPagamentoBody"></tbody>
           </table>
         </div>
 
-        <div class="card table-card hidden" id="relatorioCorretorCard">
-          <h3>Comissão de corretores <span data-periodo>no ano</span></h3>
+        <div class="card table-card hidden" id="relatorioCorretorCard" tabindex="0" role="region" aria-labelledby="tituloTabelaCorretor">
+          <h2 id="tituloTabelaCorretor">Comissão de corretores <span data-periodo>no ano</span></h2>
           <p class="modal-subtitle">Quanto precisa ser pago a cada corretor, somando as dívidas que vencem no período selecionado. A base de cálculo é <strong>só o valor do aluguel</strong> de cada dívida — condomínio, juros, multa e valores em atraso não entram.</p>
           <table class="report-table">
             <thead>
-              <tr><th>Corretor</th><th>Contratos</th><th>Dívidas</th><th>Comissão <span data-periodo>no ano</span></th></tr>
+              <tr><th scope="col">Corretor</th><th scope="col">Contratos</th><th scope="col">Dívidas</th><th scope="col">Comissão <span data-periodo>no ano</span></th></tr>
             </thead>
             <tbody id="relatorioCorretorBody"></tbody>
           </table>
         </div>
 
-        <div class="card table-card">
-          <h3>Mês a mês</h3>
+        <div class="card table-card" tabindex="0" role="region" aria-labelledby="tituloTabelaRel3">
+          <h2 id="tituloTabelaRel3">Mês a mês</h2>
           <p class="modal-subtitle">Sempre os 12 meses do ano escolhido, para dar contexto — com o mês filtrado em destaque, quando há um.</p>
           <table class="report-table">
             <thead>
-              <tr><th>Mês</th><th>Recebido (bruto)</th><th>Recebido (líquido)</th><th>Descontos</th><th>Despesas</th><th>Total em atraso (aluguel + juros/multa)</th><th>Contratos</th><th>Dívidas</th></tr>
+              <tr><th scope="col">Mês</th><th scope="col">Recebido (bruto)</th><th scope="col">Recebido (líquido)</th><th scope="col">Descontos</th><th scope="col">Despesas</th><th scope="col">Total em atraso (aluguel + juros/multa)</th><th scope="col">Contratos</th><th scope="col">Dívidas</th></tr>
             </thead>
             <tbody id="relatorioTabelaBody"></tbody>
           </table>
         </div>
 
-        <div class="card table-card">
-          <h3 id="comparativoTitulo">Comparativo anual</h3>
+        <div class="card table-card" tabindex="0" role="region" aria-labelledby="comparativoTitulo">
+          <h2 id="comparativoTitulo">Comparativo anual</h2>
           <p class="modal-subtitle" id="comparativoSubtitulo">Totais de cada ano lado a lado, para comparar a evolução ano a ano.</p>
           <table class="report-table">
             <thead>
-              <tr><th>Ano</th><th>Recebido (líquido)</th><th>Despesas</th><th>Resultado</th><th>Total em atraso (aluguel + juros/multa)</th><th>Contratos</th><th>Dívidas</th></tr>
+              <tr><th scope="col">Ano</th><th scope="col">Recebido (líquido)</th><th scope="col">Despesas</th><th scope="col">Resultado</th><th scope="col">Total em atraso (aluguel + juros/multa)</th><th scope="col">Contratos</th><th scope="col">Dívidas</th></tr>
             </thead>
             <tbody id="comparativoAnualBody"></tbody>
           </table>
@@ -860,7 +860,7 @@
 
         <div class="card hidden" id="calendarioDetalheCard">
           <div class="panel-header-tight">
-            <h3 id="calendarioDetalheTitulo"></h3>
+            <h2 id="calendarioDetalheTitulo"></h2>
             <span class="panel-desc" id="calendarioDetalheResumo"></span>
           </div>
           <div id="calendarioDetalheLista"></div>
@@ -914,7 +914,7 @@
 
         <div class="config-grid">
           <div class="card">
-            <h3><svg class="icon"><use href="#icon-user"></use></svg> Conta do administrador</h3>
+            <h2><svg class="icon"><use href="#icon-user"></use></svg> Conta do administrador</h2>
             <form id="accountForm" class="config-form">
               <label class="field">
                 <span>Nome de usuário</span>
@@ -939,7 +939,7 @@
           </div>
 
           <div class="card">
-            <h3><svg class="icon"><use href="#icon-lock"></use></svg> Acessos abertos</h3>
+            <h2><svg class="icon"><use href="#icon-lock"></use></svg> Acessos abertos</h2>
             <p class="modal-subtitle">Se você entrou no sistema num computador que não é seu, ou acha que alguém pode estar usando seu acesso, desconecte todo mundo de uma vez: quem estiver conectado em outro computador ou navegador precisa entrar de novo com usuário e senha. Você continua conectado aqui.</p>
             <form id="regenerateSecretForm" class="config-form">
               <label class="field">
@@ -953,7 +953,7 @@
           </div>
 
           <div class="card config-span">
-            <h3><svg class="icon"><use href="#icon-lock"></use></svg> Contas de acesso</h3>
+            <h2><svg class="icon"><use href="#icon-lock"></use></svg> Contas de acesso</h2>
             <p class="modal-subtitle">Quem pode <strong>entrar no sistema</strong>, com usuário e senha. Todos têm acesso total — não existe usuário "só leitura".</p>
             <div id="usersList" class="cards-list"></div>
             <form id="addUserForm" class="config-form mt-md">
@@ -980,7 +980,7 @@
           </div>
 
           <div class="card config-span">
-            <h3><svg class="icon"><use href="#icon-users"></use></svg> Pessoas (recebedores / corretores)</h3>
+            <h2><svg class="icon"><use href="#icon-users"></use></svg> Pessoas (recebedores / corretores)</h2>
             <p class="modal-subtitle">Quem recebe pagamentos e/ou atua como corretor. <strong>Não são contas de acesso</strong> — não entram no sistema nem têm senha: é uma lista de nomes reutilizável, para escolher pelos seletores "Quem recebe" e "Corretor" sem digitar toda vez.</p>
             <div id="pessoasList" class="cards-list"></div>
             <form id="addPessoaForm" class="config-form mt-md">
@@ -1034,7 +1034,7 @@
         <div data-config-section="financeiro">
           <div class="config-grid">
             <div class="card">
-              <h3><svg class="icon"><use href="#icon-percent"></use></svg> Taxa de juros por atraso</h3>
+              <h2><svg class="icon"><use href="#icon-percent"></use></svg> Taxa de juros por atraso</h2>
               <p class="modal-subtitle">Usada para calcular o acréscimo automático sobre dívidas vencidas, e também como percentual padrão de Juros/Multa ao criar um novo contrato.</p>
               <form id="configForm" class="config-form">
                 <label class="field">
@@ -1051,7 +1051,7 @@
             </div>
 
             <div class="card">
-              <h3><svg class="icon"><use href="#icon-user"></use></svg> Valores padrão para novos contratos</h3>
+              <h2><svg class="icon"><use href="#icon-user"></use></svg> Valores padrão para novos contratos</h2>
               <p class="modal-subtitle">Preenchidos automaticamente ao criar um novo contrato, para evitar digitar sempre. Podem ser alterados individualmente em cada contrato.</p>
               <form id="configPadraoForm" class="config-form">
                 <label class="field">
@@ -1064,7 +1064,7 @@
             </div>
 
             <div class="card">
-              <h3><svg class="icon"><use href="#icon-code"></use></svg> Atalhos de teclado</h3>
+              <h2><svg class="icon"><use href="#icon-code"></use></svg> Atalhos de teclado</h2>
               <p class="modal-subtitle">Atalhos de uma tecla só: <kbd>N</kbd> abre um novo contrato, <kbd>/</kbd> vai para a busca e <kbd>?</kbd> mostra a lista. Desligue se você usa comando de voz ou costuma digitar sem olhar para a tela e acaba disparando algum sem querer. A escolha vale para este navegador.</p>
               <div class="config-form">
                 <label class="checkbox-field">
@@ -1076,7 +1076,7 @@
             </div>
 
             <div class="card">
-              <h3><svg class="icon"><use href="#icon-trending-up"></use></svg> Reajuste sugerido</h3>
+              <h2><svg class="icon"><use href="#icon-trending-up"></use></svg> Reajuste sugerido</h2>
               <p class="modal-subtitle">Um contrato "vence" para reajuste 1 ano depois do último reajuste (ou do início, se nunca foi reajustado). O Dashboard avisa quando isso acontece, sugerindo um novo valor com base no percentual abaixo — o sistema não consulta nenhum índice externo real (IGP-M/IPCA) automaticamente, já que não tem acesso à internet; ajuste esse percentual manualmente conforme o índice vigente.</p>
               <form id="configReajusteForm" class="config-form">
                 <label class="field">
@@ -1095,7 +1095,7 @@
         <div data-config-section="carteiras">
           <div class="config-grid">
             <div class="card config-span">
-              <h3><svg class="icon"><use href="#icon-tag"></use></svg> Carteiras (proprietários)</h3>
+              <h2><svg class="icon"><use href="#icon-tag"></use></svg> Carteiras (proprietários)</h2>
               <p class="modal-subtitle">Use carteiras se você administra imóveis de mais de um dono. Cada carteira representa um proprietário (ou um grupo de imóveis), e cada imóvel/contrato pode ser vinculado a uma delas. Com pelo menos uma carteira cadastrada, aparece um seletor no topo do sistema que filtra <strong>tudo</strong> (Dashboard, Contratos, Atrasos, Histórico, Despesas, Gráficos, Relatórios, Calendário) pela carteira escolhida. Se você só administra os próprios imóveis, é só não cadastrar nenhuma — o sistema continua funcionando exatamente como antes.</p>
               <div id="carteirasList" class="cards-list"></div>
               <form id="formCarteira" class="config-form mt-md">
@@ -1128,7 +1128,7 @@
         <div data-config-section="recibo">
           <div class="config-grid">
             <div class="card config-span">
-              <h3><svg class="icon"><use href="#icon-receipt"></use></svg> Texto do recibo</h3>
+              <h2><svg class="icon"><use href="#icon-receipt"></use></svg> Texto do recibo</h2>
               <p class="modal-subtitle">Aqui você edita <strong>só o texto</strong> do recibo. Todos os dados (inquilino, imóvel, valores, datas...) são preenchidos automaticamente pelo sistema no momento em que o recibo é gerado — para isso, escreva os <strong>códigos</strong> listados ao lado no meio do texto. Onde estiver <code>{{inquilino}}</code>, por exemplo, sai o nome do inquilino daquele pagamento.</p>
               <form id="formRecibo" class="config-form">
                 <label class="field">
@@ -1158,7 +1158,7 @@
             </div>
 
             <div class="card config-span">
-              <h3><svg class="icon"><use href="#icon-code"></use></svg> Códigos disponíveis</h3>
+              <h2><svg class="icon"><use href="#icon-code"></use></svg> Códigos disponíveis</h2>
               <p class="modal-subtitle">Clique em qualquer código para inseri-lo no ponto onde estava o cursor (no último campo em que você clicou). A coluna da direita mostra um exemplo de como aquele código sai no recibo pronto.</p>
               <div id="reciboCodigos" class="codigo-grupos"></div>
             </div>
@@ -1168,7 +1168,7 @@
         <!-- Dados -->
         <div data-config-section="dados">
           <div class="card">
-            <h3><svg class="icon"><use href="#icon-database"></use></svg> Backup do banco de dados</h3>
+            <h2><svg class="icon"><use href="#icon-database"></use></svg> Backup do banco de dados</h2>
             <p class="modal-subtitle">Baixe um arquivo com todos os contratos, pagamentos e configurações, ou restaure a partir de um backup salvo anteriormente. Restaurar substitui todos os dados atuais.</p>
             <div class="contrato-actions mt-sm">
               <button type="button" class="btn btn-ghost" id="btnExportBackup"><svg class="icon"><use href="#icon-download"></use></svg> Exportar backup (JSON)</button>
@@ -1181,7 +1181,7 @@
         <!-- Zona de perigo -->
         <div data-config-section="perigo">
           <div class="card danger-zone">
-            <h3><svg class="icon"><use href="#icon-alert-triangle"></use></svg> Zona de perigo</h3>
+            <h2><svg class="icon"><use href="#icon-alert-triangle"></use></svg> Zona de perigo</h2>
             <p class="modal-subtitle">Apaga permanentemente todos os contratos, pagamentos e configurações salvos no servidor. Esta ação não pode ser desfeita — exporte um backup antes, se quiser manter os dados.</p>
             <div class="contrato-actions mt-sm">
               <button type="button" class="btn btn-danger" id="btnDeleteDatabase"><svg class="icon"><use href="#icon-trash"></use></svg> Excluir todos os dados</button>

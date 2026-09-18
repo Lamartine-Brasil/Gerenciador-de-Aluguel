@@ -3265,13 +3265,21 @@ function celulaDivida(c, d, col) {
   }
 }
 
+// Cabeçalho de coluna das tabelas de dívidas. A coluna de ações não tem rótulo
+// visível, mas tem nome para o leitor de tela.
+function cabecalhoDaColuna(col) {
+  const classes = `${col.txt ? 'col-txt' : ''}${col.forte ? ' is-forte' : ''}${col.acoes ? ' col-acoes' : ''}`;
+  const texto = col.acoes ? '<span class="sr-only">Ações</span>' : escapeHtml(col.rotulo);
+  return `<th scope="col" class="${classes}"${col.dica ? ` title="${escapeHtml(col.dica)}"` : ''}>${texto}</th>`;
+}
+
 function dividasTabelaHtml(c, dividas) {
   const cols = colunasDividas(c, dividas);
   return `
     <div class="dividas-scroll">
       <table class="dividas-tabela">
         <thead>
-          <tr>${cols.map(col => `<th class="${col.txt ? 'col-txt' : ''}${col.forte ? ' is-forte' : ''}${col.acoes ? ' col-acoes' : ''}"${col.dica ? ` title="${escapeHtml(col.dica)}"` : ''}>${escapeHtml(col.rotulo)}</th>`).join('')}</tr>
+          <tr>${cols.map(cabecalhoDaColuna).join('')}</tr>
         </thead>
         <tbody>
           ${dividas.map(d => `
@@ -3419,7 +3427,7 @@ function dividasTabelaFlatHtml(itens) {
     <div class="dividas-scroll">
       <table class="dividas-tabela">
         <thead>
-          <tr>${cols.map(col => `<th class="${col.txt ? 'col-txt' : ''}${col.forte ? ' is-forte' : ''}${col.acoes ? ' col-acoes' : ''}"${col.dica ? ` title="${escapeHtml(col.dica)}"` : ''}>${escapeHtml(col.rotulo)}</th>`).join('')}</tr>
+          <tr>${cols.map(cabecalhoDaColuna).join('')}</tr>
         </thead>
         <tbody>
           ${itens.map(item => `
@@ -3932,12 +3940,12 @@ function renderDespesas() {
       <table class="dividas-tabela">
         <thead>
           <tr>
-            <th class="col-txt">Data</th>
-            <th class="col-txt">Descrição</th>
-            <th class="col-txt">Contrato</th>
-            ${usaCarteiras ? '<th class="col-txt">Carteira</th>' : ''}
-            <th class="is-forte">Valor</th>
-            <th class="col-acoes"></th>
+            <th scope="col" class="col-txt">Data</th>
+            <th scope="col" class="col-txt">Descrição</th>
+            <th scope="col" class="col-txt">Contrato</th>
+            ${usaCarteiras ? '<th scope="col" class="col-txt">Carteira</th>' : ''}
+            <th scope="col" class="is-forte">Valor</th>
+            <th scope="col" class="col-acoes"><span class="sr-only">Ações</span></th>
           </tr>
         </thead>
         <tbody>
@@ -5313,7 +5321,7 @@ function renderCodigosRecibo() {
 
   alvo.innerHTML = CODIGOS_RECIBO.map(g => `
     <div class="codigo-grupo">
-      <h4>${escapeHtml(g.grupo)}</h4>
+      <h3>${escapeHtml(g.grupo)}</h3>
       <div class="codigo-lista">
         ${g.itens.map(([codigo, descricao]) => `
           <button type="button" class="codigo-item" data-codigo="${codigo}" title="Clique para inserir {{${codigo}}} no texto">
@@ -5564,7 +5572,7 @@ function drawChartTooltip(ctx, w, x, y, titulo, linhas) {
  */
 function tituloDoGrafico(canvas) {
   const card = canvas.closest('.chart-card');
-  const h = card && card.querySelector('h3');
+  const h = card && card.querySelector('h2, h3');
   return h ? h.textContent.replace(/\s+/g, ' ').trim() : 'Gráfico';
 }
 
@@ -6917,14 +6925,14 @@ function renderCalendarioDetalhe(dataStr) {
   // cartõezinhos só de leitura: dava para ver o vencimento e não fazer nada.
   if (vencimentos.length) {
     blocos.push(`
-      <h4 class="calendar-detalhe-secao">${icon('calendar')} Vencimentos do dia</h4>
+      <h3 class="calendar-detalhe-secao">${icon('calendar')} Vencimentos do dia</h3>
       ${dividasTabelaFlatHtml(vencimentos)}
     `);
   }
 
   if (pagamentos.length) {
     blocos.push(`
-      <h4 class="calendar-detalhe-secao">${icon('dollar')} Pagamentos recebidos</h4>
+      <h3 class="calendar-detalhe-secao">${icon('dollar')} Pagamentos recebidos</h3>
       <div class="cards-list">
         ${pagamentos.map(p => {
           const liquido = valorLiquidoPagamento(p.divida, p.divida, p);

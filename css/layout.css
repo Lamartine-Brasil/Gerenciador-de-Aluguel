@@ -366,7 +366,9 @@
 /* O título recebe o foco ao trocar de tela (para o leitor de tela começar por
    ele); o anel só aparece quando a pessoa está usando o teclado. */
 .panel-header h1:focus:not(:focus-visible) { outline: none; }
-.panel-header h3 { font-size: var(--text-md); font-weight: 650; }
+.panel-header h3,
+.panel-header.panel-header-tight h2,
+.panel-header-tight h2 { font-size: var(--text-md); font-weight: 650; }
 .panel-header-tight { margin-bottom: var(--space-3); }
 /* `flex: 1 1 320px` mantém as ações (ex: seletor de ano) na direita mesmo com
    uma descrição longa; abaixo de 320px elas quebram para a linha de baixo. */
@@ -481,6 +483,15 @@
   .topbar-divider { display: none; }
   .topbar-carteira .icon { display: none; }
   .topbar-carteira select { max-width: 130px; }
+}
+
+/* 320px (celular pequeno, ou zoom alto): tudo do cabeçalho cabe sem vazar */
+@media (max-width: 400px) {
+  .topbar { padding: 0 var(--space-2); gap: var(--space-1); }
+  .topbar-actions { gap: 0; }
+  .topbar .icon-btn { width: 32px; height: 32px; }
+  .topbar-carteira select { max-width: 92px; }
+  .status-gravacao { padding: 2px var(--space-1); }
 }
 
 @media (max-width: 560px) {
