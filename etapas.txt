@@ -106,8 +106,9 @@ b) No PAGAMENTO — "Recebeu o condomínio junto?", perguntado **toda vez** que 
 - "Recebido" em Relatórios, Gráficos e Histórico é sempre **líquido**.
 - "Total em atraso" em Atrasos, Relatórios e Gráficos é o **valor cheio devido**
   (total a cobrar + juros/multa) — é dívida em aberto, não receita.
-- Exceção consciente: o card "Total em atraso" do Dashboard soma só o componente de
-  juros/multa, como resumo rápido.
+- O card "Total em atraso" do Dashboard usa a mesma convenção: valor cheio devido
+  (total a cobrar + juros/multa). (Este documento dizia que ele somava só juros/multa;
+  o código sempre somou o valor cheio.)
 
 --------------------------------------------------------------------------------
 2. TELAS
@@ -146,6 +147,8 @@ dentro de Contratos, Atrasos ou Histórico.
 
 2.2 Dashboard
 - [x] Cards: contratos ativos, total em atraso, próximo vencimento, despesas do mês
+- [x] "Próximo vencimento" é a próxima dívida a vencer a partir de hoje, com "N dívidas em
+      atraso" embaixo — antes mostrava a dívida em aberto mais antiga, já vencida
 - [x] "Contratos ativos" conta **contratos em andamento** — os que não foram encerrados —
       e não dívidas com status "ativo". Um contrato com tudo pago, ou com parcelas
       atrasadas, continua em andamento; o que o tira da conta é "Encerrar contrato"
@@ -157,7 +160,11 @@ dentro de Contratos, Atrasos ou Histórico.
       reajuste (azul), com cores diferentes para não se confundirem. Cada item é clicável:
       o de vencimento leva ao contrato em Contratos (busca por "#número"); o de reajuste
       abre o modal "Reajustar" já com o valor sugerido
-- [x] Lista das dívidas mais recentes, na mesma tabela usada em Contratos e Atrasos
+- [x] "Dívidas mais recentes" (antes intitulado "Últimos contratos", embora liste dívidas),
+      na mesma tabela usada em Contratos e Atrasos
+- [x] Sem nenhum contrato, os estados vazios indicam o caminho: cadastrar o imóvel e depois
+      o contrato (Dashboard e Contratos); em Contratos, "nenhum resultado para os filtros"
+      é diferente de "nada cadastrado" e tem "Limpar busca e filtros"
 
 2.3 Imóveis
 - [x] Cadastro reutilizável (descrição livre, ex: "Apartamento 302 - Rua das Flores #123"),
@@ -195,7 +202,9 @@ dentro de Contratos, Atrasos ou Histórico.
       R$, e o que cada total significa) — era isso que fazia a tabela não caber na tela.
       Zeros ficam apagados, para a vista cair no que tem valor
 - [x] Ações da dívida (pagar, recibo, editar, excluir) são botões só de ícone, com `title`
-      e `aria-label`; a coluna delas fica grudada na direita, então continua alcançável
+      e `aria-label` que diz de qual dívida é ("Excluir dívida de 05-08-2026, contrato
+      #12" — doze linhas de "Excluir dívida" eram doze botões iguais para o leitor de tela;
+      o mesmo vale para os botões dos cards de contrato, despesas, pessoas e carteiras); a coluna delas fica grudada na direita, então continua alcançável
       quando a tabela precisa rolar na horizontal em tela estreita
 - [x] Número sequencial único por contrato (`#1`, `#2`...), gerado na criação, nunca
       repetido mesmo depois de exclusões, e pesquisável ("#12"). Contratos de instalações
@@ -260,8 +269,8 @@ dentro de Contratos, Atrasos ou Histórico.
       há desconto, e é exibido no Histórico e nas exportações
 - [x] "Quem recebeu" é **obrigatório**, escolhido da lista de Pessoas e pré-selecionado
       com o recebedor padrão do contrato. Sem ninguém cadastrado (e sem recebedor padrão),
-      um aviso no modal manda cadastrar em Configurações › Financeiro › Pessoas — senão o
-      pagamento travaria sem explicação
+      um aviso no modal leva a Usuários › Pessoas (link) — senão o pagamento travaria sem
+      explicação
 - [x] Ao confirmar: marca a dívida como paga, registra a data e zera o atraso base daquela
       dívida (as outras dívidas do contrato não são afetadas)
 
@@ -417,9 +426,11 @@ dentro de Contratos, Atrasos ou Histórico.
 
 2.13 Auditoria
 - [x] Histórico dos eventos principais: o quê, quem fez e quando. Contrato criado,
-      editado, excluído, reajustado, encerrado ou reaberto; caução devolvida; dívida
-      editada ou excluída; pagamento registrado; despesa criada, editada ou excluída;
-      imóvel editado; carteira criada, editada ou excluída; usuário adicionado ou
+      editado, excluído, reajustado, encerrado ou reaberto; importação de CSV; caução
+      devolvida; dívida editada ou excluída; pagamento registrado; despesa criada, editada
+      ou excluída; imóvel cadastrado, editado ou removido; pessoa cadastrada, editada ou
+      removida; carteira criada, editada ou excluída; configuração e texto do recibo
+      alterados; backup restaurado; todos os dados excluídos; usuário adicionado ou
       removido; outros acessos desconectados
 - [x] Diff campo a campo nas edições ("campo: antes → depois"), só com o que realmente
       mudou. Carteira aparece pelo nome, não pelo id interno; booleanos viram Sim/Não
@@ -713,11 +724,7 @@ Cada item é uma melhoria em algo que JÁ existe, ou uma correção de uma lacun
     para oferecer "desfazer" no toast por alguns segundos, ou restaurar a partir do
     evento de auditoria.
 
- 9. **Auditoria dos cadastros auxiliares.** Contratos, dívidas, despesas, imóveis e
-    carteiras entram na Auditoria; pessoas, não. Criar, renomear ou remover um recebedor
-    mexe em contratos e pagamentos existentes, então merece o mesmo registro.
-
-10. **Versionar os scripts de auditoria e de teste.** As regras de dinheiro e as afirmações
+ 9. **Versionar os scripts de auditoria e de teste.** As regras de dinheiro e as afirmações
     deste documento são conferidas por três scripts em Node (sem framework): um checa o
     código por leitura estática, outro executa o sistema num DOM falso e exercita cada
     comportamento, e um terceiro confere só as contas. Eles pegaram problemas reais — o

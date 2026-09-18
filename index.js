@@ -2905,7 +2905,7 @@ function openHistoricoContrato(contratoId) {
             ${p.forma ? ` · ${escapeHtml(p.forma)}` : ''}
             ${p.quemRecebeu ? ` · Recebido por ${escapeHtml(p.quemRecebeu)}` : ''}
             ${p.observacao ? ` · ${escapeHtml(p.observacao)}` : ''}
-            <button type="button" class="btn btn-ghost btn-sm" data-recibo-divida="${d.id}" data-recibo-indice="${indice}">${icon('receipt')} Recibo</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-recibo-divida="${d.id}" data-recibo-indice="${indice}" aria-label="Recibo do pagamento de ${formatDate(p.data)}">${icon('receipt')} Recibo</button>
           </div>
         `;
       }).join('');
@@ -2994,8 +2994,10 @@ function getFilteredContratos() {
 function getFilteredDividasFlat() {
   const filtros = lerFiltrosContratos();
   return todasDividas().filter(d => {
+    // mesma busca da tela (inquilino, imóvel, #número e carteira): o arquivo
+    // precisa sair com o que a tela mostra
     if (filtros.search) {
-      const haystack = (d.inquilino + ' ' + d.imovel).toLowerCase();
+      const haystack = (d.inquilino + ' ' + d.imovel + ' #' + (d.numero || '') + ' ' + carteiraNome(d.carteiraId)).toLowerCase();
       if (!haystack.includes(filtros.search)) return false;
     }
     const venc = parseDate(d.vencimento);
@@ -3213,6 +3215,11 @@ function celulaMoeda(valor, classe) {
   return `<td class="${n === 0 ? 'is-zero' : (classe || '')}">${formatNumero(n)}</td>`;
 }
 
+// "de 10-08-2026, contrato #1" — o complemento do nome dos botões de uma linha.
+function contextoDivida(c, d) {
+  return `de ${formatDate(d.vencimento)}, contrato #${c.numero || '--'}`;
+}
+
 function celulaDivida(c, d, col) {
   const status = getStatus(d);
   switch (col.key) {
@@ -3241,15 +3248,19 @@ function celulaDivida(c, d, col) {
       return d.dataPagamento
         ? `<td class="col-txt">${formatDate(d.dataPagamento)}</td>`
         : '<td class="col-txt is-zero col-vazio">—</td>';
-    case 'acoes':
+    case 'acoes': {
+      // O nome de cada botão diz de qual dívida ele é: para o leitor de tela,
+      // doze linhas de "Excluir dívida" eram doze botões iguais.
+      const qual = contextoDivida(c, d);
       return `<td class="col-acoes">
         <div class="divida-acoes">
-          ${status !== 'pago' ? `<button class="btn-acao is-pagar" data-divida-action="pagar" data-divida-id="${d.id}" title="Registrar pagamento" aria-label="Registrar pagamento">${icon('dollar')}</button>` : ''}
-          ${(d.pagamentos || []).length ? `<button class="btn-acao" data-divida-action="recibo" data-divida-id="${d.id}" title="${d.pagamentos.length > 1 ? `Recibo do pagamento mais recente (esta dívida tem ${d.pagamentos.length}; para os outros, use o Histórico)` : 'Gerar recibo deste pagamento'}" aria-label="Gerar recibo">${icon('receipt')}</button>` : ''}
-          <button class="btn-acao" data-divida-action="editar" data-divida-id="${d.id}" title="Editar esta dívida" aria-label="Editar dívida">${icon('pencil')}</button>
-          <button class="btn-acao is-excluir" data-divida-action="excluir" data-divida-id="${d.id}" title="Excluir esta dívida" aria-label="Excluir dívida">${icon('trash')}</button>
+          ${status !== 'pago' ? `<button type="button" class="btn-acao is-pagar" data-divida-action="pagar" data-divida-id="${d.id}" title="Registrar pagamento" aria-label="Registrar pagamento da dívida ${qual}">${icon('dollar')}</button>` : ''}
+          ${(d.pagamentos || []).length ? `<button type="button" class="btn-acao" data-divida-action="recibo" data-divida-id="${d.id}" title="${d.pagamentos.length > 1 ? `Recibo do pagamento mais recente (esta dívida tem ${d.pagamentos.length}; para os outros, use o Histórico)` : 'Gerar recibo deste pagamento'}" aria-label="Gerar recibo da dívida ${qual}">${icon('receipt')}</button>` : ''}
+          <button type="button" class="btn-acao" data-divida-action="editar" data-divida-id="${d.id}" title="Editar esta dívida" aria-label="Editar dívida ${qual}">${icon('pencil')}</button>
+          <button type="button" class="btn-acao is-excluir" data-divida-action="excluir" data-divida-id="${d.id}" title="Excluir esta dívida" aria-label="Excluir dívida ${qual}">${icon('trash')}</button>
         </div>
       </td>`;
+    }
     default: return '<td></td>';
   }
 }
@@ -3310,16 +3321,16 @@ function contratoGrupoHtml(c) {
           ${c.encerrado ? `<div class="contrato-sub">Encerrado em ${formatDate(c.dataEncerramento)}</div>` : ''}
         </div>
         <div class="contrato-actions">
-          <button class="btn btn-ghost btn-sm" data-grupo-action="atualizar" data-contrato-id="${c.id}">${icon('calendar')} Atualizar dívidas</button>
-          <button class="btn btn-ghost btn-sm" data-grupo-action="reajustar" data-contrato-id="${c.id}">${icon('trending-up')} Reajustar</button>
-          ${c.anexoContrato ? `<a class="btn btn-ghost btn-sm" href="api/anexo.php?file=${encodeURIComponent(c.anexoContrato)}" target="_blank">${icon('paperclip')} Anexo</a>` : ''}
-          <button class="btn btn-ghost btn-sm" data-grupo-action="historico" data-contrato-id="${c.id}">${icon('receipt')} Histórico</button>
-          <button class="btn btn-ghost btn-sm" data-grupo-action="editar" data-contrato-id="${c.id}">${icon('pencil')} Editar contrato</button>
-          ${c.caucao ? `<button class="btn btn-ghost btn-sm" data-grupo-action="devolver-caucao" data-contrato-id="${c.id}">${icon('wallet')} ${c.caucaoDevolvida ? 'Editar devolução da caução' : 'Devolver caução'}</button>` : ''}
+          <button type="button" class="btn btn-ghost btn-sm" data-grupo-action="atualizar" data-contrato-id="${c.id}" aria-label="Atualizar dívidas do contrato #${c.numero}">${icon('calendar')} Atualizar dívidas</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-grupo-action="reajustar" data-contrato-id="${c.id}" aria-label="Reajustar contrato #${c.numero}">${icon('trending-up')} Reajustar</button>
+          ${c.anexoContrato ? `<a class="btn btn-ghost btn-sm" href="api/anexo.php?file=${encodeURIComponent(c.anexoContrato)}" target="_blank" rel="noopener" aria-label="Anexo do contrato #${c.numero} (abre em nova aba)">${icon('paperclip')} Anexo</a>` : ''}
+          <button type="button" class="btn btn-ghost btn-sm" data-grupo-action="historico" data-contrato-id="${c.id}" aria-label="Histórico do contrato #${c.numero}">${icon('receipt')} Histórico</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-grupo-action="editar" data-contrato-id="${c.id}" aria-label="Editar contrato #${c.numero}">${icon('pencil')} Editar contrato</button>
+          ${c.caucao ? `<button type="button" class="btn btn-ghost btn-sm" data-grupo-action="devolver-caucao" data-contrato-id="${c.id}" aria-label="${c.caucaoDevolvida ? 'Editar devolução da caução' : 'Devolver caução'} do contrato #${c.numero}">${icon('wallet')} ${c.caucaoDevolvida ? 'Editar devolução da caução' : 'Devolver caução'}</button>` : ''}
           ${c.encerrado
-            ? `<button class="btn btn-ghost btn-sm" data-grupo-action="reabrir" data-contrato-id="${c.id}">${icon('trending-up')} Reabrir contrato</button>`
-            : `<button class="btn btn-ghost btn-sm" data-grupo-action="encerrar" data-contrato-id="${c.id}">${icon('clock')} Encerrar contrato</button>`}
-          <button class="btn btn-danger btn-sm" data-grupo-action="excluir" data-contrato-id="${c.id}">${icon('trash')} Excluir contrato</button>
+            ? `<button type="button" class="btn btn-ghost btn-sm" data-grupo-action="reabrir" data-contrato-id="${c.id}" aria-label="Reabrir contrato #${c.numero}">${icon('trending-up')} Reabrir contrato</button>`
+            : `<button type="button" class="btn btn-ghost btn-sm" data-grupo-action="encerrar" data-contrato-id="${c.id}" aria-label="Encerrar contrato #${c.numero}">${icon('clock')} Encerrar contrato</button>`}
+          <button type="button" class="btn btn-danger btn-sm" data-grupo-action="excluir" data-contrato-id="${c.id}" aria-label="Excluir contrato #${c.numero}">${icon('trash')} Excluir contrato</button>
         </div>
       </div>
       <div class="contrato-grupo-dividas">
@@ -3392,9 +3403,9 @@ function celulaDividaFlat(item, col) {
     const status = getStatus(item);
     return `<td class="col-acoes">
       <div class="divida-acoes">
-        ${status !== 'pago' ? `<button class="btn-acao is-pagar" data-divida-action="pagar" data-divida-id="${item.id}" title="Registrar pagamento" aria-label="Registrar pagamento">${icon('dollar')}</button>` : ''}
-        <button class="btn-acao" data-grupo-action="historico" data-contrato-id="${item.contratoId}" title="Histórico deste contrato" aria-label="Histórico do contrato">${icon('receipt')}</button>
-        <button class="btn-acao" data-divida-action="editar" data-divida-id="${item.id}" title="Editar esta dívida" aria-label="Editar dívida">${icon('pencil')}</button>
+        ${status !== 'pago' ? `<button type="button" class="btn-acao is-pagar" data-divida-action="pagar" data-divida-id="${item.id}" title="Registrar pagamento" aria-label="Registrar pagamento da dívida ${contextoDivida(item, item)}">${icon('dollar')}</button>` : ''}
+        <button type="button" class="btn-acao" data-grupo-action="historico" data-contrato-id="${item.contratoId}" title="Histórico deste contrato" aria-label="Histórico do contrato #${item.numero || '--'}">${icon('receipt')}</button>
+        <button type="button" class="btn-acao" data-divida-action="editar" data-divida-id="${item.id}" title="Editar esta dívida" aria-label="Editar dívida ${contextoDivida(item, item)}">${icon('pencil')}</button>
       </div>
     </td>`;
   }
@@ -3475,8 +3486,18 @@ function renderContratos() {
   const filtered = getFilteredContratos();
 
   if (!filtered.length) {
-    list.innerHTML = '<div class="empty-state">Nenhum contrato encontrado.</div>';
     pagination.innerHTML = '';
+    if (!contratosVisiveis().length) {
+      list.innerHTML = imoveisVisiveis().length
+        ? `<div class="empty-state">Nenhum contrato cadastrado ainda.<button type="button" class="btn btn-primary" data-acao-vazia="novo-contrato">${icon('plus')} Novo contrato</button></div>`
+        : `<div class="empty-state">Nenhum contrato cadastrado ainda. O primeiro passo é cadastrar o imóvel; depois ele aparece na lista ao criar o contrato.<a class="btn btn-primary" href="#/imoveis">${icon('home')} Cadastrar imóvel</a></div>`;
+    } else {
+      list.innerHTML = `<div class="empty-state">Nenhum contrato encontrado para esta busca e estes filtros.<button type="button" class="btn btn-ghost" data-acao-vazia="limpar-filtros">Limpar busca e filtros</button></div>`;
+    }
+    const novo = list.querySelector('[data-acao-vazia="novo-contrato"]');
+    if (novo) novo.addEventListener('click', () => document.getElementById('btnNovoContrato').click());
+    const limpar = list.querySelector('[data-acao-vazia="limpar-filtros"]');
+    if (limpar) limpar.addEventListener('click', () => navegar('contratos', {}, { substituir: true, manterFoco: true }).then(() => document.getElementById('searchContratos').focus()));
     return;
   }
 
@@ -3513,9 +3534,14 @@ function renderDashboard() {
   document.getElementById('statAtivos').textContent = contratosEmAndamento;
   document.getElementById('statAtraso').textContent = formatCurrency(totalAtraso);
 
-  const pendentes = dividas.filter(d => getStatus(d) !== 'pago');
-  const proximo = pendentes.slice().sort((a, b) => parseDate(a.vencimento) - parseDate(b.vencimento))[0];
+  // Próximo vencimento de verdade: a próxima dívida a vencer a partir de hoje.
+  // Antes era a dívida em aberto mais antiga — uma data de meses atrás, já
+  // vencida, sob o rótulo "Próximo vencimento". As vencidas vão embaixo.
+  const proximo = ativos.slice().sort((a, b) => parseDate(a.vencimento) - parseDate(b.vencimento))[0];
   document.getElementById('statProximo').textContent = proximo ? formatDate(proximo.vencimento) : '--';
+  document.getElementById('statProximoHint').textContent = atrasados.length
+    ? `${plural(atrasados.length, 'dívida', 'dívidas')} em atraso`
+    : (proximo ? '' : 'Nada a vencer');
 
   const hoje = new Date();
   const despesasMes = despesasVisiveis()
@@ -3531,7 +3557,9 @@ function renderDashboard() {
   const recentList = document.getElementById('dashboardRecentList');
   recentList.innerHTML = recentes.length
     ? dividasTabelaFlatHtml(recentes)
-    : '<div class="empty-state">Nenhum contrato cadastrado ainda. Clique em "Novo contrato" para começar.</div>';
+    : (contratosVisiveis().length
+      ? '<div class="empty-state">Nenhuma dívida ainda.</div>'
+      : `<div class="empty-state">Nenhum contrato cadastrado ainda. Comece cadastrando um imóvel e, depois, o contrato.<span class="contrato-actions"><a class="btn btn-primary" href="#/imoveis">${icon('home')} Cadastrar imóvel</a><a class="btn btn-ghost" href="#/contratos">Ir para Contratos</a></span></div>`);
   bindDividaCardActions(recentList);
 }
 
@@ -3666,7 +3694,10 @@ function renderHistorico() {
     : `${entries.length} pagamentos · ${formatCurrency(totalRecebido)}`;
 
   if (!entries.length) {
-    list.innerHTML = '<div class="empty-state">Nenhum pagamento encontrado para esses filtros.</div>';
+    const temAlgum = contratosVisiveis().some(c => c.dividas.some(d => (d.pagamentos || []).length));
+    list.innerHTML = temAlgum
+      ? '<div class="empty-state">Nenhum pagamento encontrado para esta busca e estes filtros.</div>'
+      : '<div class="empty-state">Nenhum pagamento registrado ainda. Para registrar, use o botão de pagamento na linha da dívida, em Contratos ou em Atrasos.</div>';
     paginacao.innerHTML = '';
     return;
   }
@@ -3699,7 +3730,7 @@ function renderHistorico() {
         <div><span>Observação</span><strong>${escapeHtml(e.observacao) || '--'}</strong></div>
       </div>
       <div class="contrato-actions">
-        <button type="button" class="btn btn-ghost btn-sm" data-recibo-divida="${e.divida.id}" data-recibo-indice="${e.indicePagamento}">${icon('receipt')} Recibo</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-recibo-divida="${e.divida.id}" data-recibo-indice="${e.indicePagamento}" aria-label="Recibo do pagamento de ${formatDate(e.data)}, contrato #${e.contrato.numero || '--'}">${icon('receipt')} Recibo</button>
       </div>
     </div>
   `;
@@ -3921,8 +3952,8 @@ function renderDespesas() {
               <td class="is-forte is-deducao" data-rotulo="Valor">${formatNumero(d.valor)}</td>
               <td class="col-acoes">
                 <div class="divida-acoes">
-                  <button class="btn-acao" data-edit-despesa="${d.id}" title="Editar esta despesa" aria-label="Editar despesa">${icon('pencil')}</button>
-                  <button class="btn-acao is-excluir" data-remove-despesa="${d.id}" title="Excluir esta despesa" aria-label="Excluir despesa">${icon('trash')}</button>
+                  <button type="button" class="btn-acao" data-edit-despesa="${d.id}" title="Editar esta despesa" aria-label="Editar despesa ${escapeHtml(d.descricao)}, de ${formatDate(d.data)}">${icon('pencil')}</button>
+                  <button type="button" class="btn-acao is-excluir" data-remove-despesa="${d.id}" title="Excluir esta despesa" aria-label="Excluir despesa ${escapeHtml(d.descricao)}, de ${formatDate(d.data)}">${icon('trash')}</button>
                 </div>
               </td>
             </tr>
@@ -4095,6 +4126,16 @@ document.getElementById('btnExportDespesas').addEventListener('click', () => {
 });
 
 /* ===================== CONFIG ===================== */
+const LABELS_CONFIG = {
+  taxaJurosMensal: 'Taxa de juros mensal (%)', taxaMultaPercent: 'Multa por atraso (%)',
+  corretorPercentualPadrao: 'Percentual padrão do corretor (%)', percentualReajusteSugerido: 'Reajuste sugerido (%)',
+};
+
+function registrarMudancaDeConfig(antes) {
+  const alteracoes = diffCampos(antes, state.config, LABELS_CONFIG);
+  if (alteracoes.length) registrarAuditoria('config_alterada', 'Configuração alterada: ' + alteracoes.map(a => a.campo).join(', '), alteracoes);
+}
+
 // Mensagem "salvo" ao lado do botão (some sozinha) + aviso de sucesso.
 function mostrarSalvo(idMsg, texto) {
   const msg = document.getElementById(idMsg);
@@ -4127,8 +4168,10 @@ function renderConfig() {
 }
 
 aoEnviar(configForm, async () => {
+  const antes = Object.assign({}, state.config);
   state.config.taxaJurosMensal = valorCampo('configTaxaJuros');
   state.config.taxaMultaPercent = valorCampo('configTaxaMulta');
+  registrarMudancaDeConfig(antes);
   const ok = await saveState();
   renderAll();
   if (ok) mostrarSalvo('configSaved', 'Configuração salva com sucesso.');
@@ -4136,13 +4179,17 @@ aoEnviar(configForm, async () => {
 
 const configPadraoForm = document.getElementById('configPadraoForm');
 aoEnviar(configPadraoForm, async () => {
+  const antes = Object.assign({}, state.config);
   state.config.corretorPercentualPadrao = valorCampo('configCorretorPercentualPadrao');
+  registrarMudancaDeConfig(antes);
   if (await saveState()) mostrarSalvo('configPadraoSaved', 'Valores padrão salvos com sucesso.');
 });
 
 const configReajusteForm = document.getElementById('configReajusteForm');
 aoEnviar(configReajusteForm, async () => {
+  const antes = Object.assign({}, state.config);
   state.config.percentualReajusteSugerido = valorCampo('configPercentualReajusteSugerido');
+  registrarMudancaDeConfig(antes);
   const ok = await saveState();
   renderAll();
   if (ok) mostrarSalvo('configReajusteSaved', 'Percentual de reajuste salvo com sucesso.');
@@ -4196,7 +4243,7 @@ function renderPessoasConfig() {
   document.getElementById('pessoaCarteiraHint').classList.toggle('hidden', !usaCarteiras);
 
   if (!lista.length) {
-    list.innerHTML = '<div class="empty-state">Nenhuma pessoa cadastrada ainda.</div>';
+    list.innerHTML = '<div class="empty-state">Nenhuma pessoa cadastrada ainda. Cadastre aqui quem recebe os pagamentos (você mesmo, por exemplo): sem ninguém cadastrado não dá para registrar pagamento.</div>';
     return;
   }
   list.innerHTML = lista.map(p => `
@@ -4207,8 +4254,8 @@ function renderPessoasConfig() {
           ${usaCarteiras ? `<div class="contrato-sub">${icon('tag')} ${p.carteiraId && carteiraNome(p.carteiraId) ? escapeHtml(carteiraNome(p.carteiraId)) : 'Todas as carteiras'}</div>` : ''}
         </div>
         <div class="contrato-actions">
-          <button type="button" class="btn btn-ghost btn-sm" data-edit-pessoa="${p.id}">${icon('pencil')} Editar</button>
-          <button type="button" class="btn btn-danger btn-sm" data-remove-pessoa="${p.id}">${icon('trash')} Remover</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-edit-pessoa="${p.id}" aria-label="Editar ${escapeHtml(p.nome)}">${icon('pencil')} Editar</button>
+          <button type="button" class="btn btn-danger btn-sm" data-remove-pessoa="${p.id}" aria-label="Remover ${escapeHtml(p.nome)}">${icon('trash')} Remover</button>
         </div>
       </div>
     </div>
@@ -4265,6 +4312,7 @@ async function removePessoa(id) {
     perigo: true,
   }))) return;
   state.pessoas = state.pessoas.filter(x => x.id !== id);
+  registrarAuditoria('pessoa_removida', `Pessoa removida da lista: ${p.nome}`);
   if (document.getElementById('pessoaId').value === id) cancelarEdicaoPessoa();
   const ok = await saveState();
   renderAll();
@@ -4287,8 +4335,17 @@ aoEnviar(addPessoaForm, async () => {
     // renomear atualiza os contratos/pagamentos que já usam o nome antigo,
     // mesma lógica do cadastro de imóveis (a referência é pelo nome)
     const nomeAntigo = p.nome;
+    const carteiraAntiga = p.carteiraId || '';
     p.nome = nome;
     p.carteiraId = carteiraId;
+    const alteracoes = [];
+    if (nomeAntigo !== nome) alteracoes.push({ campo: 'Nome', de: nomeAntigo, para: nome });
+    if (carteiraAntiga !== carteiraId) {
+      alteracoes.push({ campo: 'Carteira', de: carteiraNome(carteiraAntiga) || 'Todas', para: carteiraNome(carteiraId) || 'Todas' });
+    }
+    if (alteracoes.length) {
+      registrarAuditoria('pessoa_editada', `Pessoa editada: ${nomeAntigo}${nomeAntigo !== nome ? ` → ${nome} (contratos e pagamentos com o nome antigo foram atualizados)` : ''}`, alteracoes);
+    }
     if (nomeAntigo !== nome) {
       state.contratos.forEach(c => {
         if (c.quemRecebeu === nomeAntigo) c.quemRecebeu = nome;
@@ -4300,6 +4357,7 @@ aoEnviar(addPessoaForm, async () => {
     }
   } else {
     state.pessoas.push({ id: uuid(), nome, carteiraId });
+    registrarAuditoria('pessoa_criada', `Pessoa cadastrada: ${nome}`);
   }
 
   cancelarEdicaoPessoa();
@@ -4333,8 +4391,8 @@ function renderCarteirasConfig() {
           ${c.observacao ? `<div class="contrato-sub">${escapeHtml(c.observacao)}</div>` : ''}
         </div>
         <div class="contrato-actions">
-          <button type="button" class="btn btn-ghost btn-sm" data-edit-carteira="${c.id}">${icon('pencil')} Editar</button>
-          <button type="button" class="btn btn-danger btn-sm" data-remove-carteira="${c.id}">${icon('trash')} Remover</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-edit-carteira="${c.id}" aria-label="Editar carteira ${escapeHtml(c.nome)}">${icon('pencil')} Editar</button>
+          <button type="button" class="btn btn-danger btn-sm" data-remove-carteira="${c.id}" aria-label="Remover carteira ${escapeHtml(c.nome)}">${icon('trash')} Remover</button>
         </div>
       </div>
     </div>
@@ -4538,6 +4596,7 @@ async function removeImovel(id) {
     perigo: true,
   }))) return;
   state.imoveis = state.imoveis.filter(x => x.id !== id);
+  registrarAuditoria('imovel_removido', `Imóvel removido da lista: "${i.nome}"`);
   if (document.getElementById('imovelId').value === id) cancelarEdicaoImovel();
   const ok = await saveState();
   renderAll();
@@ -4621,6 +4680,7 @@ aoEnviar(formImovel, async () => {
     if (ok) showToast('Imóvel atualizado com sucesso.', 'success');
   } else {
     state.imoveis.push({ id: uuid(), nome, carteiraId });
+    registrarAuditoria('imovel_criado', `Imóvel cadastrado: "${nome}"${carteiraId ? ` (carteira ${carteiraNome(carteiraId)})` : ''}`);
     const ok = await saveState();
     cancelarEdicaoImovel();
     renderAll();
@@ -4743,7 +4803,7 @@ function renderUsers(users) {
     <div class="card">
       <div class="contrato-top">
         <div class="contrato-title">${escapeHtml(u.username)}${u.username === currentUsername ? ' (você)' : ''}</div>
-        ${u.username !== currentUsername && users.length > 1 ? `<button type="button" class="btn btn-danger btn-sm" data-remove-user="${u.id}" data-remove-username="${escapeHtml(u.username)}">${icon('trash')} Remover</button>` : ''}
+        ${u.username !== currentUsername && users.length > 1 ? `<button type="button" class="btn btn-danger btn-sm" data-remove-user="${u.id}" data-remove-username="${escapeHtml(u.username)}" aria-label="Remover o acesso de ${escapeHtml(u.username)}">${icon('trash')} Remover</button>` : ''}
       </div>
     </div>
   `).join('');
@@ -4868,6 +4928,7 @@ document.getElementById('inputImportBackup').addEventListener('change', (e) => {
     state.config = Object.assign({}, CONFIG_PADRAO, state.config || {});
     state.config.recibo = Object.assign({}, RECIBO_PADRAO, state.config.recibo || {});
     reciboFormSujo = false; // o backup restaurado manda no formulário
+    registrarAuditoria('backup_restaurado', `Backup restaurado do arquivo ${file.name}: ${state.contratos.length} contrato(s)`);
     const ok = await saveState();
     renderAll();
     if (ok) showToast('Backup restaurado com sucesso.', 'success');
@@ -4888,6 +4949,7 @@ document.getElementById('btnDeleteDatabase').addEventListener('click', async () 
   });
   if (digitado === null) return;
   state = estadoVazio();
+  registrarAuditoria('dados_excluidos', 'Todos os dados foram excluídos (Zona de perigo)');
   definirCarteiraAtiva('', true);
   reciboFormSujo = false;
   const ok = await saveState();
@@ -5291,8 +5353,14 @@ function lerFormularioRecibo() {
 }
 
 aoEnviar(document.getElementById('formRecibo'), async () => {
+  const reciboAntes = state.config.recibo || {};
   state.config.recibo = lerFormularioRecibo();
   reciboFormSujo = false;
+  const mudou = ['titulo', 'cidade', 'corpo', 'rodape'].filter(k => (reciboAntes[k] || '') !== state.config.recibo[k]);
+  if (mudou.length) {
+    const nomes = { titulo: 'título', cidade: 'cidade', corpo: 'corpo', rodape: 'rodapé' };
+    registrarAuditoria('config_alterada', `Texto do recibo alterado (${mudou.map(k => nomes[k]).join(', ')})`);
+  }
   const ok = await saveState();
   renderCodigosRecibo();
   if (ok) mostrarSalvo('reciboSaved', 'Texto do recibo salvo com sucesso.');
@@ -6876,8 +6944,8 @@ function renderCalendarioDetalhe(dataStr) {
               <div class="valor-item"><span>Recebido por</span><strong>${escapeHtml(p.quemRecebeu) || '--'}</strong></div>
             </div>
             <div class="contrato-actions">
-              <button type="button" class="btn btn-ghost btn-sm" data-recibo-divida="${p.divida.id}" data-recibo-indice="${p.indice}">${icon('receipt')} Recibo</button>
-              <button type="button" class="btn btn-ghost btn-sm" data-grupo-action="historico" data-contrato-id="${p.divida.contratoId}">${icon('receipt')} Histórico</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-recibo-divida="${p.divida.id}" data-recibo-indice="${p.indice}" aria-label="Recibo do pagamento do contrato #${p.divida.numero || '--'}">${icon('receipt')} Recibo</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-grupo-action="historico" data-contrato-id="${p.divida.contratoId}" aria-label="Histórico do contrato #${p.divida.numero || '--'}">${icon('receipt')} Histórico</button>
             </div>
           </div>
         `;

@@ -308,6 +308,7 @@
             <div class="stat-info">
               <span class="stat-value" id="statProximo">--</span>
               <span class="stat-label">Próximo vencimento</span>
+              <span class="stat-hint" id="statProximoHint"></span>
             </div>
           </div>
           <div class="card stat-card stat-warn">
@@ -335,7 +336,7 @@
         </div>
 
         <!-- Linha 3: últimos contratos -->
-        <h3 class="section-title"><svg class="icon"><use href="#icon-file-text"></use></svg> Últimos contratos</h3>
+        <h2 class="section-title"><svg class="icon" aria-hidden="true"><use href="#icon-file-text"></use></svg> Dívidas mais recentes</h2>
         <div id="dashboardRecentList" class="cards-list"></div>
 
       </section>
@@ -1229,7 +1230,7 @@
         </label>
         <label class="field" id="fCampoImovel">
           <span>Imóvel *</span>
-          <select id="fImovel" required>
+          <select id="fImovel" required aria-describedby="fSemImovelHint">
             <option value="" disabled selected>Selecione um imóvel...</option>
           </select>
         </label>
@@ -1303,7 +1304,7 @@
           <input type="text" inputmode="decimal" autocomplete="off" id="fCaucao" data-numero="dinheiro" data-min="0" placeholder="0,00">
         </label>
       </div>
-      <p class="modal-subtitle hidden" id="fSemImovelHint">Nenhum imóvel cadastrado ainda. Cadastre um na aba <strong>Imóveis</strong> antes de criar um contrato.</p>
+      <p class="modal-subtitle hidden" id="fSemImovelHint">Nenhum imóvel cadastrado ainda. Para criar um contrato, <a href="#/imoveis">cadastre primeiro o imóvel em Imóveis</a>.</p>
       <p class="modal-subtitle" id="fRetroativoHint">Contrato antigo? Se a data de início já passou, o sistema gera automaticamente uma dívida para cada mês, do mês de início até o mês atual (útil para lançar de uma vez o histórico de um contrato antigo).</p>
       <p class="modal-subtitle" id="fCorretorHint">A comissão do corretor <strong>não é cobrada do inquilino</strong> (não entra no total a cobrar), mas <strong>é deduzida do total líquido</strong> — é dinheiro que vai ser pago a ele, então não fica com o proprietário. O condomínio funciona parecido: é cobrado do inquilino e depois deduzido, porque também é repassado.</p>
       <p class="modal-subtitle" id="fCaucaoHint">O valor da caução não é somado a nenhum total — é só uma anotação informativa no contrato (o valor é, em teoria, devolvido no final).</p>
@@ -1467,11 +1468,11 @@
       </label>
       <label class="field">
         <span>Quem recebeu *</span>
-        <select id="pagQuemRecebeu" required>
+        <select id="pagQuemRecebeu" required aria-describedby="pagSemPessoasHint">
           <option value="" disabled selected>Selecione...</option>
         </select>
       </label>
-      <p class="modal-subtitle hidden" id="pagSemPessoasHint">Nenhuma pessoa cadastrada ainda. Cadastre quem recebe em <strong>Configurações &rsaquo; Financeiro &rsaquo; Pessoas</strong> para poder registrar o pagamento.</p>
+      <p class="modal-subtitle hidden" id="pagSemPessoasHint">Nenhuma pessoa cadastrada ainda. Para registrar o pagamento, <a href="#/usuarios">cadastre quem recebe em Usuários › Pessoas</a>.</p>
       <label class="field">
         <span>Observação</span>
         <textarea id="pagObservacao" rows="2" placeholder="Observação (opcional)"></textarea>

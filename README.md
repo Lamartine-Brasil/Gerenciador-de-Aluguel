@@ -176,7 +176,8 @@ Se você não usa corretor nem condomínio, nada disso aparece: a tela mostra um
 **Dashboard**
 
 - **Dashboard** — quantos contratos estão em andamento (ou seja, ainda não encerrados),
-  quanto está em atraso no total, próximo vencimento, despesas lançadas no mês, um alerta (laranja) para dívidas que vencem nos
+  quanto está em atraso no total, próximo vencimento (a próxima dívida a vencer a partir de
+  hoje, com quantas estão em atraso logo abaixo), despesas lançadas no mês, um alerta (laranja) para dívidas que vencem nos
   próximos 5 dias e um alerta (azul, para não se confundir com o de vencimento) para
   contratos no "aniversário" de reajuste. Cada item dentro dos alertas é clicável: no de
   vencimento leva direto para o contrato na aba Contratos; no de reajuste abre direto o
@@ -829,9 +830,12 @@ total ou receita. Consultáveis por mês e por ano na aba "Despesas".
 Tipos de `acao` registrados: `contrato_criado`, `contrato_editado`, `contrato_excluido`,
 `contrato_reajustado`, `contrato_encerrado`, `contrato_reaberto`, `caucao_devolvida`,
 `divida_editada`, `divida_excluida`, `pagamento_registrado`, `despesa_criada`,
-`despesa_editada`, `despesa_excluida`, `imovel_editado`, `carteira_criada`,
-`carteira_editada`, `carteira_excluida`, `usuario_adicionado`, `usuario_removido`,
-`cookie_secret_regenerado`.
+`despesa_editada`, `despesa_excluida`, `imovel_criado`, `imovel_editado`,
+`imovel_removido`, `pessoa_criada`, `pessoa_editada`, `pessoa_removida`,
+`carteira_criada`, `carteira_editada`, `carteira_excluida`, `config_alterada` (taxas,
+padrões, reajuste sugerido e texto do recibo), `backup_restaurado`, `dados_excluidos`,
+`usuario_adicionado`, `usuario_removido`, `cookie_secret_regenerado` (outros acessos
+desconectados).
 
 Cada item de `alteracoes` é `{ campo, de, para }` — o valor antigo e o novo de um campo
 que realmente mudou (função `diffCampos()` em `index.js`). Usado nas edições de contrato,
