@@ -1503,9 +1503,16 @@ function precisaMigrarNumerosContrato(contratos) {
 
 function migrarNumerosContrato(contratos) {
   const ordenados = contratos.slice().sort((a, b) => (a.criadoEm || 0) - (b.criadoEm || 0));
+  // números que já existem nunca são dados de novo: um contrato sem número
+  // criado antes de um que já tinha o nº 1 ficava também com o nº 1
+  const usados = new Set(contratos.map(c => Number(c.numero)).filter(Boolean));
   let proximo = 1;
   ordenados.forEach(c => {
-    if (!c.numero) c.numero = proximo;
+    if (!c.numero) {
+      while (usados.has(proximo)) proximo++;
+      c.numero = proximo;
+      usados.add(proximo);
+    }
     proximo = Math.max(proximo, c.numero) + 1;
   });
   return contratos;

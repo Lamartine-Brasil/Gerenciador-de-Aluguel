@@ -49,7 +49,7 @@ Gravidade:
 
 Todos os itens críticos, altos, médios e baixos foram corrigidos, com exceção
 dos que dependem de decisão. Cada correção tem teste em `tests/specs/`
-(84 testes passando no Chromium; ver "Limitação" acima sobre o Firefox).
+(85 testes passando no Chromium; ver "Limitação" acima sobre o Firefox).
 
 | Item | Status | Commit |
 |---|---|---|
@@ -91,7 +91,7 @@ dos que dependem de decisão. Cada correção tem teste em `tests/specs/`
 | U16 · título "Últimos contratos" | corrigido | a586532 |
 | U17 · anexo | corrigido | 7510ff8, 14de076 |
 | U18 · `autocomplete="off"` no login | corrigido | eae9a78 |
-| U19 · `migrarNumerosContrato()` | pendente (caso raro, só dados muito antigos) | — |
+| U19 · `migrarNumerosContrato()` | corrigido (números em uso são pulados) | ver último commit |
 | U20 · comissão por pagamento | **depende de decisão** (combinado não mexer) | — |
 | U21 · texto do card "Total em atraso" | corrigido no `etapas.txt` (aprovado) | a586532 |
 | U22 · nomes inconsistentes | **depende de decisão** (só listados) | — |

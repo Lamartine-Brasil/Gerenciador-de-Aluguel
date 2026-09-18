@@ -190,6 +190,24 @@ test.describe('Proteção dos dados', () => {
   });
 });
 
+test.describe('Migração de dados antigos', () => {
+  test('contratos sem número recebem números que não se repetem', async ({ page, app }) => {
+    await app.entrar('#/');
+    const r = await page.evaluate(() => {
+      const casos = {
+        semNenhum: [{ criadoEm: 3 }, { criadoEm: 1 }, { criadoEm: 2 }],
+        semNumeroAntesDoUm: [{ criadoEm: 1 }, { criadoEm: 2, numero: 1 }],
+        misturado: [{ criadoEm: 1, numero: 2 }, { criadoEm: 2 }, { criadoEm: 3, numero: 3 }, { criadoEm: 4 }],
+      };
+      return Object.fromEntries(Object.entries(casos).map(([k, v]) => [k, migrarNumerosContrato(v).map(c => c.numero)]));
+    });
+    // sem números: 1, 2, 3 na ordem de criação (como sempre foi)
+    expect(r.semNenhum).toEqual([3, 1, 2]);
+    expect(new Set(r.semNumeroAntesDoUm).size).toBe(2);
+    expect(new Set(r.misturado).size).toBe(4);
+  });
+});
+
 test.describe('Servidor', () => {
   test('E · leituras simultâneas a gravações nunca pegam o arquivo pela metade', async () => {
     test.slow();
