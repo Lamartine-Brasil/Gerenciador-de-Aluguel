@@ -91,7 +91,7 @@ dos que dependem de decisão. Cada correção tem teste em `tests/specs/`
 | U16 · título "Últimos contratos" | corrigido | a586532 |
 | U17 · anexo | corrigido | 7510ff8, 14de076 |
 | U18 · `autocomplete="off"` no login | corrigido | eae9a78 |
-| U19 · `migrarNumerosContrato()` | corrigido (números em uso são pulados) | ver último commit |
+| U19 · `migrarNumerosContrato()` | corrigido (números em uso são pulados) | b278a52 |
 | U20 · comissão por pagamento | **depende de decisão** (combinado não mexer) | — |
 | U21 · texto do card "Total em atraso" | corrigido no `etapas.txt` (aprovado) | a586532 |
 | U22 · nomes inconsistentes | **depende de decisão** (só listados) | — |
