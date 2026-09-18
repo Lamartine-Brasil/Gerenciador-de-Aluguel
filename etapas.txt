@@ -528,6 +528,28 @@ inclusive a carteira selecionada.
 - [x] Trava num arquivo à parte (`data/dados.lock`, `comTrava()`): exclusiva em todo
       "ler, alterar e gravar", compartilhada na leitura. Não fica no próprio
       `dados.json` porque o `rename()` troca o arquivo e a trava ficaria no antigo
+- [x] Controle de versão contra "o último a salvar apaga o do outro": `dados.json` guarda
+      `versao`, que sobe a cada gravação (arquivos antigos, sem o campo, contam como 0). O
+      POST de `api/data.php` manda `{ baseVersao, dados }`; o servidor compara dentro da
+      trava e, se a versão não bate, responde 409 sem gravar. POST sem `baseVersao` é
+      recusado (400): nada grava às cegas
+- [x] No navegador (`saveState()`): gravações numa fila, cada uma com a versão devolvida
+      pela anterior; devolve true só depois da confirmação do servidor, e é isso que
+      decide o "salvo com sucesso". Erro fica na tela com "Tentar de novo"; o botão de
+      enviar fica desabilitado enquanto grava (sem envio duplo); indicador Salvando… /
+      Salvo / Não salvo no topo; aviso ao fechar ou recarregar a página com algo não salvo
+- [x] Conflito (409): a tela explica ("os dados foram alterados em outra aba ou por outro
+      usuário"), oferece carregar os dados atuais ou baixar uma cópia do que está na tela,
+      e nada mais é gravado até recarregar. As gravações automáticas ao abrir (migrações e
+      dívidas do mês) recarregam e refazem sozinhas: duas abas abertas no dia em que
+      surgem dívidas novas geram cada dívida uma vez só
+- [x] Falha ao carregar: o sistema não abre; mostra o erro com "Tentar de novo". Sem um
+      carregamento bem-sucedido nada é gravado (antes abria vazio, e a primeira gravação
+      apagava o arquivo inteiro)
+- [x] Sessão expirada (401 com `sessaoExpirada`): o login é pedido num modal, sem
+      recarregar; a tela e o que está em memória ficam, e a gravação é refeita
+- [x] Ao voltar para uma aba parada, confere a versão (`data.php?versao=1`) e atualiza os
+      dados se alguém gravou nesse meio tempo e não há edição em andamento
 - [x] `auth.json` ilegível não cai mais no usuário padrão: ninguém entra até o arquivo
       ser corrigido ou apagado (apagado, ele é recriado com `admin`/`12345678`)
 - [x] Migrações automáticas e transparentes no carregamento, sem ação manual: contratos

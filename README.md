@@ -414,7 +414,9 @@ api/login.php        POST { username, password } -> autentica e emite cookie; bl
                       o IP por 15min após 5 tentativas erradas seguidas
 api/logout.php       POST -> limpa o cookie
 api/session.php      GET -> { authenticated, username }
-api/data.php         GET lê / POST grava data/dados.json (exige autenticação)
+api/data.php         GET lê data/dados.json (?versao=1 devolve só a versão); POST
+                      { baseVersao, dados } grava — se alguém gravou antes (a versão não
+                      bate), responde 409 e não grava nada (exige autenticação)
 api/account.php      POST { currentPassword, newUsername, newPassword } -> troca o
                       próprio usuário/senha em data/auth.json (exige senha atual)
 api/regenerate_secret.php  POST { currentPassword } -> gera uma nova chave do cookie em
@@ -495,6 +497,16 @@ geração de nova chave — são todas ações de alto impacto.
   notificações do header) e nunca calcula nada por conta própria.
 - **Backend**: PHP puro em `api/`, sem framework. Cada endpoint é um arquivo `.php`
   independente. Toda a comunicação front-end ↔ backend é via `fetch()` com JSON.
+- **Gravação sem perder nada**: `dados.json` tem um número de `versao` que sobe a cada
+  gravação. O navegador grava o estado inteiro dizendo em qual versão se baseou; se outra
+  aba ou outro usuário gravou antes, o servidor responde 409 e não grava, e a tela explica
+  e oferece carregar os dados atuais. As gravações do mesmo navegador vão numa fila, cada
+  uma com a versão devolvida pela anterior. "Salvo com sucesso" só aparece depois da
+  confirmação do servidor; um erro fica na tela, com "Tentar de novo", e um indicador no
+  topo mostra Salvando… / Salvo / Não salvo. Se os dados não carregam, o sistema não abre
+  (mostra o erro com "Tentar de novo") — abrir vazio e gravar por cima apagaria tudo. Se a
+  sessão expira, o login é pedido num modal, sem recarregar a página, e a gravação é
+  refeita em seguida.
 - **Dados**: um único arquivo `data/dados.json` com tudo (imóveis, carteiras, pessoas,
   contratos, despesas, configuração, auditoria) + `data/auth.json` separado para login,
   ambos protegidos contra acesso direto via `.htaccess`.

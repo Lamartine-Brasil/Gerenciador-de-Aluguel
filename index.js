@@ -103,44 +103,6 @@ document.getElementById('btnThemeToggle').addEventListener('click', () => {
 
 initTheme();
 
-/* ===================== API ===================== */
-async function apiFetch(path, options = {}) {
-  return fetch(API_BASE + path, {
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
-}
-
-async function fetchState() {
-  const res = await apiFetch('data.php');
-  if (!res.ok) throw new Error('Falha ao carregar dados do servidor.');
-  const data = await res.json();
-  data.contratos = data.contratos || [];
-  data.config = Object.assign({}, CONFIG_PADRAO, data.config || {});
-  // o recibo é um objeto dentro de config — precisa de merge próprio, senão uma
-  // instalação antiga (sem `recibo`) ou com o objeto pela metade fica sem texto
-  data.config.recibo = Object.assign({}, RECIBO_PADRAO, data.config.recibo || {});
-  data.auditoria = data.auditoria || [];
-  data.carteiras = data.carteiras || [];
-  // pessoas substitui o antigo cadastro "corretores" (agora serve tanto para
-  // quem recebe quanto para corretor) — migra dados antigos automaticamente.
-  data.pessoas = data.pessoas || data.corretores || [];
-  delete data.corretores;
-  data.despesas = data.despesas || [];
-  data.imoveis = data.imoveis || [];
-  return data;
-}
-
-async function saveState() {
-  try {
-    const res = await apiFetch('data.php', { method: 'POST', body: JSON.stringify(state) });
-    if (!res.ok) throw new Error('Falha ao salvar dados no servidor.');
-  } catch (e) {
-    showToast('Erro ao salvar dados no servidor.', 'error');
-  }
-}
-
 /* ===================== HELPERS ===================== */
 function uuid() {
   return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9);
@@ -753,6 +715,334 @@ aoEnviar(document.getElementById('formConfirmacao'), async () => {
   if (confirmacaoAtual) confirmacaoAtual.responder(valor);
 });
 
+/* ===================== API =====================
+ * Toda chamada ao servidor passa por apiFetch(). Um 401 de sessão expirada
+ * (`sessaoExpirada` na resposta) não vira erro: o sistema pede o login de novo
+ * num modal, sem recarregar a página — a tela e o que está em memória ficam —,
+ * e repete a chamada.
+ */
+let sessaoAtiva = false; // true depois que os dados foram carregados
+
+async function apiFetch(path, options = {}) {
+  const opcoes = { credentials: 'same-origin', cache: 'no-store', ...options };
+  if (!(options.body instanceof FormData)) {
+    opcoes.headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  }
+  let res = await fetch(API_BASE + path, opcoes);
+  if (res.status === 401 && sessaoAtiva) {
+    const corpo = await res.clone().json().catch(() => ({}));
+    if (corpo.sessaoExpirada && await pedirLoginDeNovo()) {
+      res = await fetch(API_BASE + path, opcoes);
+    }
+  }
+  return res;
+}
+
+// Lê os dados do servidor já com as migrações de formato aplicadas. Devolve
+// também a versão em que eles estão (ver "Gravação", abaixo).
+async function fetchState() {
+  const res = await apiFetch('data.php');
+  if (!res.ok) {
+    const corpo = await res.json().catch(() => ({}));
+    throw new Error(corpo.error || `O servidor respondeu com erro (${res.status}).`);
+  }
+  const data = await res.json();
+  const versao = Number(data.versao) || 0;
+  delete data.versao;
+  data.contratos = data.contratos || [];
+  data.config = Object.assign({}, CONFIG_PADRAO, data.config || {});
+  // o recibo é um objeto dentro de config — precisa de merge próprio, senão uma
+  // instalação antiga (sem `recibo`) ou com o objeto pela metade fica sem texto
+  data.config.recibo = Object.assign({}, RECIBO_PADRAO, data.config.recibo || {});
+  data.auditoria = data.auditoria || [];
+  data.carteiras = data.carteiras || [];
+  // pessoas substitui o antigo cadastro "corretores" (agora serve tanto para
+  // quem recebe quanto para corretor) — migra dados antigos automaticamente.
+  data.pessoas = data.pessoas || data.corretores || [];
+  delete data.corretores;
+  data.despesas = data.despesas || [];
+  data.imoveis = data.imoveis || [];
+  return { dados: data, versao };
+}
+
+/* ===================== GRAVAÇÃO =====================
+ * O servidor guarda um número de versão que sobe a cada gravação. Cada
+ * gravação diz em qual versão se baseou; se alguém gravou antes (outra aba,
+ * outro usuário), o servidor responde 409 e não grava nada — antes, o último a
+ * salvar apagava em silêncio o que o outro tinha salvo.
+ *
+ * As gravações deste navegador vão numa fila, cada uma com a versão devolvida
+ * pela anterior (senão duas gravações seguidas entrariam em conflito entre si).
+ * saveState() devolve true só depois que o servidor confirmou: é isso que
+ * decide se aparece "salvo com sucesso".
+ */
+let versaoDados = null;        // versão em que o estado em memória se baseia (null = não carregado)
+let gravacoesEmAndamento = 0;
+let alteracaoNaoSalva = false; // a memória tem algo que o servidor ainda não confirmou
+let emConflito = false;        // alguém gravou antes: nada mais é gravado até recarregar
+let erroNaTelaEhDeGravacao = false;
+let filaDeGravacao = Promise.resolve();
+
+function saveState(opcoes = {}) {
+  const vez = filaDeGravacao.then(() => enviarEstado(opcoes));
+  filaDeGravacao = vez.catch(() => {});
+  return vez;
+}
+
+// `automatico` (migrações e dívidas geradas ao abrir) devolve 'conflito' em vez
+// de abrir o aviso: quem chamou recarrega e refaz, sem incomodar ninguém.
+async function enviarEstado({ automatico = false } = {}) {
+  if (versaoDados === null) {
+    // Sem um carregamento bem-sucedido não se grava nada: o estado em memória
+    // estaria vazio e apagaria o arquivo do servidor.
+    mostrarErro('Nada foi salvo: os dados ainda não foram carregados do servidor. Recarregue a página.');
+    return false;
+  }
+  if (emConflito) {
+    alteracaoNaoSalva = true;
+    atualizarIndicadorDeGravacao();
+    abrirAvisoDeConflito();
+    return false;
+  }
+
+  gravacoesEmAndamento++;
+  atualizarIndicadorDeGravacao();
+  let salvou = false;
+  try {
+    let res;
+    let corpo = {};
+    try {
+      res = await apiFetch('data.php', {
+        method: 'POST',
+        body: JSON.stringify({ baseVersao: versaoDados, dados: state }),
+      });
+      corpo = await res.json().catch(() => ({}));
+    } catch (e) {
+      return falhaAoGravar('sem conexão com o servidor. Confira a internet.');
+    }
+
+    if (res.ok && corpo.ok) {
+      versaoDados = corpo.versao;
+      alteracaoNaoSalva = false;
+      if (erroNaTelaEhDeGravacao) { fecharErro(); erroNaTelaEhDeGravacao = false; }
+      salvou = true;
+      return true;
+    }
+    if (res.status === 409) {
+      if (automatico) return 'conflito';
+      emConflito = true;
+      alteracaoNaoSalva = true;
+      abrirAvisoDeConflito();
+      return false;
+    }
+    if (corpo.sessaoExpirada) return falhaAoGravar('a sessão expirou e o login não foi refeito.');
+    return falhaAoGravar(corpo.error || `o servidor respondeu com erro (${res.status}).`);
+  } finally {
+    gravacoesEmAndamento--;
+    atualizarIndicadorDeGravacao(salvou && gravacoesEmAndamento === 0);
+  }
+}
+
+function falhaAoGravar(motivo) {
+  alteracaoNaoSalva = true;
+  erroNaTelaEhDeGravacao = true;
+  mostrarErro(`Não foi possível salvar: ${motivo} O que você fez continua na tela, mas ainda não está no servidor.`, {
+    acao: { rotulo: 'Tentar de novo', fn: tentarGravarDeNovo },
+  });
+  return false;
+}
+
+async function tentarGravarDeNovo() {
+  if (await saveState()) showToast('Alterações salvas.', 'success');
+}
+
+function atualizarIndicadorDeGravacao(acabouDeSalvar) {
+  const el = document.getElementById('statusGravacao');
+  clearTimeout(atualizarIndicadorDeGravacao._t);
+  el.className = 'status-gravacao';
+  el.disabled = true;
+  el.removeAttribute('title');
+  if (gravacoesEmAndamento > 0 && !acabouDeSalvar) {
+    el.hidden = false;
+    el.textContent = 'Salvando…';
+  } else if (emConflito || alteracaoNaoSalva) {
+    el.hidden = false;
+    el.disabled = false;
+    el.classList.add('is-erro');
+    el.textContent = 'Não salvo';
+    el.title = emConflito
+      ? 'Os dados foram alterados em outro lugar. Clique para ver o que fazer.'
+      : 'A última alteração não chegou ao servidor. Clique para tentar de novo.';
+  } else if (acabouDeSalvar) {
+    el.hidden = false;
+    el.classList.add('is-ok');
+    el.textContent = 'Salvo';
+    atualizarIndicadorDeGravacao._t = setTimeout(() => { el.hidden = true; }, 2500);
+  } else {
+    el.hidden = true;
+  }
+}
+
+document.getElementById('statusGravacao').addEventListener('click', () => {
+  if (emConflito) abrirAvisoDeConflito();
+  else if (alteracaoNaoSalva) tentarGravarDeNovo();
+});
+
+/* ---- Conflito: alguém gravou antes ---- */
+function abrirAvisoDeConflito() {
+  if (!document.getElementById('modalConflito').classList.contains('hidden')) return;
+  openModal('modalConflito');
+}
+
+cancelamentoDosModais.modalConflito = () => closeModal('modalConflito');
+
+document.getElementById('btnConflitoRecarregar').addEventListener('click', async () => {
+  try {
+    await recarregarDoServidor();
+    closeModal('modalConflito');
+    showToast('Dados atualizados. Se a sua última alteração não aparece, faça de novo.', 'success');
+  } catch (e) {
+    mostrarErro(`Não foi possível carregar os dados atuais: ${e.message} Tente de novo em instantes.`);
+  }
+});
+
+// Guarda uma cópia do que está na tela (inclusive o que não foi salvo) num
+// arquivo, no mesmo formato do backup.
+document.getElementById('btnConflitoBaixar').addEventListener('click', () => {
+  baixarArquivo(`alteracoes_nao_salvas_${todayStr()}.json`, JSON.stringify(state, null, 2), 'application/json;charset=utf-8;');
+  showToast('Cópia baixada. Ela tem o formato de um backup.', 'success');
+});
+
+/* ---- Carregar do servidor ----
+ * Carrega, aplica as migrações de formato e gera as dívidas que faltam até
+ * hoje. Se algo mudou, grava — e se outra aba gravou no meio do caminho (409),
+ * recarrega e refaz: é o que impede duas abas abertas no dia em que surgem
+ * dívidas novas de gerarem as mesmas dívidas duas vezes (a segunda aba recarrega
+ * e encontra as dívidas já geradas pela primeira).
+ */
+async function carregarDados() {
+  for (let tentativa = 0; tentativa < 4; tentativa++) {
+    const { dados, versao } = await fetchState();
+    state = dados;
+    versaoDados = versao;
+    emConflito = false;
+    alteracaoNaoSalva = false;
+
+    let mudou = false;
+    if (precisaMigrarContratos(state.contratos)) {
+      state.contratos = migrarContratos(state.contratos);
+      mudou = true;
+    }
+    if (precisaMigrarNumerosContrato(state.contratos)) {
+      state.contratos = migrarNumerosContrato(state.contratos);
+      mudou = true;
+    }
+    // roda sozinho a cada vez que o sistema é aberto — não depende de o
+    // usuário lembrar de clicar em "Atualizar dívidas"
+    const geradas = gerarDividasDeTodos();
+    if (geradas.total) mudou = true;
+    if (!mudou) return;
+
+    const r = await saveState({ automatico: true });
+    if (r === 'conflito') continue;
+    if (r && geradas.total) {
+      showToast(`${geradas.total} dívida(s) geradas em ${geradas.contratos} contrato(s).`, 'success');
+    }
+    return;
+  }
+}
+
+async function recarregarDoServidor() {
+  await carregarDados();
+  atualizarIndicadorDeGravacao();
+  reciboFormSujo = false;
+  renderAll();
+  renderUsuarios();
+  if (typeof mostrarRota === 'function') mostrarRota({ manterFoco: true });
+}
+
+/* ---- Ao voltar para a aba ----
+ * Se alguém gravou enquanto esta aba estava parada, atualiza os dados — mas só
+ * quando não há nada em andamento aqui (formulário aberto, gravação pendente).
+ */
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState !== 'visible' || !sessaoAtiva || versaoDados === null) return;
+  if (emConflito || alteracaoNaoSalva || gravacoesEmAndamento || modalAberto() || formulariosSujos().length) return;
+  try {
+    const res = await apiFetch('data.php?versao=1');
+    const corpo = await res.json();
+    if (!res.ok || corpo.versao === versaoDados) return;
+    if (gravacoesEmAndamento || modalAberto() || formulariosSujos().length) return;
+    await recarregarDoServidor();
+    showToast('Os dados foram atualizados com o que foi alterado em outra aba ou por outro usuário.', 'success');
+  } catch (e) { /* sem conexão agora: tenta na próxima vez */ }
+});
+
+/* ---- Não sair da página com algo não salvo ---- */
+let saindoDeProposito = false;
+
+window.addEventListener('beforeunload', (e) => {
+  if (!sessaoAtiva || saindoDeProposito) return;
+  if (gravacoesEmAndamento || alteracaoNaoSalva || formulariosSujos().length) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+/* ---- Sessão expirada: entrar de novo sem recarregar ---- */
+let loginDeNovo = null;
+let resolverLoginDeNovo = null;
+
+function pedirLoginDeNovo() {
+  if (loginDeNovo) return loginDeNovo;
+  loginDeNovo = new Promise(resolve => {
+    document.getElementById('sessaoUsuario').value = currentUsername;
+    document.getElementById('sessaoSenha').value = '';
+    document.getElementById('sessaoErro').classList.add('hidden');
+    document.getElementById('modalSessao').dataset.focoInicial = currentUsername ? '#sessaoSenha' : '#sessaoUsuario';
+    resolverLoginDeNovo = (entrou) => {
+      loginDeNovo = null;
+      resolverLoginDeNovo = null;
+      closeModal('modalSessao');
+      resolve(entrou);
+    };
+    openModal('modalSessao');
+  });
+  return loginDeNovo;
+}
+
+cancelamentoDosModais.modalSessao = () => { if (resolverLoginDeNovo) resolverLoginDeNovo(false); };
+document.getElementById('btnSessaoCancelar').addEventListener('click', () => cancelamentoDosModais.modalSessao());
+
+aoEnviar(document.getElementById('formSessao'), async () => {
+  const erro = document.getElementById('sessaoErro');
+  const senha = document.getElementById('sessaoSenha');
+  erro.classList.add('hidden');
+  try {
+    // fetch direto: um 401 aqui é senha errada, não sessão expirada
+    const res = await fetch(API_BASE + 'login.php', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: document.getElementById('sessaoUsuario').value.trim(), password: senha.value }),
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      setCurrentUsername(data.username);
+      if (resolverLoginDeNovo) resolverLoginDeNovo(true);
+      return;
+    }
+    erro.textContent = data.error || 'Usuário ou senha incorretos.';
+  } catch (e) {
+    erro.textContent = 'Não foi possível conectar ao servidor. Confira a internet e tente de novo.';
+  }
+  erro.classList.remove('hidden');
+  senha.value = '';
+  senha.setAttribute('aria-invalid', 'true');
+  senha.focus();
+  return false;
+});
+
 /* ===================== MODELO: CONTRATO / DÍVIDA =====================
  * migrarContratos(): converte o formato antigo (um "contrato" plano = um
  * vencimento só) para o novo formato (contrato com array de dívidas). Roda
@@ -1041,34 +1331,61 @@ async function checkSession() {
   }
 }
 
+// Abre o sistema depois do login (ou de uma sessão já aberta). Se os dados não
+// carregarem, mostra a tela de erro e NÃO abre o sistema: com o estado vazio em
+// memória, a primeira gravação apagaria tudo no servidor.
 async function showApp() {
   loginScreen.classList.add('hidden');
-  appEl.classList.remove('hidden');
+  document.getElementById('telaErroCarga').classList.add('hidden');
+  document.getElementById('telaCarregando').classList.remove('hidden');
   try {
-    state = await fetchState();
-    if (precisaMigrarContratos(state.contratos)) {
-      state.contratos = migrarContratos(state.contratos);
-      await saveState();
-    }
-    if (precisaMigrarNumerosContrato(state.contratos)) {
-      state.contratos = migrarNumerosContrato(state.contratos);
-      await saveState();
-    }
-    // roda sozinho a cada vez que o sistema é aberto — não depende de o
-    // usuário lembrar de clicar em "Atualizar dívidas"
-    atualizarTodasDividas(true);
+    await carregarDados();
   } catch (e) {
-    showToast('Não foi possível carregar os dados do servidor.', 'error');
+    versaoDados = null;
+    document.getElementById('telaCarregando').classList.add('hidden');
+    document.getElementById('erroCargaDetalhe').textContent = e.message || 'Falha de comunicação com o servidor.';
+    document.getElementById('telaErroCarga').classList.remove('hidden');
+    document.querySelector('#telaErroCarga h1').focus();
+    return;
   }
+  sessaoAtiva = true;
+  document.getElementById('telaCarregando').classList.add('hidden');
+  appEl.classList.remove('hidden');
   renderAll();
   renderUsuarios();
+  if (typeof mostrarRota === 'function') mostrarRota({ primeiraVez: true });
 }
 
 function showLogin() {
   appEl.classList.add('hidden');
+  document.getElementById('telaCarregando').classList.add('hidden');
+  document.getElementById('telaErroCarga').classList.add('hidden');
   loginScreen.classList.remove('hidden');
   document.getElementById('loginForm').reset();
 }
+
+// Sair recarrega a página do zero, no login: nada do que estava em memória
+// (dados, formulários, senhas digitadas em Usuários) fica para trás.
+async function sair() {
+  if (sessaoAtiva && (gravacoesEmAndamento || alteracaoNaoSalva || formulariosSujos().length)) {
+    const sairMesmo = await confirmar({
+      titulo: 'Sair sem salvar?',
+      mensagem: 'Há alterações que ainda não foram salvas. Se sair agora, elas se perdem.',
+      acao: 'Sair sem salvar',
+      cancelar: 'Continuar aqui',
+      perigo: true,
+    });
+    if (!sairMesmo) return;
+  }
+  try { await fetch(API_BASE + 'logout.php', { method: 'POST', credentials: 'same-origin' }); } catch (e) { /* segue para o login mesmo assim */ }
+  saindoDeProposito = true;
+  sessaoAtiva = false;
+  history.replaceState(null, '', location.pathname + location.search + '#/');
+  location.reload();
+}
+
+document.getElementById('btnTentarCarregar').addEventListener('click', () => showApp());
+document.getElementById('btnSairErroCarga').addEventListener('click', () => sair());
 
 const formLogin = document.getElementById('loginForm');
 
@@ -1101,14 +1418,9 @@ formLogin.addEventListener('submit', async (e) => {
   }
 });
 
-document.getElementById('btnLogout').addEventListener('click', async () => {
-  try { await apiFetch('logout.php', { method: 'POST' }); } catch (e) { /* segue para tela de login mesmo assim */ }
-  showLogin();
-});
+document.getElementById('btnLogout').addEventListener('click', () => sair());
 
-document.getElementById('btnAtualizarTodasDividas').addEventListener('click', () => {
-  atualizarTodasDividas(false);
-});
+document.getElementById('btnAtualizarTodasDividas').addEventListener('click', () => atualizarTodasDividas());
 
 /* ===================== TABS ===================== */
 document.getElementById('tabsNav').addEventListener('click', (e) => {
@@ -1342,6 +1654,7 @@ aoEnviar(formContrato, async () => {
     observacao: document.getElementById('fObservacao').value.trim(),
   };
   camposDivida.total = calcTotal(camposDivida);
+  let mensagemSucesso = '';
 
   if (dividaId) {
     const achado = encontrarDivida(dividaId);
@@ -1352,7 +1665,7 @@ aoEnviar(formContrato, async () => {
     Object.assign(d, camposDivida);
     const alteracoes = diffCampos(antes, d, LABELS_DIVIDA);
     registrarAuditoria('divida_editada', `Dívida editada: ${c.imovel} - ${c.inquilino} (${formatDate(d.vencimento)})`, alteracoes);
-    showToast('Dívida atualizada com sucesso.', 'success');
+    mensagemSucesso = 'Dívida atualizada com sucesso.';
   } else {
     const imovel = document.getElementById('fImovel').value.trim();
     const inquilino = document.getElementById('fInquilino').value.trim();
@@ -1437,15 +1750,16 @@ aoEnviar(formContrato, async () => {
     const sufixoCorretor = corretorNome ? ` (corretor: ${corretorNome}, ${corretorPercentual}%)` : '';
     if (vencimentos.length > 1) {
       registrarAuditoria('contrato_criado', `Contrato criado com ${vencimentos.length} dívidas (retroativo): ${imovel} - ${inquilino}, de ${formatDate(vencimentos[0])} até ${formatDate(vencimentos[vencimentos.length - 1])}${sufixoCorretor}`);
-      showToast(`Contrato criado com ${vencimentos.length} dívidas.`, 'success');
+      mensagemSucesso = `Contrato criado com ${vencimentos.length} dívidas.`;
     } else {
       registrarAuditoria('contrato_criado', `Contrato criado: ${imovel} - ${inquilino}${sufixoCorretor}`);
-      showToast('Contrato criado com sucesso.', 'success');
+      mensagemSucesso = 'Contrato criado com sucesso.';
     }
   }
-  saveState();
+  const ok = await saveState();
   closeModal('modalContrato');
   renderAll();
+  if (ok) showToast(mensagemSucesso, 'success');
 });
 
 async function excluirContrato(contratoId) {
@@ -1459,9 +1773,9 @@ async function excluirContrato(contratoId) {
   }))) return;
   state.contratos = state.contratos.filter(x => x.id !== contratoId);
   registrarAuditoria('contrato_excluido', `Contrato excluído: ${c.imovel} - ${c.inquilino} (${c.dividas.length} dívida(s))`);
-  saveState();
+  const ok = await saveState();
   renderAll();
-  showToast('Contrato excluído.', 'success');
+  if (ok) showToast('Contrato excluído.', 'success');
 }
 
 // Encerrar é diferente de excluir: não apaga nenhum dado (as dívidas e o
@@ -1479,20 +1793,20 @@ async function encerrarContrato(contratoId) {
   c.encerrado = true;
   c.dataEncerramento = todayStr();
   registrarAuditoria('contrato_encerrado', `Contrato encerrado: ${c.imovel} - ${c.inquilino}`);
-  saveState();
+  const ok = await saveState();
   renderAll();
-  showToast('Contrato encerrado.', 'success');
+  if (ok) showToast('Contrato encerrado.', 'success');
 }
 
-function reabrirContrato(contratoId) {
+async function reabrirContrato(contratoId) {
   const c = state.contratos.find(x => x.id === contratoId);
   if (!c) return;
   c.encerrado = false;
   c.dataEncerramento = null;
   registrarAuditoria('contrato_reaberto', `Contrato reaberto: ${c.imovel} - ${c.inquilino}`);
-  saveState();
+  const ok = await saveState();
   renderAll();
-  showToast('Contrato reaberto.', 'success');
+  if (ok) showToast('Contrato reaberto.', 'success');
 }
 
 async function excluirDivida(dividaId) {
@@ -1507,9 +1821,9 @@ async function excluirDivida(dividaId) {
   }))) return;
   c.dividas = c.dividas.filter(x => x.id !== dividaId);
   registrarAuditoria('divida_excluida', `Dívida excluída: ${c.imovel} - ${c.inquilino} (${formatDate(d.vencimento)})`);
-  saveState();
+  const ok = await saveState();
   renderAll();
-  showToast('Dívida excluída.', 'success');
+  if (ok) showToast('Dívida excluída.', 'success');
 }
 
 // Gera as dívidas que faltam entre a última já existente e o mês atual —
@@ -1555,45 +1869,50 @@ function gerarDividasFaltantes(c) {
   return vencimentos.length;
 }
 
-function atualizarDividas(contratoId) {
+async function atualizarDividas(contratoId) {
   const c = state.contratos.find(x => x.id === contratoId);
   if (!c) return;
 
   const geradas = gerarDividasFaltantes(c);
   if (!geradas) {
-    showToast('Este contrato já está em dia — nenhuma dívida nova para gerar.', 'error');
+    showToast('Este contrato já está em dia: não há dívida nova para gerar.', 'success');
     return;
   }
 
   registrarAuditoria('divida_editada', `${geradas} nova(s) dívida(s) gerada(s): ${c.imovel} - ${c.inquilino}`);
-  saveState();
+  const ok = await saveState();
   renderAll();
-  showToast(`${geradas} dívida(s) gerada(s) com sucesso.`, 'success');
+  if (ok) showToast(`${geradas} dívida(s) gerada(s) com sucesso.`, 'success');
 }
 
-// Roda a mesma geração para TODOS os contratos de uma vez (botão global no
-// topo, e também automaticamente ao abrir o sistema). Em modo silencioso
-// (usado na checagem automática), só mostra aviso se algo foi de fato gerado.
-function atualizarTodasDividas(silencioso) {
-  let totalGeradas = 0;
-  let contratosAfetados = 0;
+// Roda a mesma geração para TODOS os contratos de uma vez — automaticamente ao
+// abrir o sistema (carregarDados) e pelo botão "Atualizar dívidas" do topo.
+// Só mexe no estado em memória; quem chama decide gravar.
+function gerarDividasDeTodos() {
+  let total = 0;
+  let contratos = 0;
   state.contratos.forEach(c => {
     const geradas = gerarDividasFaltantes(c);
     if (geradas > 0) {
-      totalGeradas += geradas;
-      contratosAfetados++;
+      total += geradas;
+      contratos++;
     }
   });
+  if (total) {
+    registrarAuditoria('divida_editada', `Atualização em lote: ${total} dívida(s) geradas em ${contratos} contrato(s)`);
+  }
+  return { total, contratos };
+}
 
-  if (totalGeradas === 0) {
-    if (!silencioso) showToast('Todos os contratos já estão em dia.', 'success');
+async function atualizarTodasDividas() {
+  const { total, contratos } = gerarDividasDeTodos();
+  if (!total) {
+    showToast('Todos os contratos já estão em dia.', 'success');
     return;
   }
-
-  registrarAuditoria('divida_editada', `Atualização em lote: ${totalGeradas} dívida(s) geradas em ${contratosAfetados} contrato(s)`);
-  saveState();
+  const ok = await saveState();
   renderAll();
-  showToast(`${totalGeradas} dívida(s) geradas em ${contratosAfetados} contrato(s).`, 'success');
+  if (ok) showToast(`${total} dívida(s) geradas em ${contratos} contrato(s).`, 'success');
 }
 
 /* ===================== EDITAR CONTRATO (dados compartilhados + anexo) ===================== */
@@ -1665,10 +1984,10 @@ aoEnviar(formContratoInfo, async () => {
     });
   }
   registrarAuditoria('contrato_editado', `Contrato editado: ${c.imovel} - ${c.inquilino}`, alteracoes);
-  saveState();
+  const ok = await saveState();
   closeModal('modalContratoInfo');
   renderAll();
-  showToast('Contrato atualizado com sucesso.', 'success');
+  if (ok) showToast('Contrato atualizado com sucesso.', 'success');
 });
 
 /* ===================== ANEXO DO CONTRATO ===================== */
@@ -1702,15 +2021,15 @@ document.getElementById('fAnexoInput').addEventListener('change', async () => {
     formData.append('contratoId', c.id);
     formData.append('inquilino', c.inquilino);
     formData.append('imovel', c.imovel);
-    const res = await fetch(API_BASE + 'anexo.php', { method: 'POST', credentials: 'same-origin', body: formData });
+    const res = await apiFetch('anexo.php', { method: 'POST', body: formData });
     const data = await res.json();
     if (res.ok && data.ok) {
       c.anexoContrato = data.filename;
       registrarAuditoria('contrato_editado', `Contrato anexado: ${c.imovel} - ${c.inquilino}`);
-      await saveState();
+      const ok = await saveState();
       renderAnexoAtual(c);
       renderAll();
-      showToast('Contrato anexado com sucesso.', 'success');
+      if (ok) showToast('Contrato anexado com sucesso.', 'success');
     } else {
       status.textContent = data.error || 'Não foi possível enviar o arquivo.';
       showToast(data.error || 'Não foi possível enviar o arquivo.', 'error');
@@ -1732,17 +2051,23 @@ document.getElementById('btnRemoverAnexo').addEventListener('click', async () =>
     perigo: true,
   }))) return;
 
-  try {
-    await apiFetch('anexo.php', { method: 'POST', body: JSON.stringify({ action: 'remove', file: c.anexoContrato }) });
-    registrarAuditoria('contrato_editado', `Anexo removido: ${c.imovel} - ${c.inquilino}`);
-    c.anexoContrato = null;
-    await saveState();
+  // Primeiro tira o anexo do contrato e grava; só depois apaga o arquivo. Na
+  // ordem contrária, uma gravação que falhasse deixaria o contrato apontando
+  // para um arquivo que não existe mais.
+  const arquivo = c.anexoContrato;
+  c.anexoContrato = null;
+  registrarAuditoria('contrato_editado', `Anexo removido: ${c.imovel} - ${c.inquilino}`);
+  if (!(await saveState())) {
     renderAnexoAtual(c);
     renderAll();
-    showToast('Anexo removido.', 'success');
-  } catch (err) {
-    showToast('Não foi possível remover o anexo.', 'error');
+    return;
   }
+  try {
+    await apiFetch('anexo.php', { method: 'POST', body: JSON.stringify({ action: 'remove', file: arquivo }) });
+  } catch (err) { /* o contrato já não aponta para o arquivo; sobra só um arquivo solto */ }
+  renderAnexoAtual(c);
+  renderAll();
+  showToast('Anexo removido.', 'success');
 });
 
 /* ===================== REAJUSTE DE VALOR ===================== */
@@ -1788,10 +2113,10 @@ aoEnviar(formReajuste, async () => {
 
   const alteracoes = [{ campo: 'Aluguel (R$)', de: valorAntigo, para: novoValor }];
   registrarAuditoria('contrato_reajustado', `Aluguel reajustado: ${c.imovel} - ${c.inquilino} de ${formatCurrency(valorAntigo)} para ${formatCurrency(novoValor)} (${dividasAtualizadas} dívida(s) em aberto atualizada(s))`, alteracoes);
-  saveState();
+  const ok = await saveState();
   closeModal('modalReajuste');
   renderAll();
-  showToast('Reajuste aplicado com sucesso.', 'success');
+  if (ok) showToast('Reajuste aplicado com sucesso.', 'success');
 });
 
 /* ===================== DEVOLUÇÃO DE CAUÇÃO ===================== */
@@ -1821,10 +2146,10 @@ aoEnviar(formDevolucaoCaucao, async () => {
   const observacao = document.getElementById('devCaucaoObservacao').value.trim();
 
   registrarAuditoria('caucao_devolvida', `Caução devolvida: ${c.imovel} - ${c.inquilino} (${formatCurrency(c.valorCaucaoDevolvida)} em ${formatDate(c.dataCaucaoDevolvida)})${observacao ? ' — ' + observacao : ''}`);
-  saveState();
+  const ok = await saveState();
   closeModal('modalDevolucaoCaucao');
   renderAll();
-  showToast('Devolução de caução registrada.', 'success');
+  if (ok) showToast('Devolução de caução registrada.', 'success');
 });
 
 /* ===================== PAGAMENTO ===================== */
@@ -1955,10 +2280,10 @@ aoEnviar(formPagamento, async () => {
   d.dataPagamento = pagamento.data;
   d.valorAtrasoBase = 0;
   registrarAuditoria('pagamento_registrado', `Pagamento registrado: ${c.imovel} - ${c.inquilino} (${formatDate(d.vencimento)}) - ${formatCurrency(pagamento.valor)}`);
-  saveState();
+  const ok = await saveState();
   closeModal('modalPagamento');
   renderAll();
-  showToast('Pagamento registrado com sucesso.', 'success');
+  if (ok) showToast('Pagamento registrado com sucesso.', 'success');
 });
 
 /* ===================== HISTÓRICO POR CONTRATO ===================== */
@@ -3053,9 +3378,9 @@ async function excluirDespesa(id) {
   }))) return;
   state.despesas = state.despesas.filter(x => x.id !== id);
   registrarAuditoria('despesa_excluida', `Despesa excluída: ${d.descricao} (${formatCurrency(d.valor)})`);
-  saveState();
-  renderDespesas();
-  showToast('Despesa excluída.', 'success');
+  const ok = await saveState();
+  renderAll();
+  if (ok) showToast('Despesa excluída.', 'success');
 }
 
 const LABELS_DESPESA = { data: 'Data', descricao: 'Descrição', valor: 'Valor (R$)', contratoId: 'Contrato relacionado' };
@@ -3112,21 +3437,21 @@ aoEnviar(formDespesa, async () => {
     Object.assign(d, { data, descricao, valor, contratoId, carteiraId });
     const alteracoes = diffCampos(antes, d, LABELS_DESPESA);
     registrarAuditoria('despesa_editada', `Despesa editada: ${descricao} (${formatCurrency(valor)})`, alteracoes);
-    saveState();
+    const ok = await saveState();
     cancelarEdicaoDespesa();
-    renderDespesas();
-    showToast('Despesa atualizada com sucesso.', 'success');
+    renderAll();
+    if (ok) showToast('Despesa atualizada com sucesso.', 'success');
   } else {
     state.despesas.push({ id: uuid(), data, descricao, valor, contratoId, carteiraId, criadoEm: Date.now() });
     registrarAuditoria('despesa_criada', `Despesa registrada: ${descricao} (${formatCurrency(valor)})`);
-    saveState();
+    const ok = await saveState();
     const dataAtual = data;
     formDespesa.reset();
     document.getElementById('despData').value = dataAtual;
     populateCarteiraSelect(document.getElementById('despCarteira'), carteiraId || carteiraAtiva);
     atualizarVisibilidadeCamposCarteira();
-    renderDespesas();
-    showToast('Despesa adicionada com sucesso.', 'success');
+    renderAll();
+    if (ok) showToast('Despesa adicionada com sucesso.', 'success');
   }
 });
 
@@ -3180,6 +3505,15 @@ document.getElementById('btnExportDespesas').addEventListener('click', () => {
 });
 
 /* ===================== CONFIG ===================== */
+// Mensagem "salvo" ao lado do botão (some sozinha) + aviso de sucesso.
+function mostrarSalvo(idMsg, texto) {
+  const msg = document.getElementById(idMsg);
+  msg.classList.remove('hidden');
+  clearTimeout(msg._t);
+  msg._t = setTimeout(() => msg.classList.add('hidden'), 2500);
+  showToast(texto, 'success');
+}
+
 const configForm = document.getElementById('configForm');
 
 function renderConfig() {
@@ -3194,33 +3528,23 @@ function renderConfig() {
 aoEnviar(configForm, async () => {
   state.config.taxaJurosMensal = Number(document.getElementById('configTaxaJuros').value) || 0;
   state.config.taxaMultaPercent = Number(document.getElementById('configTaxaMulta').value) || 0;
-  saveState();
-  const msg = document.getElementById('configSaved');
-  msg.classList.remove('hidden');
-  setTimeout(() => msg.classList.add('hidden'), 2200);
+  const ok = await saveState();
   renderAll();
-  showToast('Configuração salva com sucesso.', 'success');
+  if (ok) mostrarSalvo('configSaved', 'Configuração salva com sucesso.');
 });
 
 const configPadraoForm = document.getElementById('configPadraoForm');
 aoEnviar(configPadraoForm, async () => {
   state.config.corretorPercentualPadrao = Number(document.getElementById('configCorretorPercentualPadrao').value) || 0;
-  saveState();
-  const msg = document.getElementById('configPadraoSaved');
-  msg.classList.remove('hidden');
-  setTimeout(() => msg.classList.add('hidden'), 2200);
-  showToast('Valores padrão salvos com sucesso.', 'success');
+  if (await saveState()) mostrarSalvo('configPadraoSaved', 'Valores padrão salvos com sucesso.');
 });
 
 const configReajusteForm = document.getElementById('configReajusteForm');
 aoEnviar(configReajusteForm, async () => {
   state.config.percentualReajusteSugerido = Number(document.getElementById('configPercentualReajusteSugerido').value) || 0;
-  saveState();
-  const msg = document.getElementById('configReajusteSaved');
-  msg.classList.remove('hidden');
-  setTimeout(() => msg.classList.add('hidden'), 2200);
+  const ok = await saveState();
   renderAll();
-  showToast('Percentual de reajuste salvo com sucesso.', 'success');
+  if (ok) mostrarSalvo('configReajusteSaved', 'Percentual de reajuste salvo com sucesso.');
 });
 
 /* ===================== PESSOAS (cadastro reutilizável: recebedores/corretores) =====================
@@ -3337,9 +3661,9 @@ async function removePessoa(id) {
   }))) return;
   state.pessoas = state.pessoas.filter(x => x.id !== id);
   if (document.getElementById('pessoaId').value === id) cancelarEdicaoPessoa();
-  saveState();
-  renderPessoasConfig();
-  showToast('Pessoa removida.', 'success');
+  const ok = await saveState();
+  renderAll();
+  if (ok) showToast('Pessoa removida.', 'success');
 }
 
 aoEnviar(addPessoaForm, async () => {
@@ -3369,15 +3693,14 @@ aoEnviar(addPessoaForm, async () => {
         }));
       });
     }
-    showToast('Pessoa atualizada com sucesso.', 'success');
   } else {
     state.pessoas.push({ id: uuid(), nome, carteiraId });
-    showToast('Pessoa adicionada com sucesso.', 'success');
   }
 
   cancelarEdicaoPessoa();
-  saveState();
+  const ok = await saveState();
   renderAll();
+  if (ok) showToast(pessoaId ? 'Pessoa atualizada com sucesso.' : 'Pessoa adicionada com sucesso.', 'success');
 });
 
 /* ===================== CARTEIRAS (cadastro + seletor global) ===================== */
@@ -3469,9 +3792,9 @@ async function removerCarteira(id) {
   if (document.getElementById('carteiraId').value === id) cancelarEdicaoCarteira();
 
   registrarAuditoria('carteira_excluida', `Carteira excluída: ${c.nome}${contratos ? ` (${contratos} contrato(s) ficaram sem carteira)` : ''}`);
-  saveState();
+  const ok = await saveState();
   renderAll();
-  showToast('Carteira removida.', 'success');
+  if (ok) showToast('Carteira removida.', 'success');
 }
 
 const LABELS_CARTEIRA = {
@@ -3497,16 +3820,15 @@ aoEnviar(formCarteira, async () => {
     const antes = Object.assign({}, c);
     Object.assign(c, { nome, proprietario, documento, observacao });
     registrarAuditoria('carteira_editada', `Carteira editada: ${nome}`, diffCampos(antes, c, LABELS_CARTEIRA));
-    showToast('Carteira atualizada com sucesso.', 'success');
   } else {
     state.carteiras.push({ id: uuid(), nome, proprietario, documento, observacao, criadoEm: Date.now() });
     registrarAuditoria('carteira_criada', `Carteira criada: ${nome}${proprietario ? ` (${proprietario})` : ''}`);
-    showToast('Carteira adicionada com sucesso.', 'success');
   }
 
   cancelarEdicaoCarteira();
-  saveState();
+  const ok = await saveState();
   renderAll();
+  if (ok) showToast(id ? 'Carteira atualizada com sucesso.' : 'Carteira adicionada com sucesso.', 'success');
 });
 
 document.getElementById('carteiraSeletor').addEventListener('change', (e) => {
@@ -3576,9 +3898,9 @@ async function removeImovel(id) {
   }))) return;
   state.imoveis = state.imoveis.filter(x => x.id !== id);
   if (document.getElementById('imovelId').value === id) cancelarEdicaoImovel();
-  saveState();
-  renderImoveis();
-  showToast('Imóvel removido.', 'success');
+  const ok = await saveState();
+  renderAll();
+  if (ok) showToast('Imóvel removido.', 'success');
 }
 
 // Editar carrega o imóvel no mesmo formulário do lado (que passa a ser "Editar
@@ -3648,16 +3970,16 @@ aoEnviar(formImovel, async () => {
         alteracoes
       );
     }
-    saveState();
+    const ok = await saveState();
     cancelarEdicaoImovel();
     renderAll();
-    showToast('Imóvel atualizado com sucesso.', 'success');
+    if (ok) showToast('Imóvel atualizado com sucesso.', 'success');
   } else {
     state.imoveis.push({ id: uuid(), nome, carteiraId });
-    saveState();
+    const ok = await saveState();
     cancelarEdicaoImovel();
-    renderImoveis();
-    showToast('Imóvel adicionado com sucesso.', 'success');
+    renderAll();
+    if (ok) showToast('Imóvel adicionado com sucesso.', 'success');
   }
 });
 
@@ -3742,7 +4064,7 @@ aoEnviar(regenerateSecretForm, async () => {
       msg.classList.remove('hidden');
       setTimeout(() => msg.classList.add('hidden'), 2200);
       registrarAuditoria('cookie_secret_regenerado', 'Todos os outros acessos foram desconectados (nova chave de acesso)');
-      saveState();
+      await saveState();
       showToast('Todos os outros acessos foram desconectados.', 'success');
     } else {
       errorEl.textContent = data.error || 'Não foi possível gerar a nova chave.';
@@ -3806,7 +4128,7 @@ async function removeUser(id, username) {
   });
   if (!removido) return;
   registrarAuditoria('usuario_removido', `Usuário removido: ${username}`);
-  saveState();
+  await saveState();
   showToast(`O acesso de ${username} foi removido.`, 'success');
   loadUsers();
 }
@@ -3834,7 +4156,7 @@ aoEnviar(addUserForm, async () => {
     if (res.ok && data.ok) {
       addUserForm.reset();
       registrarAuditoria('usuario_adicionado', `Usuário adicionado: ${username}`);
-      saveState();
+      await saveState();
       showToast('Usuário adicionado com sucesso.', 'success');
       loadUsers();
     } else {
@@ -3849,13 +4171,7 @@ aoEnviar(addUserForm, async () => {
 
 /* ===================== BACKUP COMPLETO DO BANCO DE DADOS ===================== */
 document.getElementById('btnExportBackup').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `backup_aluguel_${todayStr()}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+  baixarArquivo(`backup_aluguel_${todayStr()}.json`, JSON.stringify(state, null, 2), 'application/json;charset=utf-8;');
   showToast('Backup exportado com sucesso.', 'success');
 });
 
@@ -3888,6 +4204,7 @@ document.getElementById('inputImportBackup').addEventListener('change', (e) => {
     }))) return;
 
     state = parsed;
+    delete state.versao; // quem manda na versão é o servidor
     if (precisaMigrarContratos(state.contratos)) {
       state.contratos = migrarContratos(state.contratos);
     }
@@ -3903,10 +4220,9 @@ document.getElementById('inputImportBackup').addEventListener('change', (e) => {
     state.config = Object.assign({}, CONFIG_PADRAO, state.config || {});
     state.config.recibo = Object.assign({}, RECIBO_PADRAO, state.config.recibo || {});
     reciboFormSujo = false; // o backup restaurado manda no formulário
-    await saveState();
+    const ok = await saveState();
     renderAll();
-    renderPessoasConfig();
-    showToast('Backup restaurado com sucesso.', 'success');
+    if (ok) showToast('Backup restaurado com sucesso.', 'success');
   };
   reader.readAsText(file, 'UTF-8');
   e.target.value = '';
@@ -3926,9 +4242,9 @@ document.getElementById('btnDeleteDatabase').addEventListener('click', async () 
   state = estadoVazio();
   definirCarteiraAtiva('', true);
   reciboFormSujo = false;
-  await saveState();
+  const ok = await saveState();
   renderAll();
-  showToast('Todos os dados foram excluídos.', 'success');
+  if (ok) showToast('Todos os dados foram excluídos.', 'success');
 });
 
 /* ===================== RECIBO DE PAGAMENTO =====================
@@ -4328,12 +4644,9 @@ function lerFormularioRecibo() {
 aoEnviar(document.getElementById('formRecibo'), async () => {
   state.config.recibo = lerFormularioRecibo();
   reciboFormSujo = false;
-  saveState();
-  const msg = document.getElementById('reciboSaved');
-  msg.classList.remove('hidden');
-  setTimeout(() => msg.classList.add('hidden'), 2200);
+  const ok = await saveState();
   renderCodigosRecibo();
-  showToast('Texto do recibo salvo com sucesso.', 'success');
+  if (ok) mostrarSalvo('reciboSaved', 'Texto do recibo salvo com sucesso.');
 });
 
 // A prévia usa o que está NO FORMULÁRIO (mesmo sem salvar), para dar para
@@ -5829,7 +6142,19 @@ document.getElementById('btnCalendarioHoje').addEventListener('click', () => {
   renderCalendario();
 });
 
-/* ===================== EXPORT CSV ===================== */
+/* ===================== DOWNLOAD / EXPORT CSV ===================== */
+function baixarArquivo(nome, conteudo, tipo) {
+  const blob = new Blob([conteudo], { type: tipo });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nome;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 // Recebe as linhas já prontas (inclusive linhas em branco, usadas para separar
 // seções num relatório) e gera o arquivo. O BOM no início é o que faz o Excel
 // abrir os acentos corretamente.
@@ -5838,13 +6163,7 @@ function downloadCsvRows(filename, rows) {
     .map(row => row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(';'))
     .join('\r\n');
 
-  const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  baixarArquivo(filename, '\ufeff' + csvContent, 'text/csv;charset=utf-8;');
 }
 
 function downloadCsv(filename, headers, rows) {
@@ -6014,7 +6333,7 @@ document.getElementById('inputImportCSV').addEventListener('change', (e) => {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     const linhas = parseCsv(String(reader.result));
     const linhasDados = linhas.slice(1); // pula o cabeçalho
     let importados = 0;
@@ -6074,11 +6393,14 @@ document.getElementById('inputImportCSV').addEventListener('change', (e) => {
       importados++;
     });
 
-    if (importados > 0) {
-      saveState();
-      renderAll();
+    if (!importados) {
+      showToast(`Nenhum contrato importado${ignorados ? `: ${ignorados} linha(s) sem vencimento, imóvel ou inquilino` : ''}. Confira se o arquivo é um CSV exportado por este sistema.`, 'error');
+      return;
     }
-    showToast(`${importados} contrato(s) importado(s)${ignorados ? `, ${ignorados} ignorado(s)` : ''}.`, importados ? 'success' : 'error');
+    registrarAuditoria('contrato_criado', `Importação de CSV: ${importados} contrato(s) criado(s)${ignorados ? `, ${ignorados} linha(s) ignorada(s)` : ''}`);
+    const ok = await saveState();
+    renderAll();
+    if (ok) showToast(`${importados} contrato(s) importado(s)${ignorados ? `, ${ignorados} linha(s) ignorada(s)` : ''}.`, 'success');
   };
   reader.readAsText(file, 'UTF-8');
   e.target.value = '';

@@ -65,8 +65,31 @@
   </defs>
 </svg>
 
+<!-- ===================== CARREGANDO =====================
+     Aparece enquanto o sistema confere se já existe uma sessão aberta — sem
+     isso, quem já estava logado via a tela de login piscar a cada F5. -->
+<div id="telaCarregando" class="tela-status" role="status">
+  <span class="spinner" aria-hidden="true"></span>
+  <span>Carregando…</span>
+</div>
+
+<!-- ===================== ERRO AO CARREGAR =====================
+     Sem os dados do servidor o sistema não abre: abrir "vazio" e deixar gravar
+     por cima era o caminho para apagar tudo. -->
+<main id="telaErroCarga" class="tela-status hidden">
+  <div class="card tela-status-card">
+    <h1 tabindex="-1">Não foi possível carregar os dados</h1>
+    <p id="erroCargaDetalhe" class="modal-subtitle"></p>
+    <p class="modal-subtitle">Nada foi alterado. Confira a conexão com a internet e tente de novo. Se continuar assim, o servidor pode estar fora do ar ou com algum problema no arquivo de dados.</p>
+    <div class="contrato-actions">
+      <button type="button" class="btn btn-primary" id="btnTentarCarregar"><svg class="icon"><use href="#icon-refresh"></use></svg> Tentar de novo</button>
+      <button type="button" class="btn btn-ghost" id="btnSairErroCarga"><svg class="icon"><use href="#icon-log-out"></use></svg> Sair</button>
+    </div>
+  </div>
+</main>
+
 <!-- ===================== LOGIN ===================== -->
-<section id="loginScreen" class="login-screen">
+<section id="loginScreen" class="login-screen hidden">
 
   <aside class="login-aside" aria-hidden="true">
     <span class="brand">
@@ -210,6 +233,10 @@
             <div class="notif-list" id="uiNotifList"></div>
           </div>
         </div>
+
+        <!-- Salvando… / Salvo / Não salvo. Só vira botão (clicável) quando algo
+             não foi salvo: aí tentar de novo ou ver o conflito. -->
+        <button type="button" id="statusGravacao" class="status-gravacao" hidden disabled></button>
 
         <button id="btnThemeToggle" class="icon-btn" title="Alternar tema claro/escuro" aria-label="Alternar tema claro/escuro"></button>
 
