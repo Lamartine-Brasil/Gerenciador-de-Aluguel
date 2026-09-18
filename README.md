@@ -332,6 +332,10 @@ existindo, só voltam a ficar sem carteira.
   agrupado por contrato: cabeçalho com data e filtros aplicados, uma tabela de dívidas por
   contrato, subtotal de cada um e um total geral em forma de extrato. Quebra em páginas sem
   cortar contrato ao meio, e o texto sai selecionável (não é imagem)
+- **Valores do jeito que se escreve** — os campos de dinheiro e de percentual aceitam
+  `1.250,50`, `1250,50` e `1250.50` (e `R$` na frente); o teclado do celular abre no modo
+  numérico. Um erro de preenchimento aparece logo abaixo do campo, dizendo o que corrigir, e
+  o cursor vai para o primeiro campo com problema
 - **Tema claro/escuro** — segue automaticamente o tema do seu sistema operacional até você
   escolher manualmente; a partir daí fica salvo no navegador
 - **Interface responsiva** — sidebar recolhível no computador (o estado fica salvo) e

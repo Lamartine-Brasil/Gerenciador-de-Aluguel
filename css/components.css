@@ -1020,3 +1020,17 @@ kbd {
 .chart-dados-tabela { margin-top: var(--space-2); overflow-x: auto; }
 .chart-dados .report-table th[scope="row"] { font-weight: 550; text-transform: none; letter-spacing: 0; font-size: var(--text-sm); color: var(--text); background: none; }
 .report-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Erro de um campo: logo abaixo dele, ligado por aria-describedby. Numa grade
+   de campos ocupa a linha inteira, logo abaixo da linha do campo. */
+.campo-erro {
+  color: var(--danger);
+  font-size: var(--text-sm);
+  font-weight: 550;
+  margin-top: calc(var(--space-2) * -1);
+}
+.form-grid > .campo-erro { grid-column: 1 / -1; }
+.field input[aria-invalid="true"],
+.field select[aria-invalid="true"],
+.field textarea[aria-invalid="true"],
+.input[aria-invalid="true"] { border-color: var(--danger); }

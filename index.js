@@ -250,6 +250,76 @@ function formatDate(dateStr) {
   return String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear();
 }
 
+/* ---- Números digitados (dinheiro e percentuais) ----
+ * Os campos de valor são de texto com teclado numérico (inputmode="decimal"),
+ * não type="number": o campo numérico do navegador recusava "1.250,50" e, num
+ * navegador em inglês, lia "1250,50" como 125050. lerNumero() aceita os jeitos
+ * de escrever que aparecem na prática:
+ *   1.250,50   1250,50   1250.50   1.250   R$ 1.250,50
+ * Um ponto seguido de exatamente 3 dígitos é separador de milhar ("1.250" =
+ * mil duzentos e cinquenta, como se escreve no Brasil); com 1 ou 2 dígitos é
+ * decimal ("1250.5"). Devolve null para campo vazio e NaN para texto inválido.
+ */
+function lerNumero(texto) {
+  let t = String(texto == null ? '' : texto).trim().replace(/^R\$/i, '').replace(/\s+/g, '');
+  if (t === '') return null;
+  const negativo = t.startsWith('-');
+  if (negativo) t = t.slice(1);
+  const temVirgula = t.includes(',');
+  const temPonto = t.includes('.');
+  const gruposDeMilhar = (grupos) => grupos.every((g, i) => /^\d+$/.test(g) && (i === 0 ? g.length <= 3 : g.length === 3));
+  if (temVirgula && temPonto) {
+    const decimal = t.lastIndexOf(',') > t.lastIndexOf('.') ? ',' : '.';
+    const milhar = decimal === ',' ? '.' : ',';
+    const partes = t.split(decimal);
+    if (partes.length !== 2 || !gruposDeMilhar(partes[0].split(milhar))) return NaN;
+    t = partes[0].split(milhar).join('') + '.' + partes[1];
+  } else if (temVirgula) {
+    const partes = t.split(',');
+    if (partes.length !== 2) return NaN;
+    t = partes[0] + '.' + partes[1];
+  } else if (temPonto) {
+    const partes = t.split('.');
+    const ehMilhar = partes.length > 2 || partes[1].length === 3;
+    if (ehMilhar) {
+      if (!gruposDeMilhar(partes)) return NaN;
+      t = partes.join('');
+    }
+  }
+  if (!/^(\d+(\.\d*)?|\.\d+)$/.test(t)) return NaN;
+  const n = Number(t);
+  return negativo ? -n : n;
+}
+
+function formatarNumeroDoCampo(n, tipo) {
+  return tipo === 'percentual'
+    ? n.toLocaleString('pt-BR', { maximumFractionDigits: 4 })
+    : n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Valor de um campo numérico para as contas: vazio ou inválido conta como 0
+// (a validação do formulário é que impede enviar um valor inválido).
+function valorCampo(id) {
+  const n = lerNumero(document.getElementById(id).value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function escreverValor(id, valor) {
+  const el = document.getElementById(id);
+  const n = valor === '' || valor === null || valor === undefined
+    ? null
+    : (typeof valor === 'number' ? valor : lerNumero(valor));
+  el.value = Number.isFinite(n) ? formatarNumeroDoCampo(n, el.dataset.numero) : '';
+}
+
+// Ao sair de um campo de valor válido, mostra no formato brasileiro (1.250,50).
+document.addEventListener('change', (e) => {
+  const el = e.target;
+  if (!el.matches || !el.matches('[data-numero]')) return;
+  const n = lerNumero(el.value);
+  if (Number.isFinite(n)) el.value = formatarNumeroDoCampo(n, el.dataset.numero);
+}, true);
+
 function formatCurrency(value) {
   return (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -479,7 +549,29 @@ function valoresDoFormulario(form) {
 }
 
 function marcarLimpo(form) {
-  if (form) baseDosFormularios.set(form, valoresDoFormulario(form));
+  if (!form) return;
+  baseDosFormularios.set(form, valoresDoFormulario(form));
+  limparErrosDoFormulario(form);
+}
+
+async function confirmarDescarte() {
+  return confirmar({
+    titulo: 'Descartar o que foi digitado?',
+    mensagem: 'O formulário tem alterações que ainda não foram salvas.',
+    acao: 'Descartar alterações',
+    cancelar: 'Continuar editando',
+    perigo: true,
+  });
+}
+
+// Preenchimento feito por código (desenhar a tela, abrir um item para editar,
+// trocar a carteira ativa) não é alteração da pessoa: se o formulário estava
+// limpo antes, continua limpo depois.
+function semSujar(form, fn) {
+  const estava = estaSujo(form);
+  const r = fn();
+  if (!estava) marcarLimpo(form);
+  return r;
 }
 
 function estaSujo(form) {
@@ -497,6 +589,105 @@ document.addEventListener('focusin', (e) => {
 function formulariosSujos(raiz) {
   return Array.from((raiz || document).querySelectorAll('form')).filter(estaSujo);
 }
+
+/* ---- Validação: o erro aparece ao lado do campo ----
+ * Os formulários são `novalidate`: no lugar do balão do navegador (que some,
+ * não diz o que corrigir e não é lido direito), cada campo com problema ganha
+ * uma mensagem logo abaixo, ligada por aria-describedby, e o foco vai para o
+ * primeiro deles. Roda antes de qualquer tratamento de envio (fase de captura),
+ * então nada é enviado com erro. A mensagem some assim que o campo é corrigido.
+ */
+function mensagemDeErroDoCampo(el) {
+  if (el.dataset.numero) {
+    const texto = el.value.trim();
+    if (texto === '') return el.required ? 'Preencha este campo com um valor.' : null;
+    const n = lerNumero(texto);
+    if (!Number.isFinite(n)) {
+      return el.dataset.numero === 'percentual'
+        ? 'Digite um número, como 5 ou 1,5.'
+        : 'Digite um valor em reais, como 1.250,50.';
+    }
+    const min = el.dataset.min !== undefined ? Number(el.dataset.min) : null;
+    const max = el.dataset.max !== undefined ? Number(el.dataset.max) : null;
+    if (min !== null && n < min) return min > 0 ? 'O valor precisa ser maior que zero.' : 'O valor não pode ser negativo.';
+    if (max !== null && n > max) return `O valor não pode passar de ${formatarNumeroDoCampo(max, el.dataset.numero)}.`;
+    return null;
+  }
+  if (el.validity.valid) return null;
+  if (el.validity.valueMissing) {
+    if (el.tagName === 'SELECT') return 'Escolha uma opção.';
+    if (el.type === 'date') return 'Informe a data.';
+    return 'Preencha este campo.';
+  }
+  if (el.validity.tooShort) return `Use pelo menos ${el.minLength} caracteres (agora são ${el.value.length}).`;
+  if (el.validity.rangeUnderflow || el.validity.rangeOverflow) return `Use um número de ${el.min} a ${el.max}.`;
+  if (el.validity.stepMismatch) return 'Use um número inteiro.';
+  if (el.validity.badInput) return el.type === 'date' ? 'Data inválida. Use dia, mês e ano.' : 'Valor inválido.';
+  return el.validationMessage;
+}
+
+function idDoErro(el) { return (el.id || el.name) + '-erro'; }
+
+function mostrarErroDoCampo(el, msg) {
+  const id = idDoErro(el);
+  let p = document.getElementById(id);
+  if (!p) {
+    p = document.createElement('p');
+    p.id = id;
+    p.className = 'campo-erro';
+    (el.closest('.field') || el).insertAdjacentElement('afterend', p);
+  }
+  p.textContent = msg;
+  el.setAttribute('aria-invalid', 'true');
+  const descritos = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+  if (!descritos.includes(id)) el.setAttribute('aria-describedby', [...descritos, id].join(' '));
+}
+
+function limparErroDoCampo(el) {
+  const id = idDoErro(el);
+  const p = document.getElementById(id);
+  if (p) p.remove();
+  el.removeAttribute('aria-invalid');
+  const descritos = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(d => d && d !== id);
+  if (descritos.length) el.setAttribute('aria-describedby', descritos.join(' '));
+  else el.removeAttribute('aria-describedby');
+}
+
+function limparErrosDoFormulario(form) {
+  form.querySelectorAll('[aria-invalid="true"]').forEach(el => {
+    if (document.getElementById(idDoErro(el))) limparErroDoCampo(el);
+  });
+}
+
+document.querySelectorAll('form').forEach(f => { f.noValidate = true; });
+
+document.addEventListener('submit', (e) => {
+  const form = e.target;
+  if (form.hasAttribute('data-validacao-propria')) return;
+  const invalidos = [];
+  Array.from(form.elements).forEach(el => {
+    if (!el.matches('input, select, textarea') || el.type === 'hidden' || el.disabled) return;
+    const msg = elementoVisivel(el) ? mensagemDeErroDoCampo(el) : null;
+    if (msg) {
+      mostrarErroDoCampo(el, msg);
+      invalidos.push(el);
+    } else if (el.getAttribute('aria-invalid') === 'true' && document.getElementById(idDoErro(el))) {
+      limparErroDoCampo(el);
+    }
+  });
+  if (invalidos.length) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    invalidos[0].focus();
+  }
+}, true);
+
+['input', 'change'].forEach(tipo => document.addEventListener(tipo, (e) => {
+  const el = e.target;
+  if (el.getAttribute && el.getAttribute('aria-invalid') === 'true' && document.getElementById(idDoErro(el))) {
+    if (!mensagemDeErroDoCampo(el)) limparErroDoCampo(el);
+  }
+}));
 
 // Envio de formulário: não deixa enviar duas vezes (o botão fica desabilitado
 // enquanto a gravação não volta) e, se o envio deu certo (a função não devolveu
@@ -1886,19 +2077,19 @@ const LABELS_DIVIDA = {
 // direto em R$ (valor fixo daquele mês).
 function updateTotalPreview() {
   const criando = !document.getElementById('dividaId').value;
-  const aluguel = Number(document.getElementById('fAluguel').value) || 0;
+  const aluguel = valorCampo('fAluguel');
   const juros = criando
-    ? aluguel * (Number(document.getElementById('fJurosPercentual').value) || 0) / 100
-    : (Number(document.getElementById('fJuros').value) || 0);
+    ? aluguel * valorCampo('fJurosPercentual') / 100
+    : valorCampo('fJuros');
   const multa = criando
-    ? aluguel * (Number(document.getElementById('fMultaPercentual').value) || 0) / 100
-    : (Number(document.getElementById('fMulta').value) || 0);
+    ? aluguel * valorCampo('fMultaPercentual') / 100
+    : valorCampo('fMulta');
   const condominioDireto = document.getElementById('fCondominioDireto').value === '1';
-  const condominioValor = Number(document.getElementById('fCondominio').value) || 0;
+  const condominioValor = valorCampo('fCondominio');
   const condominio = condominioDireto ? 0 : condominioValor;
   const total = calcTotal({
     aluguel,
-    desconto: document.getElementById('fDesconto').value,
+    desconto: valorCampo('fDesconto'),
     juros,
     multa,
     condominio,
@@ -1911,7 +2102,7 @@ function updateTotalPreview() {
   let percentualCorretor = 0;
   if (criando) {
     percentualCorretor = document.getElementById('fCorretorNome').value
-      ? (Number(document.getElementById('fCorretorPercentual').value) || 0)
+      ? valorCampo('fCorretorPercentual')
       : 0;
   } else {
     const achado = encontrarDivida(document.getElementById('dividaId').value);
@@ -1947,8 +2138,8 @@ document.getElementById('btnNovoContrato').addEventListener('click', () => {
   document.getElementById('modalContratoTitle').textContent = 'Novo contrato';
   document.getElementById('fDataInicio').value = todayStr();
   document.getElementById('fDiaPagamento').value = new Date().getDate();
-  document.getElementById('fJurosPercentual').value = state.config.taxaJurosMensal || '';
-  document.getElementById('fMultaPercentual').value = state.config.taxaMultaPercent || '';
+  escreverValor('fJurosPercentual', state.config.taxaJurosMensal || '');
+  escreverValor('fMultaPercentual', state.config.taxaMultaPercent || '');
   document.getElementById('fCampoDataInicio').classList.remove('hidden');
   document.getElementById('fCampoDiaPagamento').classList.remove('hidden');
   document.getElementById('fCampoImovel').classList.remove('hidden');
@@ -1962,7 +2153,7 @@ document.getElementById('btnNovoContrato').addEventListener('click', () => {
   document.getElementById('fCampoVencimento').classList.add('hidden');
   document.getElementById('fCampoCaucao').classList.remove('hidden');
   document.getElementById('fCaucaoHint').classList.remove('hidden');
-  document.getElementById('fCaucao').value = '';
+  escreverValor('fCaucao', '');
   document.getElementById('fCampoJurosPercentual').classList.remove('hidden');
   document.getElementById('fCampoMultaPercentual').classList.remove('hidden');
   document.getElementById('fCampoJuros').classList.add('hidden');
@@ -1971,7 +2162,7 @@ document.getElementById('btnNovoContrato').addEventListener('click', () => {
   document.getElementById('fCampoCorretorPercentual').classList.remove('hidden');
   populatePessoaSelect(document.getElementById('fCorretorNome'), '', 'Nenhum (sem corretor)');
   document.getElementById('fCampoCorretorPercentual').classList.add('hidden');
-  document.getElementById('fCorretorPercentual').value = 0;
+  escreverValor('fCorretorPercentual', 0);
   document.getElementById('fCorretorHint').classList.remove('hidden');
   document.getElementById('fDataInicio').required = true;
   document.getElementById('fDiaPagamento').required = true;
@@ -1990,13 +2181,13 @@ function openEditDivida(dividaId) {
   document.getElementById('contratoId').value = c.id;
   document.getElementById('dividaId').value = d.id;
   document.getElementById('fVencimento').value = d.vencimento;
-  document.getElementById('fAluguel').value = d.aluguel;
-  document.getElementById('fDesconto').value = d.desconto || '';
-  document.getElementById('fJuros').value = d.juros || '';
-  document.getElementById('fMulta').value = d.multa || '';
-  document.getElementById('fCondominio').value = d.condominio || '';
+  escreverValor('fAluguel', d.aluguel);
+  escreverValor('fDesconto', d.desconto || '');
+  escreverValor('fJuros', d.juros || '');
+  escreverValor('fMulta', d.multa || '');
+  escreverValor('fCondominio', d.condominio || '');
   document.getElementById('fCondominioDireto').value = d.condominioDireto ? '1' : '0';
-  document.getElementById('fValorAtraso').value = d.valorAtrasoBase || '';
+  escreverValor('fValorAtraso', d.valorAtrasoBase || '');
   document.getElementById('fObservacao').value = d.observacao || '';
   document.getElementById('modalContratoTitle').textContent = `Editar dívida — ${c.imovel} (${c.inquilino})`;
   document.getElementById('fCampoDataInicio').classList.add('hidden');
@@ -2028,7 +2219,7 @@ function openEditDivida(dividaId) {
 
 aoEnviar(formContrato, async () => {
   const dividaId = document.getElementById('dividaId').value;
-  const aluguelValue = Number(document.getElementById('fAluguel').value) || 0;
+  const aluguelValue = valorCampo('fAluguel');
 
   // Na edição de uma dívida já existente, juros/multa são digitados direto em
   // R$ (valor fixo daquele mês). Na criação de um contrato novo, são digitados
@@ -2036,23 +2227,23 @@ aoEnviar(formContrato, async () => {
   // convertidos para R$ aqui — a partir daí a dívida guarda só o valor em R$.
   let jurosValue, multaValue;
   if (dividaId) {
-    jurosValue = Number(document.getElementById('fJuros').value) || 0;
-    multaValue = Number(document.getElementById('fMulta').value) || 0;
+    jurosValue = valorCampo('fJuros');
+    multaValue = valorCampo('fMulta');
   } else {
-    const jurosPct = Number(document.getElementById('fJurosPercentual').value) || 0;
-    const multaPct = Number(document.getElementById('fMultaPercentual').value) || 0;
+    const jurosPct = valorCampo('fJurosPercentual');
+    const multaPct = valorCampo('fMultaPercentual');
     jurosValue = aluguelValue * jurosPct / 100;
     multaValue = aluguelValue * multaPct / 100;
   }
 
   const camposDivida = {
     aluguel: aluguelValue,
-    desconto: Number(document.getElementById('fDesconto').value) || 0,
+    desconto: valorCampo('fDesconto'),
     juros: jurosValue,
     multa: multaValue,
-    condominio: Number(document.getElementById('fCondominio').value) || 0,
+    condominio: valorCampo('fCondominio'),
     condominioDireto: document.getElementById('fCondominioDireto').value === '1',
-    valorAtrasoBase: Number(document.getElementById('fValorAtraso').value) || 0,
+    valorAtrasoBase: valorCampo('fValorAtraso'),
     observacao: document.getElementById('fObservacao').value.trim(),
   };
   camposDivida.total = calcTotal(camposDivida);
@@ -2080,8 +2271,8 @@ aoEnviar(formContrato, async () => {
     }
 
     const corretorNome = document.getElementById('fCorretorNome').value;
-    const corretorPercentual = Number(document.getElementById('fCorretorPercentual').value) || 0;
-    const caucao = Number(document.getElementById('fCaucao').value) || 0;
+    const corretorPercentual = valorCampo('fCorretorPercentual');
+    const caucao = valorCampo('fCaucao');
 
     const primeiroVenc = primeiroVencimento(dataInicio, diaPagamento);
     const vencimentos = gerarVencimentosAtePresente(primeiroVenc);
@@ -2328,7 +2519,7 @@ function openContratoInfo(contratoId) {
   populateCarteiraSelect(document.getElementById('infoCarteira'), c.carteiraId || '');
   atualizarVisibilidadeCamposCarteira();
   document.getElementById('infoInquilino').value = c.inquilino;
-  document.getElementById('infoCaucao').value = c.caucao || '';
+  escreverValor('infoCaucao', c.caucao || '');
   populatePessoaSelect(document.getElementById('infoQuemRecebeu'), c.quemRecebeu || '', 'Nenhum / outro');
   document.getElementById('infoContratoSubtitle').textContent = (c.dataInicio
     ? `Contrato #${c.numero} — Início: ${formatDate(c.dataInicio)}, todo dia ${c.diaPagamento}`
@@ -2337,7 +2528,7 @@ function openContratoInfo(contratoId) {
   populatePessoaSelect(document.getElementById('infoCorretorNome'), c.corretorNome || '', 'Nenhum (sem corretor)');
   document.getElementById('infoCampoCorretorPercentual').classList.toggle('hidden', !c.corretorNome);
   document.getElementById('infoCampoCorretorValor').classList.toggle('hidden', !c.corretorNome);
-  document.getElementById('infoCorretorPercentual').value = c.corretorNome ? c.corretorPercentual : 0;
+  escreverValor('infoCorretorPercentual', c.corretorNome ? c.corretorPercentual : 0);
   atualizarValorCorretorInfo();
 
   renderAnexoAtual(c);
@@ -2347,7 +2538,7 @@ function openContratoInfo(contratoId) {
 function atualizarValorCorretorInfo() {
   const id = document.getElementById('infoContratoId').value;
   const c = state.contratos.find(x => x.id === id);
-  const percentual = Number(document.getElementById('infoCorretorPercentual').value) || 0;
+  const percentual = valorCampo('infoCorretorPercentual');
   const aluguel = c ? c.aluguel : 0;
   document.getElementById('infoCorretorValor').textContent = formatCurrency(aluguel * percentual / 100);
 }
@@ -2370,8 +2561,8 @@ aoEnviar(formContratoInfo, async () => {
   c.inquilino = document.getElementById('infoInquilino').value.trim();
   c.quemRecebeu = document.getElementById('infoQuemRecebeu').value.trim();
   c.corretorNome = document.getElementById('infoCorretorNome').value;
-  c.corretorPercentual = Number(document.getElementById('infoCorretorPercentual').value) || 0;
-  c.caucao = Number(document.getElementById('infoCaucao').value) || 0;
+  c.corretorPercentual = valorCampo('infoCorretorPercentual');
+  c.caucao = valorCampo('infoCaucao');
 
   const carteiraAntiga = antes.carteiraId || '';
   c.carteiraId = document.getElementById('infoCarteira').value || '';
@@ -2487,9 +2678,9 @@ function openReajuste(contratoId) {
     const valorSugerido = valorReajusteSugerido(c);
     document.getElementById('reajusteSugestaoHint').textContent =
       `Este contrato está no aniversário de reajuste. Sugestão (${state.config.percentualReajusteSugerido || 0}%): ${formatCurrency(valorSugerido)}.`;
-    document.getElementById('reajusteNovoValor').value = valorSugerido.toFixed(2);
+    escreverValor('reajusteNovoValor', valorSugerido.toFixed(2));
   } else {
-    document.getElementById('reajusteNovoValor').value = '';
+    escreverValor('reajusteNovoValor', '');
   }
   openModal('modalReajuste');
 }
@@ -2499,7 +2690,7 @@ aoEnviar(formReajuste, async () => {
   const c = state.contratos.find(x => x.id === id);
   if (!c) return;
   const valorAntigo = c.aluguel;
-  const novoValor = Number(document.getElementById('reajusteNovoValor').value) || 0;
+  const novoValor = valorCampo('reajusteNovoValor');
   if (novoValor <= 0) return false;
 
   c.aluguel = novoValor;
@@ -2532,7 +2723,7 @@ function abrirDevolucaoCaucao(contratoId) {
   document.getElementById('devCaucaoContratoId').value = c.id;
   document.getElementById('devCaucaoInfo').textContent = `${c.imovel} — ${c.inquilino} — Caução: ${formatCurrency(c.caucao)}`;
   document.getElementById('devCaucaoData').value = c.dataCaucaoDevolvida || todayStr();
-  document.getElementById('devCaucaoValor').value = c.valorCaucaoDevolvida != null ? c.valorCaucaoDevolvida : c.caucao;
+  escreverValor('devCaucaoValor', c.valorCaucaoDevolvida != null ? c.valorCaucaoDevolvida : c.caucao);
   document.getElementById('devCaucaoObservacao').value = '';
   openModal('modalDevolucaoCaucao');
 }
@@ -2544,7 +2735,7 @@ aoEnviar(formDevolucaoCaucao, async () => {
 
   c.caucaoDevolvida = true;
   c.dataCaucaoDevolvida = document.getElementById('devCaucaoData').value;
-  c.valorCaucaoDevolvida = Number(document.getElementById('devCaucaoValor').value) || 0;
+  c.valorCaucaoDevolvida = valorCampo('devCaucaoValor');
   const observacao = document.getElementById('devCaucaoObservacao').value.trim();
 
   registrarAuditoria('caucao_devolvida', `Caução devolvida: ${c.imovel} - ${c.inquilino} (${formatCurrency(c.valorCaucaoDevolvida)} em ${formatDate(c.dataCaucaoDevolvida)})${observacao ? ' — ' + observacao : ''}`);
@@ -2579,13 +2770,12 @@ function atualizarValorSugerido() {
   const achado = encontrarDivida(document.getElementById('pagDividaId').value);
   if (!achado) return;
   const { contrato: c, divida: d } = achado;
-  const desconto = Number(document.getElementById('pagDesconto').value) || 0;
+  const desconto = valorCampo('pagDesconto');
   const recebido = condominioRecebidoNoForm();
-  document.getElementById('pagValor').value =
-    Math.max(valorSugeridoPagamento(d, recebido) - desconto, 0).toFixed(2);
+  escreverValor('pagValor', Math.max(valorSugeridoPagamento(d, recebido) - desconto, 0));
   document.getElementById('pagLiquidoPrevia').textContent = formatCurrency(
     valorLiquidoPagamento(c, d, {
-      valor: Number(document.getElementById('pagValor').value) || 0,
+      valor: valorCampo('pagValor'),
       condominioRecebido: recebido,
     })
   );
@@ -2599,7 +2789,7 @@ function openPagamento(dividaId) {
   document.getElementById('pagContratoInfo').textContent = `#${c.numero} — ${c.imovel} — ${c.inquilino} — Vencimento: ${formatDate(d.vencimento)}`;
   document.getElementById('pagExtrato').innerHTML = extratoDividaHtml(c, d);
   document.getElementById('pagData').value = todayStr();
-  document.getElementById('pagDesconto').value = '';
+  escreverValor('pagDesconto', '');
   document.getElementById('pagMotivoDesconto').value = '';
   document.getElementById('pagCampoMotivoDesconto').classList.add('hidden');
   document.getElementById('pagForma').value = '';
@@ -2635,16 +2825,16 @@ document.getElementById('btnSomarAtraso').addEventListener('click', () => {
   const achado = encontrarDivida(document.getElementById('pagDividaId').value);
   if (!achado) return;
   const { divida: d } = achado;
-  const desconto = Number(document.getElementById('pagDesconto').value) || 0;
+  const desconto = valorCampo('pagDesconto');
   const comAtraso = valorSugeridoPagamento(d, condominioRecebidoNoForm()) + calcAtrasoAtual(d) - desconto;
-  document.getElementById('pagValor').value = Math.max(comAtraso, 0).toFixed(2);
+  escreverValor('pagValor', Math.max(comAtraso, 0).toFixed(2));
   showToast('Juros/multa por atraso somados ao valor.', 'success');
 });
 
 document.getElementById('pagCondominioRecebido').addEventListener('change', atualizarValorSugerido);
 
 document.getElementById('pagDesconto').addEventListener('input', () => {
-  const desconto = Number(document.getElementById('pagDesconto').value) || 0;
+  const desconto = valorCampo('pagDesconto');
   atualizarValorSugerido();
   document.getElementById('pagCampoMotivoDesconto').classList.toggle('hidden', desconto <= 0);
 });
@@ -2656,7 +2846,7 @@ document.getElementById('pagValor').addEventListener('input', () => {
   const { contrato: c, divida: d } = achado;
   document.getElementById('pagLiquidoPrevia').textContent = formatCurrency(
     valorLiquidoPagamento(c, d, {
-      valor: Number(document.getElementById('pagValor').value) || 0,
+      valor: valorCampo('pagValor'),
       condominioRecebido: condominioRecebidoNoForm(),
     })
   );
@@ -2669,9 +2859,9 @@ aoEnviar(formPagamento, async () => {
   const { contrato: c, divida: d } = achado;
   const pagamento = {
     data: document.getElementById('pagData').value,
-    desconto: Number(document.getElementById('pagDesconto').value) || 0,
+    desconto: valorCampo('pagDesconto'),
     motivoDesconto: document.getElementById('pagMotivoDesconto').value.trim(),
-    valor: Number(document.getElementById('pagValor').value) || 0,
+    valor: valorCampo('pagValor'),
     forma: document.getElementById('pagForma').value,
     quemRecebeu: document.getElementById('pagQuemRecebeu').value.trim(),
     condominioRecebido: condominioCobrado(d) > 0 ? condominioRecebidoNoForm() : false,
@@ -3659,14 +3849,15 @@ const DESPESAS_POR_PAGINA = 20;
 let despesasPaginaAtual = 1;
 
 function renderDespesas() {
-  if (!document.getElementById('despData').value) document.getElementById('despData').value = todayStr();
-  populateDespesaContratoSelect();
-  populateDespesaAnoFilter();
-
   const selectCarteira = document.getElementById('despCarteira');
-  // com uma edição em andamento, não mexe no que já está escolhido no formulário
-  populateCarteiraSelect(selectCarteira, document.getElementById('despesaId').value ? selectCarteira.value : carteiraAtiva);
-  atualizarVisibilidadeCamposCarteira();
+  semSujar(formDespesa, () => {
+    if (!document.getElementById('despData').value) document.getElementById('despData').value = todayStr();
+    populateDespesaContratoSelect();
+    // com uma edição em andamento, não mexe no que já está escolhido no formulário
+    populateCarteiraSelect(selectCarteira, document.getElementById('despesaId').value ? selectCarteira.value : carteiraAtiva);
+    atualizarVisibilidadeCamposCarteira();
+  });
+  populateDespesaAnoFilter();
 
   const ano = Number(document.getElementById('despesaFiltroAno').value);
   renderDespesasAnoChart();
@@ -3777,13 +3968,15 @@ async function excluirDespesa(id) {
 
 const LABELS_DESPESA = { data: 'Data', descricao: 'Descrição', valor: 'Valor (R$)', contratoId: 'Contrato relacionado' };
 
-function editarDespesa(id) {
+async function editarDespesa(id) {
+  // clicar em "Editar" com outro item digitado e não salvo não pode apagar o texto sem aviso
+  if (estaSujo(formDespesa) && !(await confirmarDescarte())) return;
   const d = state.despesas.find(x => x.id === id);
   if (!d) return;
   document.getElementById('despesaId').value = d.id;
   document.getElementById('despData').value = d.data;
   document.getElementById('despDescricao').value = d.descricao;
-  document.getElementById('despValor').value = d.valor;
+  escreverValor('despValor', d.valor);
   populateDespesaContratoSelect();
   document.getElementById('despContrato').value = d.contratoId || '';
   populateCarteiraSelect(document.getElementById('despCarteira'), d.carteiraId || '');
@@ -3792,6 +3985,7 @@ function editarDespesa(id) {
   document.getElementById('btnSalvarDespesa').textContent = 'Salvar alterações';
   document.getElementById('btnCancelarEdicaoDespesa').classList.remove('hidden');
   document.getElementById('despDescricao').focus();
+  marcarLimpo(formDespesa);
 }
 
 function cancelarEdicaoDespesa() {
@@ -3804,6 +3998,7 @@ function cancelarEdicaoDespesa() {
   document.getElementById('formDespesaTitle').textContent = 'Nova despesa';
   document.getElementById('btnSalvarDespesa').textContent = 'Adicionar despesa';
   document.getElementById('btnCancelarEdicaoDespesa').classList.add('hidden');
+  marcarLimpo(formDespesa);
 }
 
 document.getElementById('btnCancelarEdicaoDespesa').addEventListener('click', cancelarEdicaoDespesa);
@@ -3816,7 +4011,7 @@ aoEnviar(formDespesa, async () => {
   const despesaId = document.getElementById('despesaId').value;
   const data = document.getElementById('despData').value;
   const descricao = document.getElementById('despDescricao').value.trim();
-  const valor = Number(document.getElementById('despValor').value) || 0;
+  const valor = valorCampo('despValor');
   const contratoId = document.getElementById('despContrato').value || null;
   // despesa ligada a contrato herda a carteira dele: não guarda carteira própria
   const carteiraId = contratoId ? '' : (document.getElementById('despCarteira').value || '');
@@ -3863,7 +4058,8 @@ document.getElementById('despesaBusca').addEventListener('input', () => {
 // O botão do topo leva ao formulário: em tela larga ele fica na coluna da
 // direita, em tela estreita logo acima da lista — nos dois casos o que importa
 // é cair com o cursor no campo de descrição.
-document.getElementById('btnFocarNovaDespesa').addEventListener('click', () => {
+document.getElementById('btnFocarNovaDespesa').addEventListener('click', async () => {
+  if (estaSujo(formDespesa) && !(await confirmarDescarte())) return;
   cancelarEdicaoDespesa();
   // o foco vem primeiro: é ele que importa. A rolagem suave é conforto, e
   // deixá-la depois garante que o cursor chega no campo de qualquer jeito.
@@ -3911,17 +4107,28 @@ function mostrarSalvo(idMsg, texto) {
 const configForm = document.getElementById('configForm');
 
 function renderConfig() {
-  document.getElementById('configTaxaJuros').value = state.config.taxaJurosMensal;
-  document.getElementById('configTaxaMulta').value = state.config.taxaMultaPercent;
-  document.getElementById('configCorretorPercentualPadrao').value = state.config.corretorPercentualPadrao || 0;
-  document.getElementById('configPercentualReajusteSugerido').value = state.config.percentualReajusteSugerido || 0;
+  // um formulário com algo digitado e não salvo não é sobrescrito por um
+  // redesenho vindo de outra tela
+  if (!estaSujo(configForm)) {
+    escreverValor('configTaxaJuros', state.config.taxaJurosMensal);
+    escreverValor('configTaxaMulta', state.config.taxaMultaPercent);
+    marcarLimpo(configForm);
+  }
+  if (!estaSujo(configPadraoForm)) {
+    escreverValor('configCorretorPercentualPadrao', state.config.corretorPercentualPadrao || 0);
+    marcarLimpo(configPadraoForm);
+  }
+  if (!estaSujo(configReajusteForm)) {
+    escreverValor('configPercentualReajusteSugerido', state.config.percentualReajusteSugerido || 0);
+    marcarLimpo(configReajusteForm);
+  }
   renderCarteirasConfig();
   renderReciboConfig();
 }
 
 aoEnviar(configForm, async () => {
-  state.config.taxaJurosMensal = Number(document.getElementById('configTaxaJuros').value) || 0;
-  state.config.taxaMultaPercent = Number(document.getElementById('configTaxaMulta').value) || 0;
+  state.config.taxaJurosMensal = valorCampo('configTaxaJuros');
+  state.config.taxaMultaPercent = valorCampo('configTaxaMulta');
   const ok = await saveState();
   renderAll();
   if (ok) mostrarSalvo('configSaved', 'Configuração salva com sucesso.');
@@ -3929,13 +4136,13 @@ aoEnviar(configForm, async () => {
 
 const configPadraoForm = document.getElementById('configPadraoForm');
 aoEnviar(configPadraoForm, async () => {
-  state.config.corretorPercentualPadrao = Number(document.getElementById('configCorretorPercentualPadrao').value) || 0;
+  state.config.corretorPercentualPadrao = valorCampo('configCorretorPercentualPadrao');
   if (await saveState()) mostrarSalvo('configPadraoSaved', 'Valores padrão salvos com sucesso.');
 });
 
 const configReajusteForm = document.getElementById('configReajusteForm');
 aoEnviar(configReajusteForm, async () => {
-  state.config.percentualReajusteSugerido = Number(document.getElementById('configPercentualReajusteSugerido').value) || 0;
+  state.config.percentualReajusteSugerido = valorCampo('configPercentualReajusteSugerido');
   const ok = await saveState();
   renderAll();
   if (ok) mostrarSalvo('configReajusteSaved', 'Percentual de reajuste salvo com sucesso.');
@@ -3967,14 +4174,14 @@ function populatePessoaSelect(selectEl, valorAtual, placeholder) {
 document.getElementById('fCorretorNome').addEventListener('change', () => {
   const nome = document.getElementById('fCorretorNome').value;
   document.getElementById('fCampoCorretorPercentual').classList.toggle('hidden', !nome);
-  document.getElementById('fCorretorPercentual').value = nome ? (state.config.corretorPercentualPadrao || 5) : 0;
+  escreverValor('fCorretorPercentual', nome ? (state.config.corretorPercentualPadrao || 5) : 0);
 });
 
 document.getElementById('infoCorretorNome').addEventListener('change', () => {
   const nome = document.getElementById('infoCorretorNome').value;
   document.getElementById('infoCampoCorretorPercentual').classList.toggle('hidden', !nome);
   document.getElementById('infoCampoCorretorValor').classList.toggle('hidden', !nome);
-  document.getElementById('infoCorretorPercentual').value = nome ? (state.config.corretorPercentualPadrao || 5) : 0;
+  escreverValor('infoCorretorPercentual', nome ? (state.config.corretorPercentualPadrao || 5) : 0);
   atualizarValorCorretorInfo();
 });
 
@@ -3984,7 +4191,7 @@ function renderPessoasConfig() {
   const selectCarteira = document.getElementById('newPessoaCarteira');
   const usaCarteiras = state.carteiras.length > 0;
   // com uma edição em andamento, não mexe no que já está escolhido no formulário
-  populateCarteiraSelectPessoa(selectCarteira, document.getElementById('pessoaId').value ? selectCarteira.value : carteiraAtiva);
+  semSujar(addPessoaForm, () => populateCarteiraSelectPessoa(selectCarteira, document.getElementById('pessoaId').value ? selectCarteira.value : carteiraAtiva));
   document.getElementById('campoNewPessoaCarteira').classList.toggle('hidden', !usaCarteiras);
   document.getElementById('pessoaCarteiraHint').classList.toggle('hidden', !usaCarteiras);
 
@@ -4023,7 +4230,9 @@ function populateCarteiraSelectPessoa(selectEl, valorAtual) {
   selectEl.value = state.carteiras.some(c => c.id === atual) ? atual : '';
 }
 
-function editarPessoa(id) {
+async function editarPessoa(id) {
+  // clicar em "Editar" com outro item digitado e não salvo não pode apagar o texto sem aviso
+  if (estaSujo(addPessoaForm) && !(await confirmarDescarte())) return;
   const p = state.pessoas.find(x => x.id === id);
   if (!p) return;
   document.getElementById('pessoaId').value = p.id;
@@ -4032,6 +4241,7 @@ function editarPessoa(id) {
   document.getElementById('btnSalvarPessoa').textContent = 'Salvar alterações';
   document.getElementById('btnCancelarEdicaoPessoa').classList.remove('hidden');
   document.getElementById('newPessoaNome').focus();
+  marcarLimpo(addPessoaForm);
 }
 
 function cancelarEdicaoPessoa() {
@@ -4040,6 +4250,7 @@ function cancelarEdicaoPessoa() {
   populateCarteiraSelectPessoa(document.getElementById('newPessoaCarteira'), carteiraAtiva);
   document.getElementById('btnSalvarPessoa').textContent = 'Adicionar pessoa';
   document.getElementById('btnCancelarEdicaoPessoa').classList.add('hidden');
+  marcarLimpo(addPessoaForm);
 }
 
 document.getElementById('btnCancelarEdicaoPessoa').addEventListener('click', cancelarEdicaoPessoa);
@@ -4137,7 +4348,9 @@ function renderCarteirasConfig() {
   });
 }
 
-function editarCarteira(id) {
+async function editarCarteira(id) {
+  // clicar em "Editar" com outro item digitado e não salvo não pode apagar o texto sem aviso
+  if (estaSujo(formCarteira) && !(await confirmarDescarte())) return;
   const c = carteiraPorId(id);
   if (!c) return;
   document.getElementById('carteiraId').value = c.id;
@@ -4148,6 +4361,7 @@ function editarCarteira(id) {
   document.getElementById('btnSalvarCarteira').textContent = 'Salvar alterações';
   document.getElementById('btnCancelarEdicaoCarteira').classList.remove('hidden');
   document.getElementById('carteiraNome').focus();
+  marcarLimpo(formCarteira);
 }
 
 function cancelarEdicaoCarteira() {
@@ -4155,6 +4369,7 @@ function cancelarEdicaoCarteira() {
   formCarteira.reset();
   document.getElementById('btnSalvarCarteira').textContent = 'Adicionar carteira';
   document.getElementById('btnCancelarEdicaoCarteira').classList.add('hidden');
+  marcarLimpo(formCarteira);
 }
 
 document.getElementById('btnCancelarEdicaoCarteira').addEventListener('click', cancelarEdicaoCarteira);
@@ -4256,8 +4471,10 @@ function renderImoveis() {
   const busca = document.getElementById('uiImoveisSearch').value.trim().toLowerCase();
   const selectCarteira = document.getElementById('newImovelCarteira');
   // com uma edição em andamento, não mexe no que já está escolhido no formulário
-  populateCarteiraSelect(selectCarteira, document.getElementById('imovelId').value ? selectCarteira.value : carteiraAtiva);
-  atualizarVisibilidadeCamposCarteira();
+  semSujar(formImovel, () => {
+    populateCarteiraSelect(selectCarteira, document.getElementById('imovelId').value ? selectCarteira.value : carteiraAtiva);
+    atualizarVisibilidadeCamposCarteira();
+  });
 
   const lista = busca
     ? todos.filter(i => (i.nome + ' ' + carteiraNome(i.carteiraId)).toLowerCase().includes(busca))
@@ -4330,7 +4547,9 @@ async function removeImovel(id) {
 // Editar carrega o imóvel no mesmo formulário do lado (que passa a ser "Editar
 // imóvel"), igual ao formulário de Despesas — a carteira é um select, então não
 // dá para editar por `prompt`.
-function editarImovel(id) {
+async function editarImovel(id) {
+  // clicar em "Editar" com outro item digitado e não salvo não pode apagar o texto sem aviso
+  if (estaSujo(formImovel) && !(await confirmarDescarte())) return;
   const i = state.imoveis.find(x => x.id === id);
   if (!i) return;
   document.getElementById('imovelId').value = i.id;
@@ -4341,6 +4560,7 @@ function editarImovel(id) {
   document.getElementById('btnSalvarImovel').textContent = 'Salvar alterações';
   document.getElementById('btnCancelarEdicaoImovel').classList.remove('hidden');
   document.getElementById('newImovelNome').focus();
+  marcarLimpo(formImovel);
 }
 
 function cancelarEdicaoImovel() {
@@ -4351,6 +4571,7 @@ function cancelarEdicaoImovel() {
   document.getElementById('formImovelTitle').innerHTML = `${icon('plus')} Novo imóvel`;
   document.getElementById('btnSalvarImovel').textContent = 'Adicionar imóvel';
   document.getElementById('btnCancelarEdicaoImovel').classList.add('hidden');
+  marcarLimpo(formImovel);
 }
 
 document.getElementById('btnCancelarEdicaoImovel').addEventListener('click', cancelarEdicaoImovel);
@@ -4413,7 +4634,10 @@ aoEnviar(formImovel, async () => {
  * dentro de Configurações, e conta de usuário não é "configuração do sistema".
  */
 function renderUsuarios() {
-  document.getElementById('accUsername').value = currentUsername;
+  if (!estaSujo(accountForm)) {
+    document.getElementById('accUsername').value = currentUsername;
+    marcarLimpo(accountForm);
+  }
   loadUsers();
   renderPessoasConfig();
 }
@@ -5053,6 +5277,7 @@ function renderReciboConfig() {
   document.getElementById('reciboCidade').value = cfg.cidade;
   document.getElementById('reciboCorpo').value = cfg.corpo;
   document.getElementById('reciboRodape').value = cfg.rodape;
+  marcarLimpo(document.getElementById('formRecibo'));
   renderCodigosRecibo();
 }
 

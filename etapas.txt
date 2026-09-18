@@ -615,6 +615,18 @@ inclusive a carteira selecionada.
       regra só, em `tokens.css` — cada ícone herda a cor do contexto sem CSS próprio
 - [x] Tema claro/escuro com preferência salva; na primeira visita segue o sistema
       operacional e acompanha mudanças em tempo real enquanto não houver escolha manual
+- [x] Campos de valor (dinheiro e percentual) são de texto com `inputmode="decimal"` e
+      `data-numero`, não `type="number"`: o campo numérico do navegador recusava
+      "1.250,50" e, em navegador em inglês, lia "1250,50" como 125050. `lerNumero()`
+      aceita 1.250,50 / 1250,50 / 1250.50 / 1.250 (ponto seguido de 3 dígitos é milhar);
+      `valorCampo()` e `escreverValor()` são as únicas portas de leitura e escrita desses
+      campos, e ao sair do campo o valor é mostrado no formato brasileiro
+- [x] Validação dos formulários sem o balão do navegador: o erro aparece logo abaixo do
+      campo (ligado por `aria-describedby`, com `aria-invalid`), o foco vai para o primeiro
+      campo com problema e nada é enviado; a mensagem some quando o campo é corrigido
+- [x] Preencher um formulário por código (abrir para editar, trocar a carteira ativa,
+      redesenhar a tela) não conta como alteração; clicar em "Editar" ou "Nova despesa"
+      com algo digitado e não salvo pergunta antes de descartar
 - [x] Responsivo de 360px a telas grandes
 - [x] Atalhos: `N` (ou `n`) novo contrato, `/` busca do topo, `?` lista de atalhos, `Esc`
       fecha modais — inativos enquanto o foco está num campo. Os de uma tecla podem ser
