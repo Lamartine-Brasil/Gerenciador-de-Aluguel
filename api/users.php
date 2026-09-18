@@ -46,42 +46,37 @@ if ($action === 'add' || $action === 'remove') {
     }
 }
 
+function responderErro($erro) {
+    http_response_code($erro[0]);
+    echo json_encode(['ok' => false, 'error' => $erro[1]]);
+    exit;
+}
+
 if ($action === 'add') {
     $username = trim((string)($input['username'] ?? ''));
     $password = (string)($input['password'] ?? '');
 
-    if ($username === '') {
-        http_response_code(400);
-        echo json_encode(['ok' => false, 'error' => 'Informe um nome de usuário.']);
-        exit;
-    }
-    if (strlen($password) < 8) {
-        http_response_code(400);
-        echo json_encode(['ok' => false, 'error' => 'A senha deve ter pelo menos 8 caracteres.']);
-        exit;
-    }
-
-    $auth = readAuth();
-    foreach ($auth['users'] as $u) {
-        if (strcasecmp($u['username'], $username) === 0) {
-            http_response_code(400);
-            echo json_encode(['ok' => false, 'error' => 'Já existe um usuário com esse nome.']);
-            exit;
-        }
-    }
+    if ($username === '') responderErro([400, 'Informe um nome de usuário.']);
+    if (strlen($password) < 8) responderErro([400, 'A senha deve ter pelo menos 8 caracteres.']);
 
     $newUser = [
         'id' => generateUserId(),
         'username' => $username,
         'passwordHash' => password_hash($password, PASSWORD_DEFAULT),
     ];
-    $auth['users'][] = $newUser;
-
-    if (!writeAuth($auth)) {
-        http_response_code(500);
-        echo json_encode(['ok' => false, 'error' => 'Não foi possível salvar o novo usuário.']);
-        exit;
-    }
+    $erro = null;
+    $gravou = atualizarAuth(function ($auth) use ($username, $newUser, &$erro) {
+        foreach ($auth['users'] as $u) {
+            if (strcasecmp($u['username'], $username) === 0) {
+                $erro = [400, 'Já existe um usuário com esse nome.'];
+                return null;
+            }
+        }
+        $auth['users'][] = $newUser;
+        return $auth;
+    });
+    if ($erro !== null) responderErro($erro);
+    if (!$gravou) responderErro([500, 'Não foi possível salvar o novo usuário.']);
 
     echo json_encode(['ok' => true, 'user' => publicUser($newUser)]);
     exit;
@@ -89,35 +84,28 @@ if ($action === 'add') {
 
 if ($action === 'remove') {
     $id = (string)($input['id'] ?? '');
-    $auth = readAuth();
-
-    if (count($auth['users']) <= 1) {
-        http_response_code(400);
-        echo json_encode(['ok' => false, 'error' => 'Não é possível remover o único usuário existente.']);
-        exit;
-    }
-
-    $target = findUserById($auth, $id);
-    if ($target === null) {
-        http_response_code(404);
-        echo json_encode(['ok' => false, 'error' => 'Usuário não encontrado.']);
-        exit;
-    }
-    if (hash_equals($target['username'], $currentUsername)) {
-        http_response_code(400);
-        echo json_encode(['ok' => false, 'error' => 'Você não pode remover o próprio usuário enquanto está logado com ele.']);
-        exit;
-    }
-
-    $auth['users'] = array_values(array_filter($auth['users'], function ($u) use ($id) {
-        return $u['id'] !== $id;
-    }));
-
-    if (!writeAuth($auth)) {
-        http_response_code(500);
-        echo json_encode(['ok' => false, 'error' => 'Não foi possível remover o usuário.']);
-        exit;
-    }
+    $erro = null;
+    $gravou = atualizarAuth(function ($auth) use ($id, $currentUsername, &$erro) {
+        if (count($auth['users']) <= 1) {
+            $erro = [400, 'Não é possível remover o único usuário existente.'];
+            return null;
+        }
+        $target = findUserById($auth, $id);
+        if ($target === null) {
+            $erro = [404, 'Usuário não encontrado.'];
+            return null;
+        }
+        if (hash_equals($target['username'], $currentUsername)) {
+            $erro = [400, 'Você não pode remover o próprio usuário enquanto está logado com ele.'];
+            return null;
+        }
+        $auth['users'] = array_values(array_filter($auth['users'], function ($u) use ($id) {
+            return $u['id'] !== $id;
+        }));
+        return $auth;
+    });
+    if ($erro !== null) responderErro($erro);
+    if (!$gravou) responderErro([500, 'Não foi possível remover o usuário.']);
 
     echo json_encode(['ok' => true]);
     exit;

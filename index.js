@@ -103,44 +103,6 @@ document.getElementById('btnThemeToggle').addEventListener('click', () => {
 
 initTheme();
 
-/* ===================== API ===================== */
-async function apiFetch(path, options = {}) {
-  return fetch(API_BASE + path, {
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
-}
-
-async function fetchState() {
-  const res = await apiFetch('data.php');
-  if (!res.ok) throw new Error('Falha ao carregar dados do servidor.');
-  const data = await res.json();
-  data.contratos = data.contratos || [];
-  data.config = Object.assign({}, CONFIG_PADRAO, data.config || {});
-  // o recibo é um objeto dentro de config — precisa de merge próprio, senão uma
-  // instalação antiga (sem `recibo`) ou com o objeto pela metade fica sem texto
-  data.config.recibo = Object.assign({}, RECIBO_PADRAO, data.config.recibo || {});
-  data.auditoria = data.auditoria || [];
-  data.carteiras = data.carteiras || [];
-  // pessoas substitui o antigo cadastro "corretores" (agora serve tanto para
-  // quem recebe quanto para corretor) — migra dados antigos automaticamente.
-  data.pessoas = data.pessoas || data.corretores || [];
-  delete data.corretores;
-  data.despesas = data.despesas || [];
-  data.imoveis = data.imoveis || [];
-  return data;
-}
-
-async function saveState() {
-  try {
-    const res = await apiFetch('data.php', { method: 'POST', body: JSON.stringify(state) });
-    if (!res.ok) throw new Error('Falha ao salvar dados no servidor.');
-  } catch (e) {
-    showToast('Erro ao salvar dados no servidor.', 'error');
-  }
-}
-
 /* ===================== HELPERS ===================== */
 function uuid() {
   return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9);
@@ -288,6 +250,76 @@ function formatDate(dateStr) {
   return String(d.getDate()).padStart(2, '0') + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + d.getFullYear();
 }
 
+/* ---- Números digitados (dinheiro e percentuais) ----
+ * Os campos de valor são de texto com teclado numérico (inputmode="decimal"),
+ * não type="number": o campo numérico do navegador recusava "1.250,50" e, num
+ * navegador em inglês, lia "1250,50" como 125050. lerNumero() aceita os jeitos
+ * de escrever que aparecem na prática:
+ *   1.250,50   1250,50   1250.50   1.250   R$ 1.250,50
+ * Um ponto seguido de exatamente 3 dígitos é separador de milhar ("1.250" =
+ * mil duzentos e cinquenta, como se escreve no Brasil); com 1 ou 2 dígitos é
+ * decimal ("1250.5"). Devolve null para campo vazio e NaN para texto inválido.
+ */
+function lerNumero(texto) {
+  let t = String(texto == null ? '' : texto).trim().replace(/^R\$/i, '').replace(/\s+/g, '');
+  if (t === '') return null;
+  const negativo = t.startsWith('-');
+  if (negativo) t = t.slice(1);
+  const temVirgula = t.includes(',');
+  const temPonto = t.includes('.');
+  const gruposDeMilhar = (grupos) => grupos.every((g, i) => /^\d+$/.test(g) && (i === 0 ? g.length <= 3 : g.length === 3));
+  if (temVirgula && temPonto) {
+    const decimal = t.lastIndexOf(',') > t.lastIndexOf('.') ? ',' : '.';
+    const milhar = decimal === ',' ? '.' : ',';
+    const partes = t.split(decimal);
+    if (partes.length !== 2 || !gruposDeMilhar(partes[0].split(milhar))) return NaN;
+    t = partes[0].split(milhar).join('') + '.' + partes[1];
+  } else if (temVirgula) {
+    const partes = t.split(',');
+    if (partes.length !== 2) return NaN;
+    t = partes[0] + '.' + partes[1];
+  } else if (temPonto) {
+    const partes = t.split('.');
+    const ehMilhar = partes.length > 2 || partes[1].length === 3;
+    if (ehMilhar) {
+      if (!gruposDeMilhar(partes)) return NaN;
+      t = partes.join('');
+    }
+  }
+  if (!/^(\d+(\.\d*)?|\.\d+)$/.test(t)) return NaN;
+  const n = Number(t);
+  return negativo ? -n : n;
+}
+
+function formatarNumeroDoCampo(n, tipo) {
+  return tipo === 'percentual'
+    ? n.toLocaleString('pt-BR', { maximumFractionDigits: 4 })
+    : n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Valor de um campo numérico para as contas: vazio ou inválido conta como 0
+// (a validação do formulário é que impede enviar um valor inválido).
+function valorCampo(id) {
+  const n = lerNumero(document.getElementById(id).value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function escreverValor(id, valor) {
+  const el = document.getElementById(id);
+  const n = valor === '' || valor === null || valor === undefined
+    ? null
+    : (typeof valor === 'number' ? valor : lerNumero(valor));
+  el.value = Number.isFinite(n) ? formatarNumeroDoCampo(n, el.dataset.numero) : '';
+}
+
+// Ao sair de um campo de valor válido, mostra no formato brasileiro (1.250,50).
+document.addEventListener('change', (e) => {
+  const el = e.target;
+  if (!el.matches || !el.matches('[data-numero]')) return;
+  const n = lerNumero(el.value);
+  if (Number.isFinite(n)) el.value = formatarNumeroDoCampo(n, el.dataset.numero);
+}, true);
+
 function formatCurrency(value) {
   return (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -394,14 +426,813 @@ function valorLiquidoPagamento(c, d, p) {
   return (Number(p.valor) || 0) - comissaoCorretor(c, d) - condominioNoPagamento(d, p);
 }
 
-function showToast(message, type = '') {
+/* ===================== AVISOS =====================
+ * Duas regiões fixas no HTML: sucesso em role="status", que some sozinho, e
+ * erro em role="alert", que fica na tela até a pessoa fechar — um erro que
+ * some em dois segundos é um erro que ninguém leu. `opcoes.acao` põe um botão
+ * no aviso de erro ({ rotulo: 'Tentar de novo', fn }).
+ */
+function showToast(message, type = '', opcoes = {}) {
+  if (type === 'error') { mostrarErro(message, opcoes); return; }
   const toast = document.getElementById('toast');
-  toast.textContent = message;
   toast.className = 'toast' + (type ? ' toast-' + type : '');
-  toast.classList.remove('hidden');
+  toast.textContent = message;
   clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => toast.classList.add('hidden'), 2600);
+  showToast._t = setTimeout(() => { toast.textContent = ''; }, 4500);
 }
+
+let acaoDoErro = null;
+
+function mostrarErro(message, { acao } = {}) {
+  const btnAcao = document.getElementById('toastErroAcao');
+  acaoDoErro = acao ? acao.fn : null;
+  btnAcao.textContent = acao ? acao.rotulo : '';
+  btnAcao.classList.toggle('hidden', !acao);
+  document.getElementById('toastErroTexto').textContent = message;
+  document.getElementById('toastErro').classList.add('is-visivel');
+}
+
+function fecharErro() {
+  const caixa = document.getElementById('toastErro');
+  const tinhaFoco = caixa.contains(document.activeElement);
+  caixa.classList.remove('is-visivel');
+  document.getElementById('toastErroTexto').textContent = '';
+  acaoDoErro = null;
+  if (tinhaFoco) focarTituloDaTela();
+}
+
+document.getElementById('toastErroFechar').addEventListener('click', fecharErro);
+document.getElementById('toastErroAcao').addEventListener('click', () => {
+  const fn = acaoDoErro;
+  fecharErro();
+  if (fn) fn();
+});
+
+/* ===================== FOCO =====================
+ * Redesenhar uma lista com innerHTML destrói o botão que estava com o foco, e
+ * quem usa teclado voltava para o começo da página. `chaveDoElemento()`
+ * descreve o elemento de um jeito que sobrevive ao redesenho (id, ou os data-*
+ * que o identificam dentro do painel), e `restaurarFoco()` acha o equivalente.
+ */
+const ATRIBUTOS_DE_FOCO = [
+  'data-divida-action', 'data-divida-id', 'data-grupo-action', 'data-contrato-id',
+  'data-edit-despesa', 'data-remove-despesa', 'data-edit-imovel', 'data-remove-imovel',
+  'data-edit-pessoa', 'data-remove-pessoa', 'data-edit-carteira', 'data-remove-carteira',
+  'data-remove-user', 'data-recibo-divida', 'data-recibo-indice', 'data-data', 'data-pagina',
+  'data-ir-contrato', 'data-abrir-reajuste', 'data-codigo', 'data-ver-dados',
+];
+
+function chaveDoElemento(el) {
+  if (!el || el === document.body || el === document.documentElement) return null;
+  if (el.id) return '#' + CSS.escape(el.id);
+  const attrs = ATRIBUTOS_DE_FOCO.filter(a => el.hasAttribute(a))
+    .map(a => `[${a}="${CSS.escape(el.getAttribute(a))}"]`).join('');
+  if (!attrs) return null;
+  const dono = el.parentElement && el.parentElement.closest('[id]');
+  return (dono ? '#' + CSS.escape(dono.id) + ' ' : '') + el.tagName.toLowerCase() + attrs;
+}
+
+function elementoVisivel(el) {
+  return !!el && el.isConnected && el.getClientRects().length > 0;
+}
+
+function focoPerdido() {
+  const a = document.activeElement;
+  return !a || a === document.body || !a.isConnected || !elementoVisivel(a);
+}
+
+// Acha o equivalente e dá foco. Botão de paginação desabilitado (chegou na
+// última página) passa o foco para o outro botão da mesma paginação.
+function restaurarFoco(chave) {
+  let alvo = null;
+  try { alvo = chave ? document.querySelector(chave) : null; } catch (e) { alvo = null; }
+  if (alvo && alvo.disabled && alvo.hasAttribute('data-pagina')) {
+    alvo = alvo.parentElement.querySelector('[data-pagina]:not([disabled])');
+  }
+  if (elementoVisivel(alvo) && !alvo.disabled) {
+    alvo.focus({ preventScroll: false });
+    return true;
+  }
+  focarTituloDaTela();
+  return false;
+}
+
+// Roda um redesenho e, se ele levou embora o elemento com foco, devolve o foco
+// ao equivalente.
+function preservandoFoco(fn) {
+  const chave = focoPerdido() ? null : chaveDoElemento(document.activeElement);
+  const resultado = fn();
+  if (chave && focoPerdido()) restaurarFoco(chave);
+  return resultado;
+}
+
+function focarTituloDaTela() {
+  const titulo = document.querySelector('.tab-panel.active h1');
+  if (titulo && !document.getElementById('app').classList.contains('hidden')) {
+    titulo.focus({ preventScroll: true });
+  }
+}
+
+/* ===================== FORMULÁRIOS: o que foi digitado e não salvo =====================
+ * Um formulário "sujo" é um que mudou desde que foi aberto ou salvo. A
+ * referência é tirada no primeiro foco dentro dele (antes de qualquer
+ * digitação) e renovada por marcarLimpo() depois de salvar ou de preencher por
+ * código. É o que faz fechar um modal, trocar de tela ou recarregar a página
+ * perguntar antes de jogar fora o que foi digitado.
+ */
+const baseDosFormularios = new WeakMap();
+
+function valoresDoFormulario(form) {
+  return JSON.stringify(Array.from(form.elements)
+    .filter(el => (el.id || el.name) && !['file', 'submit', 'button', 'reset'].includes(el.type))
+    .map(el => (el.type === 'checkbox' || el.type === 'radio') ? el.checked : el.value));
+}
+
+function marcarLimpo(form) {
+  if (!form) return;
+  baseDosFormularios.set(form, valoresDoFormulario(form));
+  limparErrosDoFormulario(form);
+}
+
+async function confirmarDescarte() {
+  return confirmar({
+    titulo: 'Descartar o que foi digitado?',
+    mensagem: 'O formulário tem alterações que ainda não foram salvas.',
+    acao: 'Descartar alterações',
+    cancelar: 'Continuar editando',
+    perigo: true,
+  });
+}
+
+// Preenchimento feito por código (desenhar a tela, abrir um item para editar,
+// trocar a carteira ativa) não é alteração da pessoa: se o formulário estava
+// limpo antes, continua limpo depois.
+function semSujar(form, fn) {
+  const estava = estaSujo(form);
+  const r = fn();
+  if (!estava) marcarLimpo(form);
+  return r;
+}
+
+function estaSujo(form) {
+  if (!form || form.hasAttribute('data-sem-rascunho')) return false;
+  const base = baseDosFormularios.get(form);
+  return base !== undefined && base !== valoresDoFormulario(form);
+}
+
+document.addEventListener('focusin', (e) => {
+  const form = e.target.closest && e.target.closest('form');
+  if (form && !baseDosFormularios.has(form)) marcarLimpo(form);
+});
+
+// Formulários sujos dentro de `raiz` (a tela atual, um modal, ou o documento).
+function formulariosSujos(raiz) {
+  return Array.from((raiz || document).querySelectorAll('form')).filter(estaSujo);
+}
+
+/* ---- Validação: o erro aparece ao lado do campo ----
+ * Os formulários são `novalidate`: no lugar do balão do navegador (que some,
+ * não diz o que corrigir e não é lido direito), cada campo com problema ganha
+ * uma mensagem logo abaixo, ligada por aria-describedby, e o foco vai para o
+ * primeiro deles. Roda antes de qualquer tratamento de envio (fase de captura),
+ * então nada é enviado com erro. A mensagem some assim que o campo é corrigido.
+ */
+function mensagemDeErroDoCampo(el) {
+  if (el.dataset.numero) {
+    const texto = el.value.trim();
+    if (texto === '') return el.required ? 'Preencha este campo com um valor.' : null;
+    const n = lerNumero(texto);
+    if (!Number.isFinite(n)) {
+      return el.dataset.numero === 'percentual'
+        ? 'Digite um número, como 5 ou 1,5.'
+        : 'Digite um valor em reais, como 1.250,50.';
+    }
+    const min = el.dataset.min !== undefined ? Number(el.dataset.min) : null;
+    const max = el.dataset.max !== undefined ? Number(el.dataset.max) : null;
+    if (min !== null && n < min) return min > 0 ? 'O valor precisa ser maior que zero.' : 'O valor não pode ser negativo.';
+    if (max !== null && n > max) return `O valor não pode passar de ${formatarNumeroDoCampo(max, el.dataset.numero)}.`;
+    return null;
+  }
+  if (el.validity.valid) return null;
+  if (el.validity.valueMissing) {
+    if (el.tagName === 'SELECT') return 'Escolha uma opção.';
+    if (el.type === 'date') return 'Informe a data.';
+    return 'Preencha este campo.';
+  }
+  if (el.validity.tooShort) return `Use pelo menos ${el.minLength} caracteres (agora são ${el.value.length}).`;
+  if (el.validity.rangeUnderflow || el.validity.rangeOverflow) return `Use um número de ${el.min} a ${el.max}.`;
+  if (el.validity.stepMismatch) return 'Use um número inteiro.';
+  if (el.validity.badInput) return el.type === 'date' ? 'Data inválida. Use dia, mês e ano.' : 'Valor inválido.';
+  return el.validationMessage;
+}
+
+function idDoErro(el) { return (el.id || el.name) + '-erro'; }
+
+function mostrarErroDoCampo(el, msg) {
+  const id = idDoErro(el);
+  let p = document.getElementById(id);
+  if (!p) {
+    p = document.createElement('p');
+    p.id = id;
+    p.className = 'campo-erro';
+    (el.closest('.field') || el).insertAdjacentElement('afterend', p);
+  }
+  p.textContent = msg;
+  el.setAttribute('aria-invalid', 'true');
+  const descritos = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+  if (!descritos.includes(id)) el.setAttribute('aria-describedby', [...descritos, id].join(' '));
+}
+
+function limparErroDoCampo(el) {
+  const id = idDoErro(el);
+  const p = document.getElementById(id);
+  if (p) p.remove();
+  el.removeAttribute('aria-invalid');
+  const descritos = (el.getAttribute('aria-describedby') || '').split(/\s+/).filter(d => d && d !== id);
+  if (descritos.length) el.setAttribute('aria-describedby', descritos.join(' '));
+  else el.removeAttribute('aria-describedby');
+}
+
+function limparErrosDoFormulario(form) {
+  form.querySelectorAll('[aria-invalid="true"]').forEach(el => {
+    if (document.getElementById(idDoErro(el))) limparErroDoCampo(el);
+  });
+}
+
+document.querySelectorAll('form').forEach(f => { f.noValidate = true; });
+
+document.addEventListener('submit', (e) => {
+  const form = e.target;
+  if (form.hasAttribute('data-validacao-propria')) return;
+  const invalidos = [];
+  Array.from(form.elements).forEach(el => {
+    if (!el.matches('input, select, textarea') || el.type === 'hidden' || el.disabled) return;
+    const msg = elementoVisivel(el) ? mensagemDeErroDoCampo(el) : null;
+    if (msg) {
+      mostrarErroDoCampo(el, msg);
+      invalidos.push(el);
+    } else if (el.getAttribute('aria-invalid') === 'true' && document.getElementById(idDoErro(el))) {
+      limparErroDoCampo(el);
+    }
+  });
+  if (invalidos.length) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    invalidos[0].focus();
+  }
+}, true);
+
+['input', 'change'].forEach(tipo => document.addEventListener(tipo, (e) => {
+  const el = e.target;
+  if (el.getAttribute && el.getAttribute('aria-invalid') === 'true' && document.getElementById(idDoErro(el))) {
+    if (!mensagemDeErroDoCampo(el)) limparErroDoCampo(el);
+  }
+}));
+
+// Envio de formulário: não deixa enviar duas vezes (o botão fica desabilitado
+// enquanto a gravação não volta) e, se o envio deu certo (a função não devolveu
+// false), marca o formulário como limpo.
+function aoEnviar(form, fn) {
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (form.dataset.enviando) return;
+    form.dataset.enviando = '1';
+    const botoes = Array.from(form.querySelectorAll('[type="submit"]'));
+    const botaoComFoco = botoes.find(b => b === document.activeElement);
+    botoes.forEach(b => { b.disabled = true; b.setAttribute('aria-busy', 'true'); });
+    try {
+      const resultado = await fn(e);
+      if (resultado !== false) marcarLimpo(form);
+    } finally {
+      delete form.dataset.enviando;
+      botoes.forEach(b => { b.disabled = false; b.removeAttribute('aria-busy'); });
+      if (botaoComFoco && focoPerdido() && elementoVisivel(botaoComFoco)) botaoComFoco.focus();
+    }
+  });
+}
+
+/* ===================== MODAIS =====================
+ * Pilha de modais abertos. Ao abrir: o resto da página fica `inert` (o Tab não
+ * escapa para trás do modal, e o leitor de tela não lê o fundo) e o foco vai
+ * para o primeiro campo — ou para o título, nos modais só de leitura, ou para
+ * o que `data-foco-inicial` indicar. Ao fechar: o foco volta para quem abriu
+ * (ou para o equivalente, se a lista foi redesenhada nesse meio tempo).
+ *
+ * closeModal() fecha na hora (usado depois de salvar). pedirFechamento() é o
+ * fechamento pedido pela pessoa — Esc, ×, "Cancelar", clique fora, Voltar do
+ * navegador — e pergunta antes se há algo digitado e não salvo.
+ */
+const pilhaModais = [];
+const cancelamentoDosModais = {}; // id -> função chamada no lugar de fechar (diálogos que devolvem resposta)
+
+function modalAberto() {
+  const topo = pilhaModais[pilhaModais.length - 1];
+  return topo ? document.getElementById(topo.id) : null;
+}
+
+function atualizarFundoInerte() {
+  const topo = modalAberto();
+  Array.from(document.body.children).forEach(el => {
+    if (el.tagName === 'SCRIPT' || el.id === 'toast' || el.id === 'toastErro') return;
+    el.inert = !!topo && el !== topo;
+  });
+}
+
+function focarInicioDoModal(overlay) {
+  const seletor = overlay.dataset.focoInicial;
+  let alvo = seletor ? overlay.querySelector(seletor) : null;
+  if (!elementoVisivel(alvo)) {
+    alvo = Array.from(overlay.querySelectorAll('.modal-body input:not([type="hidden"]), .modal-body select, .modal-body textarea'))
+      .find(el => !el.disabled && elementoVisivel(el));
+  }
+  if (!alvo) alvo = overlay.querySelector('.modal-header h2');
+  if (alvo) alvo.focus();
+}
+
+function openModal(id, opcoes = {}) {
+  const overlay = document.getElementById(id);
+  if (pilhaModais.some(m => m.id === id)) return;
+  const origem = opcoes.origem || document.activeElement;
+  pilhaModais.push({ id, origem, chaveFoco: chaveDoElemento(origem) });
+  overlay.classList.remove('hidden');
+  const modal = overlay.querySelector('.modal');
+  if (modal) modal.scrollTop = 0;
+  atualizarFundoInerte();
+  const form = overlay.querySelector('form');
+  if (form) marcarLimpo(form); // o que foi preenchido por código não conta como alteração
+  focarInicioDoModal(overlay);
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.add('hidden');
+  const i = pilhaModais.findIndex(m => m.id === id);
+  if (i < 0) return;
+  const [fechado] = pilhaModais.splice(i, 1);
+  atualizarFundoInerte();
+  // Espera o redesenho que costuma vir logo depois de fechar (salvar → renderAll)
+  setTimeout(() => devolverFocoDoModal(fechado), 0);
+}
+
+function devolverFocoDoModal(fechado) {
+  const topo = modalAberto();
+  if (topo) {
+    if (topo.contains(document.activeElement)) return;
+    if (topo.contains(fechado.origem) && elementoVisivel(fechado.origem)) fechado.origem.focus();
+    else focarInicioDoModal(topo);
+    return;
+  }
+  if (!focoPerdido()) return; // alguém já pôs o foco em outro lugar de propósito
+  if (elementoVisivel(fechado.origem) && !fechado.origem.disabled) fechado.origem.focus();
+  else restaurarFoco(fechado.chaveFoco);
+}
+
+async function pedirFechamento(id) {
+  if (cancelamentoDosModais[id]) { cancelamentoDosModais[id](); return true; }
+  const overlay = document.getElementById(id);
+  if (formulariosSujos(overlay).length) {
+    const descartar = await confirmar({
+      titulo: 'Descartar o que foi digitado?',
+      mensagem: 'As alterações deste formulário ainda não foram salvas.',
+      acao: 'Descartar alterações',
+      cancelar: 'Continuar editando',
+      perigo: true,
+    });
+    if (!descartar) return false;
+  }
+  closeModal(id);
+  return true;
+}
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  // Só fecha quando o clique começou E terminou fora do modal: arrastar para
+  // selecionar um texto e soltar fora não pode fechar o formulário.
+  let comecouFora = false;
+  overlay.addEventListener('mousedown', (e) => { comecouFora = e.target === overlay; });
+  overlay.addEventListener('click', (e) => {
+    if (e.target.closest('[data-close]')) { pedirFechamento(overlay.id); return; }
+    if (e.target === overlay && comecouFora && !overlay.hasAttribute('data-sem-fechar-fora')) {
+      pedirFechamento(overlay.id);
+    }
+  });
+});
+
+/* ===================== DIÁLOGO DE CONFIRMAÇÃO =====================
+ * Substitui confirm() e prompt(): o botão diz a ação ("Excluir contrato", não
+ * "OK"), o foco começa em "Cancelar" nas ações destrutivas, e o campo (quando
+ * há) tem rótulo — inclusive de senha, com type="password", que o prompt() do
+ * navegador mostrava em texto puro.
+ *
+ *   await confirmar({ titulo, mensagem, acao, perigo })        → true / false
+ *   await pedirTexto({ ..., rotulo, tipo, validar, aoConfirmar }) → texto / null
+ *
+ * `validar(valor)` devolve a mensagem de erro ou null. `aoConfirmar(valor)` roda
+ * com o diálogo ainda aberto (botão ocupado) e também devolve erro ou null —
+ * serve para mostrar "senha incorreta" sem fechar e reabrir.
+ */
+let confirmacaoAtual = null;
+
+function abrirConfirmacao(opcoes) {
+  const {
+    titulo, mensagem = '', acao = 'Confirmar', cancelar = 'Cancelar', perigo = false,
+    campo = false, rotulo = '', tipo = 'text', autocomplete = 'off',
+  } = opcoes;
+  if (confirmacaoAtual) confirmacaoAtual.responder(null);
+
+  const overlay = document.getElementById('modalConfirmacao');
+  document.getElementById('confTitulo').textContent = titulo;
+  document.getElementById('confMensagem').textContent = mensagem;
+  document.getElementById('confCancelar').textContent = cancelar;
+  const ok = document.getElementById('confOk');
+  ok.textContent = acao;
+  ok.className = 'btn ' + (perigo ? 'btn-danger btn-danger-forte' : 'btn-primary');
+  const entrada = document.getElementById('confEntrada');
+  document.getElementById('confCampo').classList.toggle('hidden', !campo);
+  document.getElementById('confRotulo').textContent = rotulo;
+  entrada.type = tipo;
+  entrada.autocomplete = autocomplete;
+  entrada.value = '';
+  entrada.removeAttribute('aria-invalid');
+  document.getElementById('confErro').classList.add('hidden');
+  overlay.dataset.focoInicial = campo ? '#confEntrada' : (perigo ? '#confCancelar' : '#confOk');
+
+  return new Promise(resolve => {
+    confirmacaoAtual = {
+      opcoes,
+      responder(valor) {
+        confirmacaoAtual = null;
+        closeModal('modalConfirmacao');
+        resolve(valor);
+      },
+    };
+    openModal('modalConfirmacao');
+  });
+}
+
+function confirmar(opcoes) {
+  return abrirConfirmacao({ ...opcoes, campo: false }).then(v => v !== null);
+}
+
+function pedirTexto(opcoes) {
+  return abrirConfirmacao({ ...opcoes, campo: true });
+}
+
+function mostrarErroConfirmacao(msg) {
+  const erro = document.getElementById('confErro');
+  const entrada = document.getElementById('confEntrada');
+  erro.textContent = msg;
+  erro.classList.remove('hidden');
+  if (!document.getElementById('confCampo').classList.contains('hidden')) {
+    entrada.setAttribute('aria-invalid', 'true');
+    if (entrada.type === 'password') entrada.value = '';
+    entrada.focus();
+  }
+}
+
+cancelamentoDosModais.modalConfirmacao = () => { if (confirmacaoAtual) confirmacaoAtual.responder(null); };
+document.getElementById('confCancelar').addEventListener('click', () => cancelamentoDosModais.modalConfirmacao());
+
+aoEnviar(document.getElementById('formConfirmacao'), async () => {
+  if (!confirmacaoAtual) return;
+  const { opcoes } = confirmacaoAtual;
+  const valor = opcoes.campo ? document.getElementById('confEntrada').value : '';
+  if (opcoes.validar) {
+    const msg = opcoes.validar(valor);
+    if (msg) { mostrarErroConfirmacao(msg); return false; }
+  }
+  if (opcoes.aoConfirmar) {
+    const msg = await opcoes.aoConfirmar(valor);
+    if (msg) { mostrarErroConfirmacao(msg); return false; }
+  }
+  if (confirmacaoAtual) confirmacaoAtual.responder(valor);
+});
+
+/* ===================== API =====================
+ * Toda chamada ao servidor passa por apiFetch(). Um 401 de sessão expirada
+ * (`sessaoExpirada` na resposta) não vira erro: o sistema pede o login de novo
+ * num modal, sem recarregar a página — a tela e o que está em memória ficam —,
+ * e repete a chamada.
+ */
+let sessaoAtiva = false; // true depois que os dados foram carregados
+
+async function apiFetch(path, options = {}) {
+  const opcoes = { credentials: 'same-origin', cache: 'no-store', ...options };
+  if (!(options.body instanceof FormData)) {
+    opcoes.headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  }
+  let res = await fetch(API_BASE + path, opcoes);
+  if (res.status === 401 && sessaoAtiva) {
+    const corpo = await res.clone().json().catch(() => ({}));
+    if (corpo.sessaoExpirada && await pedirLoginDeNovo()) {
+      res = await fetch(API_BASE + path, opcoes);
+    }
+  }
+  return res;
+}
+
+// Lê os dados do servidor já com as migrações de formato aplicadas. Devolve
+// também a versão em que eles estão (ver "Gravação", abaixo).
+async function fetchState() {
+  const res = await apiFetch('data.php');
+  if (!res.ok) {
+    const corpo = await res.json().catch(() => ({}));
+    throw new Error(corpo.error || `O servidor respondeu com erro (${res.status}).`);
+  }
+  const data = await res.json();
+  const versao = Number(data.versao) || 0;
+  delete data.versao;
+  data.contratos = data.contratos || [];
+  data.config = Object.assign({}, CONFIG_PADRAO, data.config || {});
+  // o recibo é um objeto dentro de config — precisa de merge próprio, senão uma
+  // instalação antiga (sem `recibo`) ou com o objeto pela metade fica sem texto
+  data.config.recibo = Object.assign({}, RECIBO_PADRAO, data.config.recibo || {});
+  data.auditoria = data.auditoria || [];
+  data.carteiras = data.carteiras || [];
+  // pessoas substitui o antigo cadastro "corretores" (agora serve tanto para
+  // quem recebe quanto para corretor) — migra dados antigos automaticamente.
+  data.pessoas = data.pessoas || data.corretores || [];
+  delete data.corretores;
+  data.despesas = data.despesas || [];
+  data.imoveis = data.imoveis || [];
+  return { dados: data, versao };
+}
+
+/* ===================== GRAVAÇÃO =====================
+ * O servidor guarda um número de versão que sobe a cada gravação. Cada
+ * gravação diz em qual versão se baseou; se alguém gravou antes (outra aba,
+ * outro usuário), o servidor responde 409 e não grava nada — antes, o último a
+ * salvar apagava em silêncio o que o outro tinha salvo.
+ *
+ * As gravações deste navegador vão numa fila, cada uma com a versão devolvida
+ * pela anterior (senão duas gravações seguidas entrariam em conflito entre si).
+ * saveState() devolve true só depois que o servidor confirmou: é isso que
+ * decide se aparece "salvo com sucesso".
+ */
+let versaoDados = null;        // versão em que o estado em memória se baseia (null = não carregado)
+let gravacoesEmAndamento = 0;
+let alteracaoNaoSalva = false; // a memória tem algo que o servidor ainda não confirmou
+let emConflito = false;        // alguém gravou antes: nada mais é gravado até recarregar
+let erroNaTelaEhDeGravacao = false;
+let filaDeGravacao = Promise.resolve();
+
+function saveState(opcoes = {}) {
+  const vez = filaDeGravacao.then(() => enviarEstado(opcoes));
+  filaDeGravacao = vez.catch(() => {});
+  return vez;
+}
+
+// `automatico` (migrações e dívidas geradas ao abrir) devolve 'conflito' em vez
+// de abrir o aviso: quem chamou recarrega e refaz, sem incomodar ninguém.
+async function enviarEstado({ automatico = false } = {}) {
+  if (versaoDados === null) {
+    // Sem um carregamento bem-sucedido não se grava nada: o estado em memória
+    // estaria vazio e apagaria o arquivo do servidor.
+    mostrarErro('Nada foi salvo: os dados ainda não foram carregados do servidor. Recarregue a página.');
+    return false;
+  }
+  if (emConflito) {
+    alteracaoNaoSalva = true;
+    atualizarIndicadorDeGravacao();
+    abrirAvisoDeConflito();
+    return false;
+  }
+
+  gravacoesEmAndamento++;
+  atualizarIndicadorDeGravacao();
+  let salvou = false;
+  try {
+    let res;
+    let corpo = {};
+    try {
+      res = await apiFetch('data.php', {
+        method: 'POST',
+        body: JSON.stringify({ baseVersao: versaoDados, dados: state }),
+      });
+      corpo = await res.json().catch(() => ({}));
+    } catch (e) {
+      return falhaAoGravar('sem conexão com o servidor. Confira a internet.');
+    }
+
+    if (res.ok && corpo.ok) {
+      versaoDados = corpo.versao;
+      alteracaoNaoSalva = false;
+      if (erroNaTelaEhDeGravacao) { fecharErro(); erroNaTelaEhDeGravacao = false; }
+      salvou = true;
+      return true;
+    }
+    if (res.status === 409) {
+      if (automatico) return 'conflito';
+      emConflito = true;
+      alteracaoNaoSalva = true;
+      abrirAvisoDeConflito();
+      return false;
+    }
+    if (corpo.sessaoExpirada) return falhaAoGravar('a sessão expirou e o login não foi refeito.');
+    return falhaAoGravar(corpo.error || `o servidor respondeu com erro (${res.status}).`);
+  } finally {
+    gravacoesEmAndamento--;
+    atualizarIndicadorDeGravacao(salvou && gravacoesEmAndamento === 0);
+  }
+}
+
+function falhaAoGravar(motivo) {
+  alteracaoNaoSalva = true;
+  erroNaTelaEhDeGravacao = true;
+  mostrarErro(`Não foi possível salvar: ${motivo} O que você fez continua na tela, mas ainda não está no servidor.`, {
+    acao: { rotulo: 'Tentar de novo', fn: tentarGravarDeNovo },
+  });
+  return false;
+}
+
+async function tentarGravarDeNovo() {
+  if (await saveState()) showToast('Alterações salvas.', 'success');
+}
+
+function atualizarIndicadorDeGravacao(acabouDeSalvar) {
+  const el = document.getElementById('statusGravacao');
+  clearTimeout(atualizarIndicadorDeGravacao._t);
+  el.className = 'status-gravacao';
+  el.disabled = true;
+  el.removeAttribute('title');
+  if (gravacoesEmAndamento > 0 && !acabouDeSalvar) {
+    el.hidden = false;
+    el.textContent = 'Salvando…';
+  } else if (emConflito || alteracaoNaoSalva) {
+    el.hidden = false;
+    el.disabled = false;
+    el.classList.add('is-erro');
+    el.textContent = 'Não salvo';
+    el.title = emConflito
+      ? 'Os dados foram alterados em outro lugar. Clique para ver o que fazer.'
+      : 'A última alteração não chegou ao servidor. Clique para tentar de novo.';
+  } else if (acabouDeSalvar) {
+    el.hidden = false;
+    el.classList.add('is-ok');
+    el.textContent = 'Salvo';
+    atualizarIndicadorDeGravacao._t = setTimeout(() => { el.hidden = true; }, 2500);
+  } else {
+    el.hidden = true;
+  }
+}
+
+document.getElementById('statusGravacao').addEventListener('click', () => {
+  if (emConflito) abrirAvisoDeConflito();
+  else if (alteracaoNaoSalva) tentarGravarDeNovo();
+});
+
+/* ---- Conflito: alguém gravou antes ---- */
+function abrirAvisoDeConflito() {
+  if (!document.getElementById('modalConflito').classList.contains('hidden')) return;
+  openModal('modalConflito');
+}
+
+cancelamentoDosModais.modalConflito = () => closeModal('modalConflito');
+
+document.getElementById('btnConflitoRecarregar').addEventListener('click', async () => {
+  try {
+    await recarregarDoServidor();
+    closeModal('modalConflito');
+    showToast('Dados atualizados. Se a sua última alteração não aparece, faça de novo.', 'success');
+  } catch (e) {
+    mostrarErro(`Não foi possível carregar os dados atuais: ${e.message} Tente de novo em instantes.`);
+  }
+});
+
+// Guarda uma cópia do que está na tela (inclusive o que não foi salvo) num
+// arquivo, no mesmo formato do backup.
+document.getElementById('btnConflitoBaixar').addEventListener('click', () => {
+  baixarArquivo(`alteracoes_nao_salvas_${todayStr()}.json`, JSON.stringify(state, null, 2), 'application/json;charset=utf-8;');
+  showToast('Cópia baixada. Ela tem o formato de um backup.', 'success');
+});
+
+/* ---- Carregar do servidor ----
+ * Carrega, aplica as migrações de formato e gera as dívidas que faltam até
+ * hoje. Se algo mudou, grava — e se outra aba gravou no meio do caminho (409),
+ * recarrega e refaz: é o que impede duas abas abertas no dia em que surgem
+ * dívidas novas de gerarem as mesmas dívidas duas vezes (a segunda aba recarrega
+ * e encontra as dívidas já geradas pela primeira).
+ */
+async function carregarDados() {
+  for (let tentativa = 0; tentativa < 4; tentativa++) {
+    const { dados, versao } = await fetchState();
+    state = dados;
+    versaoDados = versao;
+    emConflito = false;
+    alteracaoNaoSalva = false;
+
+    let mudou = false;
+    if (precisaMigrarContratos(state.contratos)) {
+      state.contratos = migrarContratos(state.contratos);
+      mudou = true;
+    }
+    if (precisaMigrarNumerosContrato(state.contratos)) {
+      state.contratos = migrarNumerosContrato(state.contratos);
+      mudou = true;
+    }
+    // roda sozinho a cada vez que o sistema é aberto — não depende de o
+    // usuário lembrar de clicar em "Atualizar dívidas"
+    const geradas = gerarDividasDeTodos();
+    if (geradas.total) mudou = true;
+    if (!mudou) return;
+
+    const r = await saveState({ automatico: true });
+    if (r === 'conflito') continue;
+    if (r && geradas.total) {
+      showToast(`${geradas.total} dívida(s) geradas em ${geradas.contratos} contrato(s).`, 'success');
+    }
+    return;
+  }
+}
+
+async function recarregarDoServidor() {
+  await carregarDados();
+  atualizarIndicadorDeGravacao();
+  reciboFormSujo = false;
+  renderAll();
+  renderUsuarios();
+  mostrarRota({ manterFoco: true });
+}
+
+/* ---- Ao voltar para a aba ----
+ * Se alguém gravou enquanto esta aba estava parada, atualiza os dados — mas só
+ * quando não há nada em andamento aqui (formulário aberto, gravação pendente).
+ */
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState !== 'visible' || !sessaoAtiva || versaoDados === null) return;
+  if (emConflito || alteracaoNaoSalva || gravacoesEmAndamento || modalAberto() || formulariosSujos().length) return;
+  try {
+    const res = await apiFetch('data.php?versao=1');
+    const corpo = await res.json();
+    if (!res.ok || corpo.versao === versaoDados) return;
+    if (gravacoesEmAndamento || modalAberto() || formulariosSujos().length) return;
+    await recarregarDoServidor();
+    showToast('Os dados foram atualizados com o que foi alterado em outra aba ou por outro usuário.', 'success');
+  } catch (e) { /* sem conexão agora: tenta na próxima vez */ }
+});
+
+/* ---- Não sair da página com algo não salvo ---- */
+let saindoDeProposito = false;
+
+window.addEventListener('beforeunload', (e) => {
+  if (!sessaoAtiva || saindoDeProposito) return;
+  if (gravacoesEmAndamento || alteracaoNaoSalva || formulariosSujos().length) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+/* ---- Sessão expirada: entrar de novo sem recarregar ---- */
+let loginDeNovo = null;
+let resolverLoginDeNovo = null;
+
+function pedirLoginDeNovo() {
+  if (loginDeNovo) return loginDeNovo;
+  loginDeNovo = new Promise(resolve => {
+    document.getElementById('sessaoUsuario').value = currentUsername;
+    document.getElementById('sessaoSenha').value = '';
+    document.getElementById('sessaoErro').classList.add('hidden');
+    document.getElementById('modalSessao').dataset.focoInicial = currentUsername ? '#sessaoSenha' : '#sessaoUsuario';
+    resolverLoginDeNovo = (entrou) => {
+      loginDeNovo = null;
+      resolverLoginDeNovo = null;
+      closeModal('modalSessao');
+      resolve(entrou);
+    };
+    openModal('modalSessao');
+  });
+  return loginDeNovo;
+}
+
+cancelamentoDosModais.modalSessao = () => { if (resolverLoginDeNovo) resolverLoginDeNovo(false); };
+document.getElementById('btnSessaoCancelar').addEventListener('click', () => cancelamentoDosModais.modalSessao());
+
+aoEnviar(document.getElementById('formSessao'), async () => {
+  const erro = document.getElementById('sessaoErro');
+  const senha = document.getElementById('sessaoSenha');
+  erro.classList.add('hidden');
+  try {
+    // fetch direto: um 401 aqui é senha errada, não sessão expirada
+    const res = await fetch(API_BASE + 'login.php', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: document.getElementById('sessaoUsuario').value.trim(), password: senha.value }),
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      setCurrentUsername(data.username);
+      if (resolverLoginDeNovo) resolverLoginDeNovo(true);
+      return;
+    }
+    erro.textContent = data.error || 'Usuário ou senha incorretos.';
+  } catch (e) {
+    erro.textContent = 'Não foi possível conectar ao servidor. Confira a internet e tente de novo.';
+  }
+  erro.classList.remove('hidden');
+  senha.value = '';
+  senha.setAttribute('aria-invalid', 'true');
+  senha.focus();
+  return false;
+});
 
 /* ===================== MODELO: CONTRATO / DÍVIDA =====================
  * migrarContratos(): converte o formato antigo (um "contrato" plano = um
@@ -609,7 +1440,11 @@ function definirCarteiraAtiva(id, silencioso) {
   } catch (e) { /* navegador sem localStorage: filtro vale só nesta sessão */ }
   if (!silencioso) {
     contratosPaginaAtual = 1;
+    historicoPaginaAtual = 1;
+    despesasPaginaAtual = 1;
+    imoveisPaginaAtual = 1;
     renderAll();
+    atualizarEndereco();
     showToast(carteiraAtiva ? `Mostrando só a carteira "${carteiraNome(carteiraAtiva)}".` : 'Mostrando todas as carteiras.', 'success');
   }
 }
@@ -668,9 +1503,16 @@ function precisaMigrarNumerosContrato(contratos) {
 
 function migrarNumerosContrato(contratos) {
   const ordenados = contratos.slice().sort((a, b) => (a.criadoEm || 0) - (b.criadoEm || 0));
+  // números que já existem nunca são dados de novo: um contrato sem número
+  // criado antes de um que já tinha o nº 1 ficava também com o nº 1
+  const usados = new Set(contratos.map(c => Number(c.numero)).filter(Boolean));
   let proximo = 1;
   ordenados.forEach(c => {
-    if (!c.numero) c.numero = proximo;
+    if (!c.numero) {
+      while (usados.has(proximo)) proximo++;
+      c.numero = proximo;
+      usados.add(proximo);
+    }
     proximo = Math.max(proximo, c.numero) + 1;
   });
   return contratos;
@@ -691,34 +1533,61 @@ async function checkSession() {
   }
 }
 
-async function showApp() {
+// Abre o sistema depois do login (ou de uma sessão já aberta). Se os dados não
+// carregarem, mostra a tela de erro e NÃO abre o sistema: com o estado vazio em
+// memória, a primeira gravação apagaria tudo no servidor.
+async function showApp(opcoes = {}) {
   loginScreen.classList.add('hidden');
-  appEl.classList.remove('hidden');
+  document.getElementById('telaErroCarga').classList.add('hidden');
+  document.getElementById('telaCarregando').classList.remove('hidden');
   try {
-    state = await fetchState();
-    if (precisaMigrarContratos(state.contratos)) {
-      state.contratos = migrarContratos(state.contratos);
-      await saveState();
-    }
-    if (precisaMigrarNumerosContrato(state.contratos)) {
-      state.contratos = migrarNumerosContrato(state.contratos);
-      await saveState();
-    }
-    // roda sozinho a cada vez que o sistema é aberto — não depende de o
-    // usuário lembrar de clicar em "Atualizar dívidas"
-    atualizarTodasDividas(true);
+    await carregarDados();
   } catch (e) {
-    showToast('Não foi possível carregar os dados do servidor.', 'error');
+    versaoDados = null;
+    document.getElementById('telaCarregando').classList.add('hidden');
+    document.getElementById('erroCargaDetalhe').textContent = e.message || 'Falha de comunicação com o servidor.';
+    document.getElementById('telaErroCarga').classList.remove('hidden');
+    document.querySelector('#telaErroCarga h1').focus();
+    return;
   }
+  sessaoAtiva = true;
+  document.getElementById('telaCarregando').classList.add('hidden');
+  appEl.classList.remove('hidden');
   renderAll();
   renderUsuarios();
+  mostrarRota({ primeiraVez: opcoes.primeiraVez });
 }
 
 function showLogin() {
   appEl.classList.add('hidden');
+  document.getElementById('telaCarregando').classList.add('hidden');
+  document.getElementById('telaErroCarga').classList.add('hidden');
   loginScreen.classList.remove('hidden');
   document.getElementById('loginForm').reset();
 }
+
+// Sair recarrega a página do zero, no login: nada do que estava em memória
+// (dados, formulários, senhas digitadas em Usuários) fica para trás.
+async function sair() {
+  if (sessaoAtiva && (gravacoesEmAndamento || alteracaoNaoSalva || formulariosSujos().length)) {
+    const sairMesmo = await confirmar({
+      titulo: 'Sair sem salvar?',
+      mensagem: 'Há alterações que ainda não foram salvas. Se sair agora, elas se perdem.',
+      acao: 'Sair sem salvar',
+      cancelar: 'Continuar aqui',
+      perigo: true,
+    });
+    if (!sairMesmo) return;
+  }
+  try { await fetch(API_BASE + 'logout.php', { method: 'POST', credentials: 'same-origin' }); } catch (e) { /* segue para o login mesmo assim */ }
+  saindoDeProposito = true;
+  sessaoAtiva = false;
+  history.replaceState(null, '', location.pathname + location.search + '#/');
+  location.reload();
+}
+
+document.getElementById('btnTentarCarregar').addEventListener('click', () => showApp());
+document.getElementById('btnSairErroCarga').addEventListener('click', () => sair());
 
 const formLogin = document.getElementById('loginForm');
 
@@ -751,72 +1620,452 @@ formLogin.addEventListener('submit', async (e) => {
   }
 });
 
-document.getElementById('btnLogout').addEventListener('click', async () => {
-  try { await apiFetch('logout.php', { method: 'POST' }); } catch (e) { /* segue para tela de login mesmo assim */ }
-  showLogin();
-});
+document.getElementById('btnLogout').addEventListener('click', () => sair());
 
-document.getElementById('btnAtualizarTodasDividas').addEventListener('click', () => {
-  atualizarTodasDividas(false);
-});
+document.getElementById('btnAtualizarTodasDividas').addEventListener('click', () => atualizarTodasDividas());
 
-/* ===================== TABS ===================== */
-document.getElementById('tabsNav').addEventListener('click', (e) => {
-  const btn = e.target.closest('.tab-btn');
-  if (!btn) return;
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-  if (btn.dataset.tab === 'graficos') renderCharts();
-  if (btn.dataset.tab === 'relatorios') renderRelatorios();
-  if (btn.dataset.tab === 'auditoria') renderAuditoria();
-  if (btn.dataset.tab === 'calendario') renderCalendario();
-  if (btn.dataset.tab === 'despesas') renderDespesas();
-  if (btn.dataset.tab === 'imoveis') renderImoveis();
-  if (btn.dataset.tab === 'usuarios') renderUsuarios();
-  // uma tabela desenhada com a aba escondida foi medida com largura zero
-  ajustarTabelasVisiveis();
-});
+/* ===================== ROTAS: cada tela com o próprio endereço =====================
+ * Roteamento por hash dentro do próprio index.html (index.html#/contratos):
+ * funciona igual no `php -S` e no Apache, em qualquer pasta, sem .htaccess e
+ * sem reescrita de URL. Para quem usa, cada tela vira uma página com endereço
+ * próprio: F5 fica na mesma tela, Voltar/Avançar funcionam e dá para favoritar
+ * ou abrir numa aba nova.
+ *
+ * Um ponto só para navegar — navegar() — e um ponto só que mostra a tela a
+ * partir do endereço — mostrarRota(). O que a pessoa escolheu na tela (busca,
+ * filtros, página...) também vai para o endereço, como parâmetros; mudar um
+ * filtro só substitui o endereço atual (replaceState), para o Voltar não passar
+ * por cada letra digitada. Parâmetro inválido ou desconhecido é ignorado.
+ */
+const TITULO_SISTEMA = 'Gestão de Aluguéis';
 
-/* ===================== MODALS ===================== */
-function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
-function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+const SUBTELAS_CONFIG = {
+  financeiro: 'Financeiro', carteiras: 'Carteiras', recibo: 'Recibo', dados: 'Dados', perigo: 'Zona de perigo',
+};
 
-document.querySelectorAll('.modal-overlay').forEach(overlay => {
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay || e.target.closest('[data-close]')) {
-      overlay.classList.add('hidden');
-    }
-  });
-});
+// Parâmetros comuns: mês é 1–12 no endereço (0–11 nos seletores), página ≥ 1.
+function paramMes(params, select) {
+  const n = Number(params.get('mes'));
+  select.value = Number.isInteger(n) && n >= 1 && n <= 12 ? String(n - 1) : '';
+}
+function lerMes(select) {
+  return select.value === '' ? '' : Number(select.value) + 1;
+}
+function paramOpcao(params, nome, select, padrao = '') {
+  const v = params.get(nome);
+  select.value = v !== null && Array.from(select.options).some(o => o.value === v) ? v : padrao;
+}
+function paramPagina(params) {
+  const n = Number(params.get('pagina'));
+  return Number.isInteger(n) && n >= 1 ? n : 1;
+}
+const anoAtual = () => String(new Date().getFullYear());
+const el = (id) => document.getElementById(id);
 
-/* ===================== ATALHOS DE TECLADO ===================== */
-function modalAberto() {
-  return Array.from(document.querySelectorAll('.modal-overlay')).find(m => !m.classList.contains('hidden'));
+const ROTAS = {
+  '': { tela: 'dashboard', titulo: 'Dashboard', desenhar: () => renderDashboard() },
+  imoveis: {
+    tela: 'imoveis', titulo: 'Imóveis',
+    aplicar(p) { el('uiImoveisSearch').value = p.get('busca') || ''; imoveisPaginaAtual = paramPagina(p); },
+    ler: () => ({ busca: el('uiImoveisSearch').value.trim(), pagina: imoveisPaginaAtual > 1 ? imoveisPaginaAtual : '' }),
+    desenhar: () => renderImoveis(),
+  },
+  contratos: {
+    tela: 'contratos', titulo: 'Contratos',
+    aplicar(p) {
+      populateAnoFilter();
+      el('searchContratos').value = p.get('busca') || '';
+      el('globalSearch').value = el('searchContratos').value;
+      paramOpcao(p, 'ano', el('filterAno'));
+      paramMes(p, el('filterMes'));
+      paramOpcao(p, 'status', el('filterStatus'));
+      contratosPaginaAtual = paramPagina(p);
+    },
+    ler: () => ({
+      busca: el('searchContratos').value.trim(), ano: el('filterAno').value, mes: lerMes(el('filterMes')),
+      status: el('filterStatus').value, pagina: contratosPaginaAtual > 1 ? contratosPaginaAtual : '',
+    }),
+    desenhar: () => renderContratos(),
+  },
+  atrasos: { tela: 'atrasos', titulo: 'Atrasos', desenhar: () => renderAtrasos() },
+  historico: {
+    tela: 'historico', titulo: 'Histórico',
+    aplicar(p) {
+      populateHistoricoFilter();
+      el('historicoSearch').value = p.get('busca') || '';
+      // o contrato vai no endereço pelo número (#12), não pelo id interno
+      const c = contratosVisiveis().find(x => String(x.numero) === p.get('contrato'));
+      el('historicoFiltroContrato').value = c ? c.id : '';
+      paramOpcao(p, 'ano', el('historicoFiltroAno'));
+      historicoPaginaAtual = paramPagina(p);
+    },
+    ler() {
+      const c = state.contratos.find(x => x.id === el('historicoFiltroContrato').value);
+      return {
+        busca: el('historicoSearch').value.trim(), contrato: c ? c.numero : '', ano: el('historicoFiltroAno').value,
+        pagina: historicoPaginaAtual > 1 ? historicoPaginaAtual : '',
+      };
+    },
+    desenhar: () => renderHistorico(),
+  },
+  despesas: {
+    tela: 'despesas', titulo: 'Despesas',
+    aplicar(p) {
+      populateDespesaAnoFilter();
+      el('despesaBusca').value = p.get('busca') || '';
+      paramOpcao(p, 'ano', el('despesaFiltroAno'), anoAtual());
+      paramMes(p, el('despesaFiltroMes'));
+      despesasPaginaAtual = paramPagina(p);
+    },
+    ler: () => ({
+      busca: el('despesaBusca').value.trim(),
+      ano: el('despesaFiltroAno').value === anoAtual() ? '' : el('despesaFiltroAno').value,
+      mes: lerMes(el('despesaFiltroMes')), pagina: despesasPaginaAtual > 1 ? despesasPaginaAtual : '',
+    }),
+    desenhar: () => renderDespesas(),
+  },
+  graficos: {
+    tela: 'graficos', titulo: 'Gráficos',
+    aplicar(p) {
+      populateGraficoAnoFilter();
+      paramOpcao(p, 'ano', el('graficoAno'), anoAtual());
+      paramOpcao(p, 'agrupar', el('inadimplenciaAgrupador'), 'inquilino');
+    },
+    ler: () => ({
+      ano: el('graficoAno').value === anoAtual() ? '' : el('graficoAno').value,
+      agrupar: el('inadimplenciaAgrupador').value === 'inquilino' ? '' : el('inadimplenciaAgrupador').value,
+    }),
+    desenhar: () => renderCharts(),
+  },
+  relatorios: {
+    tela: 'relatorios', titulo: 'Relatórios',
+    aplicar(p) {
+      populateRelatorioAnoFilter();
+      paramOpcao(p, 'ano', el('relatorioAno'), anoAtual());
+      paramMes(p, el('relatorioMes'));
+    },
+    ler: () => ({
+      ano: el('relatorioAno').value === anoAtual() ? '' : el('relatorioAno').value,
+      mes: lerMes(el('relatorioMes')),
+    }),
+    desenhar: () => renderRelatorios(),
+  },
+  calendario: {
+    tela: 'calendario', titulo: 'Calendário',
+    aplicar(p) {
+      const hoje = new Date();
+      const m = /^(\d{4})-(\d{2})$/.exec(p.get('mes') || '');
+      const ano = m ? Number(m[1]) : 0;
+      const mes = m ? Number(m[2]) : 0;
+      calendarioAtual = (ano >= 1900 && ano <= 9999 && mes >= 1 && mes <= 12)
+        ? new Date(ano, mes - 1, 1)
+        : new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+      // o dia só vale se for um dia de verdade do mês que está na tela
+      const dia = p.get('dia') || '';
+      const d = parseDate(dia);
+      const valido = /^\d{4}-\d{2}-\d{2}$/.test(dia) && !isNaN(d)
+        && d.getFullYear() === calendarioAtual.getFullYear() && d.getMonth() === calendarioAtual.getMonth()
+        && dateStrLocal(d.getFullYear(), d.getMonth(), d.getDate()) === dia;
+      calendarioDiaSelecionado = valido ? dia : null;
+    },
+    ler() {
+      const hoje = new Date();
+      const noMesAtual = calendarioAtual.getFullYear() === hoje.getFullYear() && calendarioAtual.getMonth() === hoje.getMonth();
+      return {
+        mes: noMesAtual ? '' : dateStrLocal(calendarioAtual.getFullYear(), calendarioAtual.getMonth(), 1).slice(0, 7),
+        dia: calendarioDiaSelecionado && !(noMesAtual && calendarioDiaSelecionado === todayStr()) ? calendarioDiaSelecionado : '',
+      };
+    },
+    desenhar: () => renderCalendarioCompleto(),
+  },
+  auditoria: {
+    tela: 'auditoria', titulo: 'Auditoria',
+    aplicar(p) {
+      populateAuditoriaFiltros();
+      paramOpcao(p, 'ano', el('auditoriaFiltroAno'));
+      paramMes(p, el('auditoriaFiltroMes'));
+      paramOpcao(p, 'usuario', el('auditoriaFiltroUsuario'));
+    },
+    ler: () => ({
+      ano: el('auditoriaFiltroAno').value, mes: lerMes(el('auditoriaFiltroMes')), usuario: el('auditoriaFiltroUsuario').value,
+    }),
+    desenhar: () => renderAuditoria(),
+  },
+  usuarios: { tela: 'usuarios', titulo: 'Usuários', desenhar: () => renderUsuarios() },
+  configuracoes: { tela: 'config', titulo: 'Configurações', subtelas: SUBTELAS_CONFIG, desenhar: () => renderConfig() },
+};
+
+// '#/contratos?busca=%2312' → { caminho: 'contratos', sub: '', params }
+function lerEndereco(hash) {
+  const h = (hash === undefined ? location.hash : hash) || '#/';
+  if (!h.startsWith('#/')) return { caminho: null, sub: '', params: new URLSearchParams(), extra: true };
+  const [caminhoBruto, query = ''] = h.slice(2).split('?');
+  let partes;
+  try { partes = caminhoBruto.split('/').filter(Boolean).map(decodeURIComponent); } catch (e) { partes = [null]; }
+  return { caminho: partes[0] || '', sub: partes[1] || '', extra: partes.length > 2, params: new URLSearchParams(query) };
 }
 
-document.addEventListener('keydown', (e) => {
+function montarEndereco(caminho, params, sub) {
+  const q = new URLSearchParams();
+  Object.entries(params || {}).forEach(([k, v]) => { if (v !== '' && v !== null && v !== undefined) q.set(k, String(v)); });
+  const texto = q.toString();
+  return '#/' + (caminho || '') + (sub ? '/' + sub : '') + (texto ? '?' + texto : '');
+}
+
+// Qual rota (e subtela) o endereço pede; null quando não existe.
+function resolverRota(end) {
+  const def = end.caminho === null ? null : ROTAS[end.caminho];
+  if (!def || end.extra) return null;
+  if (def.subtelas) {
+    if (end.sub && !def.subtelas[end.sub]) return null;
+    return { def, sub: end.sub || 'financeiro' };
+  }
+  if (end.sub) return null;
+  return { def, sub: '' };
+}
+
+let rotaAtual = null;          // { caminho, sub, tela }
+let enderecoMostrado = null;   // o hash que está na tela agora
+
+function painelAtual() {
+  return document.querySelector('.tab-panel.active');
+}
+
+// Formulários com algo digitado na tela atual (ou na seção de Configurações
+// que está aberta), e o jeito de "descartar" cada um.
+const DESCARTAR_FORMULARIO = {
+  formImovel: () => cancelarEdicaoImovel(),
+  formDespesa: () => cancelarEdicaoDespesa(),
+  addPessoaForm: () => cancelarEdicaoPessoa(),
+  formCarteira: () => cancelarEdicaoCarteira(),
+  formRecibo: () => { reciboFormSujo = false; renderReciboConfig(); },
+};
+
+// Tela (ou seção de Configurações) diferente da que está aberta?
+function trocaDeTela(atual, end) {
+  const rota = resolverRota(end);
+  const tela = rota ? rota.def.tela : 'nao-encontrada';
+  return !atual || tela !== atual.tela || (rota ? rota.sub : '') !== atual.sub;
+}
+
+// Só conta o que está visível: na tela de Configurações, a seção aberta.
+async function podeSairDaTela() {
+  const modal = modalAberto();
+  if (modal && !(await pedirFechamento(modal.id))) return false;
+  const raiz = painelAtual();
+  const sujos = raiz ? formulariosSujos(raiz).filter(elementoVisivel) : [];
+  if (!sujos.length) return true;
+  const descartar = await confirmar({
+    titulo: 'Sair sem salvar?',
+    mensagem: 'Há um formulário nesta tela com alterações que ainda não foram salvas. Se sair agora, elas se perdem.',
+    acao: 'Sair sem salvar',
+    cancelar: 'Continuar editando',
+    perigo: true,
+  });
+  if (!descartar) return false;
+  sujos.forEach(f => {
+    if (DESCARTAR_FORMULARIO[f.id]) DESCARTAR_FORMULARIO[f.id]();
+    else f.reset();
+    marcarLimpo(f);
+  });
+  return true;
+}
+
+// O único ponto de navegação. `substituir` troca o endereço atual em vez de
+// criar uma entrada nova no histórico do navegador; `manterFoco` não leva o foco
+// para o título da tela nova (a busca do topo, por exemplo, continua digitando).
+async function navegar(caminho, params = {}, opcoes = {}) {
+  const destino = montarEndereco(caminho, params, opcoes.sub);
+  if (trocaDeTela(rotaAtual, lerEndereco(destino)) && !(await podeSairDaTela())) return false;
+  if (destino !== location.hash) {
+    if (opcoes.substituir) history.replaceState(null, '', destino);
+    else history.pushState(null, '', destino);
+  }
+  mostrarRota({ manterFoco: opcoes.manterFoco });
+  return true;
+}
+
+// Substitui o endereço atual pelos filtros que estão na tela (sem criar
+// entrada no histórico). Chamado depois de toda mudança de filtro/página.
+function atualizarEndereco() {
+  if (!rotaAtual || !rotaAtual.def) return;
+  const params = rotaAtual.def.ler ? rotaAtual.def.ler() : {};
+  const sub = rotaAtual.def.subtelas && lerEndereco(enderecoMostrado).sub ? rotaAtual.sub : '';
+  const novo = montarEndereco(rotaAtual.caminho, params, sub);
+  if (novo !== location.hash) history.replaceState(null, '', novo);
+  enderecoMostrado = location.hash || '#/';
+}
+
+// O único ponto que mostra uma tela a partir do endereço.
+function mostrarRota(opcoes = {}) {
+  if (!sessaoAtiva) return;
+  const end = lerEndereco();
+  const rota = resolverRota(end);
+  const tela = rota ? rota.def.tela : 'nao-encontrada';
+  const mudouDeTela = !rotaAtual || rotaAtual.tela !== tela;
+
+  // trocar de tela nunca deixa um modal aberto por cima da tela nova
+  while (modalAberto()) {
+    const id = modalAberto().id;
+    if (cancelamentoDosModais[id]) cancelamentoDosModais[id](); // diálogo esperando resposta: "cancelar"
+    else closeModal(id);
+  }
+
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tela));
+  document.querySelectorAll('#tabsNav .tab-btn').forEach(a => {
+    const atual = a.dataset.tab === tela;
+    a.classList.toggle('active', atual);
+    if (atual) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  });
+  if (tela === 'config') {
+    document.querySelectorAll('[data-config-tab]').forEach(a => {
+      const atual = a.dataset.configTab === rota.sub;
+      a.classList.toggle('is-active', atual);
+      if (atual) a.setAttribute('aria-current', 'page');
+      else a.removeAttribute('aria-current');
+    });
+    document.querySelectorAll('[data-config-section]').forEach(sec => {
+      sec.classList.toggle('is-active', sec.dataset.configSection === rota.sub);
+    });
+  }
+
+  if (!rota) {
+    document.getElementById('enderecoNaoEncontrado').textContent = location.hash || '#/';
+    document.title = `Página não encontrada — ${TITULO_SISTEMA}`;
+    rotaAtual = { caminho: end.caminho, sub: '', tela, def: null };
+    enderecoMostrado = location.hash;
+  } else {
+    const nomeSub = rota.def.subtelas ? rota.def.subtelas[rota.sub] : '';
+    document.title = `${nomeSub ? nomeSub + ' · ' : ''}${rota.def.titulo} — ${TITULO_SISTEMA}`;
+    rotaAtual = { caminho: end.caminho, sub: rota.sub, tela, def: rota.def };
+    // o painel já está visível: gráficos e tabelas medidos agora saem com a
+    // largura certa (escondidos, saíam com largura zero)
+    if (rota.def.aplicar) rota.def.aplicar(end.params);
+    if (rota.def.desenhar) preservandoFoco(rota.def.desenhar);
+    ajustarTabelasVisiveis();
+    enderecoMostrado = location.hash || '#/';
+    atualizarEndereco(); // normaliza parâmetros inválidos
+  }
+
+  document.dispatchEvent(new CustomEvent('rota-mudou', { detail: { tela } }));
+  if (mudouDeTela && !opcoes.primeiraVez) {
+    window.scrollTo(0, 0);
+    if (!opcoes.manterFoco) focarTituloDaTela();
+  }
+}
+
+// Voltar/Avançar, endereço digitado à mão, link aberto no mesmo documento.
+let tratandoMudancaDeEndereco = false;
+
+async function aoMudarEndereco() {
+  const novo = location.hash || '#/';
+  if (!sessaoAtiva || novo === enderecoMostrado || tratandoMudancaDeEndereco) return;
+  tratandoMudancaDeEndereco = true;
+  try {
+    const anterior = enderecoMostrado;
+    const modal = modalAberto();
+    if (modal) {
+      // Voltar com um modal aberto fecha o modal e fica na mesma tela (é o que
+      // se espera no celular): o endereço anterior volta para o lugar.
+      history.pushState(null, '', anterior);
+      await pedirFechamento(modal.id);
+      return;
+    }
+    if (trocaDeTela(rotaAtual, lerEndereco(novo)) && !(await podeSairDaTela())) {
+      history.pushState(null, '', anterior);
+      return;
+    }
+    mostrarRota();
+  } finally {
+    tratandoMudancaDeEndereco = false;
+  }
+}
+
+window.addEventListener('popstate', aoMudarEndereco);
+window.addEventListener('hashchange', aoMudarEndereco);
+
+// Links internos (menu, menu do usuário, abas de Configurações, "Ir para o
+// Dashboard"...) passam por navegar(), que pergunta antes de descartar o que foi
+// digitado. Ctrl/⌘+clique, Shift+clique e botão do meio ficam com o navegador —
+// abrem a tela numa aba nova, como qualquer link.
+document.addEventListener('click', (e) => {
+  const a = e.target.closest && e.target.closest('a[href^="#/"]');
+  if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  const end = lerEndereco(a.getAttribute('href'));
+  navegar(end.caminho, Object.fromEntries(end.params), { sub: end.sub });
+});
+
+document.getElementById('linkPularConteudo').addEventListener('click', (e) => {
+  e.preventDefault();
+  focarTituloDaTela();
+});
+
+// Busca do topo: leva a Contratos com a busca no endereço, sem empilhar
+// histórico, e o cursor continua no campo.
+document.getElementById('globalSearch').addEventListener('input', () => {
+  const busca = document.getElementById('globalSearch').value;
+  const params = rotaAtual && rotaAtual.tela === 'contratos' ? rotaAtual.def.ler() : {};
+  navegar('contratos', { ...params, busca: busca.trim(), pagina: '' }, { substituir: true, manterFoco: true });
+});
+document.getElementById('searchContratos').addEventListener('input', () => {
+  document.getElementById('globalSearch').value = document.getElementById('searchContratos').value;
+});
+
+/* ===================== ATALHOS DE TECLADO =====================
+ * N novo contrato, / busca, ? lista de atalhos, Esc fecha. Os de uma tecla só
+ * (N, / e ?) podem ser desligados em Configurações › Financeiro — quem usa
+ * comando de voz ou digita às cegas dispara atalho sem querer. A escolha fica
+ * no navegador (é preferência de quem usa, não dado do sistema).
+ */
+const ATALHOS_KEY = 'aluguelApp_atalhos';
+
+function atalhosLigados() {
+  try { return localStorage.getItem(ATALHOS_KEY) !== 'desligados'; } catch (e) { return true; }
+}
+
+function definirAtalhosLigados(ligados) {
+  try { localStorage.setItem(ATALHOS_KEY, ligados ? 'ligados' : 'desligados'); } catch (e) { /* vale só nesta sessão */ }
+  document.getElementById('configAtalhos').checked = ligados;
+  document.getElementById('btnNovoContrato').title = ligados ? 'Atalho: N' : '';
+}
+
+document.getElementById('configAtalhos').addEventListener('change', (e) => {
+  definirAtalhosLigados(e.target.checked);
+  showToast(e.target.checked ? 'Atalhos de uma tecla ligados.' : 'Atalhos de uma tecla desligados.', 'success');
+});
+document.getElementById('btnVerAtalhos').addEventListener('click', () => openModal('modalAtalhos'));
+document.getElementById('btnAtalhosMenu').addEventListener('click', () => openModal('modalAtalhos'));
+definirAtalhosLigados(atalhosLigados());
+
+document.addEventListener('keydown', async (e) => {
   if (appEl.classList.contains('hidden')) return; // não logado ainda
 
   if (e.key === 'Escape') {
     const aberto = modalAberto();
-    if (aberto) aberto.classList.add('hidden');
+    if (aberto) {
+      e.preventDefault();
+      pedirFechamento(aberto.id);
+    }
     return;
   }
 
   const alvo = document.activeElement;
   const editando = alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.tagName === 'SELECT' || alvo.isContentEditable);
-  if (editando || modalAberto() || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (editando || modalAberto() || e.metaKey || e.ctrlKey || e.altKey || !atalhosLigados()) return;
 
-  if (e.key === 'n') {
+  if (e.key === 'n' || e.key === 'N') {
     e.preventDefault();
-    document.querySelector('.tab-btn[data-tab="contratos"]').click();
-    document.getElementById('btnNovoContrato').click();
+    if (await navegar('contratos', rotaAtual && rotaAtual.tela === 'contratos' ? rotaAtual.def.ler() : {})) {
+      document.getElementById('btnNovoContrato').click();
+    }
   } else if (e.key === '/') {
     e.preventDefault();
-    document.querySelector('.tab-btn[data-tab="contratos"]').click();
-    document.getElementById('searchContratos').focus();
+    document.getElementById('globalSearch').focus();
+  } else if (e.key === '?') {
+    e.preventDefault();
+    openModal('modalAtalhos');
   }
 });
 
@@ -835,19 +2084,19 @@ const LABELS_DIVIDA = {
 // direto em R$ (valor fixo daquele mês).
 function updateTotalPreview() {
   const criando = !document.getElementById('dividaId').value;
-  const aluguel = Number(document.getElementById('fAluguel').value) || 0;
+  const aluguel = valorCampo('fAluguel');
   const juros = criando
-    ? aluguel * (Number(document.getElementById('fJurosPercentual').value) || 0) / 100
-    : (Number(document.getElementById('fJuros').value) || 0);
+    ? aluguel * valorCampo('fJurosPercentual') / 100
+    : valorCampo('fJuros');
   const multa = criando
-    ? aluguel * (Number(document.getElementById('fMultaPercentual').value) || 0) / 100
-    : (Number(document.getElementById('fMulta').value) || 0);
+    ? aluguel * valorCampo('fMultaPercentual') / 100
+    : valorCampo('fMulta');
   const condominioDireto = document.getElementById('fCondominioDireto').value === '1';
-  const condominioValor = Number(document.getElementById('fCondominio').value) || 0;
+  const condominioValor = valorCampo('fCondominio');
   const condominio = condominioDireto ? 0 : condominioValor;
   const total = calcTotal({
     aluguel,
-    desconto: document.getElementById('fDesconto').value,
+    desconto: valorCampo('fDesconto'),
     juros,
     multa,
     condominio,
@@ -860,7 +2109,7 @@ function updateTotalPreview() {
   let percentualCorretor = 0;
   if (criando) {
     percentualCorretor = document.getElementById('fCorretorNome').value
-      ? (Number(document.getElementById('fCorretorPercentual').value) || 0)
+      ? valorCampo('fCorretorPercentual')
       : 0;
   } else {
     const achado = encontrarDivida(document.getElementById('dividaId').value);
@@ -896,8 +2145,8 @@ document.getElementById('btnNovoContrato').addEventListener('click', () => {
   document.getElementById('modalContratoTitle').textContent = 'Novo contrato';
   document.getElementById('fDataInicio').value = todayStr();
   document.getElementById('fDiaPagamento').value = new Date().getDate();
-  document.getElementById('fJurosPercentual').value = state.config.taxaJurosMensal || '';
-  document.getElementById('fMultaPercentual').value = state.config.taxaMultaPercent || '';
+  escreverValor('fJurosPercentual', state.config.taxaJurosMensal || '');
+  escreverValor('fMultaPercentual', state.config.taxaMultaPercent || '');
   document.getElementById('fCampoDataInicio').classList.remove('hidden');
   document.getElementById('fCampoDiaPagamento').classList.remove('hidden');
   document.getElementById('fCampoImovel').classList.remove('hidden');
@@ -911,7 +2160,7 @@ document.getElementById('btnNovoContrato').addEventListener('click', () => {
   document.getElementById('fCampoVencimento').classList.add('hidden');
   document.getElementById('fCampoCaucao').classList.remove('hidden');
   document.getElementById('fCaucaoHint').classList.remove('hidden');
-  document.getElementById('fCaucao').value = '';
+  escreverValor('fCaucao', '');
   document.getElementById('fCampoJurosPercentual').classList.remove('hidden');
   document.getElementById('fCampoMultaPercentual').classList.remove('hidden');
   document.getElementById('fCampoJuros').classList.add('hidden');
@@ -920,7 +2169,7 @@ document.getElementById('btnNovoContrato').addEventListener('click', () => {
   document.getElementById('fCampoCorretorPercentual').classList.remove('hidden');
   populatePessoaSelect(document.getElementById('fCorretorNome'), '', 'Nenhum (sem corretor)');
   document.getElementById('fCampoCorretorPercentual').classList.add('hidden');
-  document.getElementById('fCorretorPercentual').value = 0;
+  escreverValor('fCorretorPercentual', 0);
   document.getElementById('fCorretorHint').classList.remove('hidden');
   document.getElementById('fDataInicio').required = true;
   document.getElementById('fDiaPagamento').required = true;
@@ -939,13 +2188,13 @@ function openEditDivida(dividaId) {
   document.getElementById('contratoId').value = c.id;
   document.getElementById('dividaId').value = d.id;
   document.getElementById('fVencimento').value = d.vencimento;
-  document.getElementById('fAluguel').value = d.aluguel;
-  document.getElementById('fDesconto').value = d.desconto || '';
-  document.getElementById('fJuros').value = d.juros || '';
-  document.getElementById('fMulta').value = d.multa || '';
-  document.getElementById('fCondominio').value = d.condominio || '';
+  escreverValor('fAluguel', d.aluguel);
+  escreverValor('fDesconto', d.desconto || '');
+  escreverValor('fJuros', d.juros || '');
+  escreverValor('fMulta', d.multa || '');
+  escreverValor('fCondominio', d.condominio || '');
   document.getElementById('fCondominioDireto').value = d.condominioDireto ? '1' : '0';
-  document.getElementById('fValorAtraso').value = d.valorAtrasoBase || '';
+  escreverValor('fValorAtraso', d.valorAtrasoBase || '');
   document.getElementById('fObservacao').value = d.observacao || '';
   document.getElementById('modalContratoTitle').textContent = `Editar dívida — ${c.imovel} (${c.inquilino})`;
   document.getElementById('fCampoDataInicio').classList.add('hidden');
@@ -975,10 +2224,9 @@ function openEditDivida(dividaId) {
   openModal('modalContrato');
 }
 
-formContrato.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(formContrato, async () => {
   const dividaId = document.getElementById('dividaId').value;
-  const aluguelValue = Number(document.getElementById('fAluguel').value) || 0;
+  const aluguelValue = valorCampo('fAluguel');
 
   // Na edição de uma dívida já existente, juros/multa são digitados direto em
   // R$ (valor fixo daquele mês). Na criação de um contrato novo, são digitados
@@ -986,26 +2234,27 @@ formContrato.addEventListener('submit', (e) => {
   // convertidos para R$ aqui — a partir daí a dívida guarda só o valor em R$.
   let jurosValue, multaValue;
   if (dividaId) {
-    jurosValue = Number(document.getElementById('fJuros').value) || 0;
-    multaValue = Number(document.getElementById('fMulta').value) || 0;
+    jurosValue = valorCampo('fJuros');
+    multaValue = valorCampo('fMulta');
   } else {
-    const jurosPct = Number(document.getElementById('fJurosPercentual').value) || 0;
-    const multaPct = Number(document.getElementById('fMultaPercentual').value) || 0;
+    const jurosPct = valorCampo('fJurosPercentual');
+    const multaPct = valorCampo('fMultaPercentual');
     jurosValue = aluguelValue * jurosPct / 100;
     multaValue = aluguelValue * multaPct / 100;
   }
 
   const camposDivida = {
     aluguel: aluguelValue,
-    desconto: Number(document.getElementById('fDesconto').value) || 0,
+    desconto: valorCampo('fDesconto'),
     juros: jurosValue,
     multa: multaValue,
-    condominio: Number(document.getElementById('fCondominio').value) || 0,
+    condominio: valorCampo('fCondominio'),
     condominioDireto: document.getElementById('fCondominioDireto').value === '1',
-    valorAtrasoBase: Number(document.getElementById('fValorAtraso').value) || 0,
+    valorAtrasoBase: valorCampo('fValorAtraso'),
     observacao: document.getElementById('fObservacao').value.trim(),
   };
   camposDivida.total = calcTotal(camposDivida);
+  let mensagemSucesso = '';
 
   if (dividaId) {
     const achado = encontrarDivida(dividaId);
@@ -1016,7 +2265,7 @@ formContrato.addEventListener('submit', (e) => {
     Object.assign(d, camposDivida);
     const alteracoes = diffCampos(antes, d, LABELS_DIVIDA);
     registrarAuditoria('divida_editada', `Dívida editada: ${c.imovel} - ${c.inquilino} (${formatDate(d.vencimento)})`, alteracoes);
-    showToast('Dívida atualizada com sucesso.', 'success');
+    mensagemSucesso = 'Dívida atualizada com sucesso.';
   } else {
     const imovel = document.getElementById('fImovel').value.trim();
     const inquilino = document.getElementById('fInquilino').value.trim();
@@ -1025,23 +2274,25 @@ formContrato.addEventListener('submit', (e) => {
     const diaPagamento = Number(document.getElementById('fDiaPagamento').value) || 0;
     if (!dataInicio || diaPagamento < 1 || diaPagamento > 31) {
       showToast('Informe a data de início e um dia de pagamento válido (1 a 31).', 'error');
-      return;
+      return false;
     }
 
     const corretorNome = document.getElementById('fCorretorNome').value;
-    const corretorPercentual = Number(document.getElementById('fCorretorPercentual').value) || 0;
-    const caucao = Number(document.getElementById('fCaucao').value) || 0;
+    const corretorPercentual = valorCampo('fCorretorPercentual');
+    const caucao = valorCampo('fCaucao');
 
     const primeiroVenc = primeiroVencimento(dataInicio, diaPagamento);
     const vencimentos = gerarVencimentosAtePresente(primeiroVenc);
 
     if (vencimentos.length > 1) {
-      const ok = confirm(
-        `A data de início já passou. Isso vai gerar ${vencimentos.length} dívidas neste contrato, ` +
-        `uma para cada mês, de ${formatDate(vencimentos[0])} até ${formatDate(vencimentos[vencimentos.length - 1])}. ` +
-        `Deseja continuar?`
-      );
-      if (!ok) return;
+      const ok = await confirmar({
+        titulo: `Gerar ${vencimentos.length} dívidas?`,
+        mensagem: `A data de início já passou. Este contrato vai começar com ${vencimentos.length} dívidas, ` +
+          `uma para cada mês, de ${formatDate(vencimentos[0])} até ${formatDate(vencimentos[vencimentos.length - 1])}.`,
+        acao: `Criar contrato com ${vencimentos.length} dívidas`,
+        cancelar: 'Voltar ao formulário',
+      });
+      if (!ok) return false;
     }
 
     const dividas = vencimentos.map((venc, idx) => {
@@ -1099,65 +2350,80 @@ formContrato.addEventListener('submit', (e) => {
     const sufixoCorretor = corretorNome ? ` (corretor: ${corretorNome}, ${corretorPercentual}%)` : '';
     if (vencimentos.length > 1) {
       registrarAuditoria('contrato_criado', `Contrato criado com ${vencimentos.length} dívidas (retroativo): ${imovel} - ${inquilino}, de ${formatDate(vencimentos[0])} até ${formatDate(vencimentos[vencimentos.length - 1])}${sufixoCorretor}`);
-      showToast(`Contrato criado com ${vencimentos.length} dívidas.`, 'success');
+      mensagemSucesso = `Contrato criado com ${vencimentos.length} dívidas.`;
     } else {
       registrarAuditoria('contrato_criado', `Contrato criado: ${imovel} - ${inquilino}${sufixoCorretor}`);
-      showToast('Contrato criado com sucesso.', 'success');
+      mensagemSucesso = 'Contrato criado com sucesso.';
     }
   }
-  saveState();
+  const ok = await saveState();
   closeModal('modalContrato');
   renderAll();
+  if (ok) showToast(mensagemSucesso, 'success');
 });
 
-function excluirContrato(contratoId) {
+async function excluirContrato(contratoId) {
   const c = state.contratos.find(x => x.id === contratoId);
   if (!c) return;
-  if (!confirm(`Tem certeza que deseja excluir o contrato de ${c.imovel} - ${c.inquilino}? Isso apaga TODAS as ${c.dividas.length} dívida(s) dele. Esta ação não pode ser desfeita.`)) return;
+  if (!(await confirmar({
+    titulo: `Excluir o contrato #${c.numero}?`,
+    mensagem: `${c.imovel} — ${c.inquilino}.\nIsso apaga o contrato e TODAS as ${c.dividas.length} dívida(s) dele, com os pagamentos. Não dá para desfazer.\nSe o inquilino só saiu do imóvel, use "Encerrar contrato": o histórico fica guardado.`,
+    acao: 'Excluir contrato',
+    perigo: true,
+  }))) return;
   state.contratos = state.contratos.filter(x => x.id !== contratoId);
   registrarAuditoria('contrato_excluido', `Contrato excluído: ${c.imovel} - ${c.inquilino} (${c.dividas.length} dívida(s))`);
-  saveState();
+  const ok = await saveState();
   renderAll();
-  showToast('Contrato excluído.', 'success');
+  if (ok) showToast('Contrato excluído.', 'success');
 }
 
 // Encerrar é diferente de excluir: não apaga nenhum dado (as dívidas e o
 // histórico de pagamentos continuam existindo e visíveis), só faz o sistema
 // parar de gerar novas dívidas mensais para este contrato — usado quando o
 // inquilino deixa o imóvel. Pode ser revertido a qualquer momento.
-function encerrarContrato(contratoId) {
+async function encerrarContrato(contratoId) {
   const c = state.contratos.find(x => x.id === contratoId);
   if (!c) return;
-  if (!confirm(`Encerrar o contrato de ${c.imovel} - ${c.inquilino}? O histórico continua disponível normalmente — o sistema só para de gerar novas dívidas mensais automaticamente. Você pode reabrir depois, se precisar.`)) return;
+  if (!(await confirmar({
+    titulo: `Encerrar o contrato #${c.numero}?`,
+    mensagem: `${c.imovel} — ${c.inquilino}.\nO histórico continua disponível normalmente: o sistema só para de gerar novas dívidas mensais. Você pode reabrir depois, se precisar.`,
+    acao: 'Encerrar contrato',
+  }))) return;
   c.encerrado = true;
   c.dataEncerramento = todayStr();
   registrarAuditoria('contrato_encerrado', `Contrato encerrado: ${c.imovel} - ${c.inquilino}`);
-  saveState();
+  const ok = await saveState();
   renderAll();
-  showToast('Contrato encerrado.', 'success');
+  if (ok) showToast('Contrato encerrado.', 'success');
 }
 
-function reabrirContrato(contratoId) {
+async function reabrirContrato(contratoId) {
   const c = state.contratos.find(x => x.id === contratoId);
   if (!c) return;
   c.encerrado = false;
   c.dataEncerramento = null;
   registrarAuditoria('contrato_reaberto', `Contrato reaberto: ${c.imovel} - ${c.inquilino}`);
-  saveState();
+  const ok = await saveState();
   renderAll();
-  showToast('Contrato reaberto.', 'success');
+  if (ok) showToast('Contrato reaberto.', 'success');
 }
 
-function excluirDivida(dividaId) {
+async function excluirDivida(dividaId) {
   const achado = encontrarDivida(dividaId);
   if (!achado) return;
   const { contrato: c, divida: d } = achado;
-  if (!confirm(`Excluir a dívida de ${formatDate(d.vencimento)} de ${c.imovel} - ${c.inquilino}? Esta ação não pode ser desfeita.`)) return;
+  if (!(await confirmar({
+    titulo: `Excluir a dívida de ${formatDate(d.vencimento)}?`,
+    mensagem: `Contrato #${c.numero} — ${c.imovel} — ${c.inquilino}.${(d.pagamentos || []).length ? '\nOs pagamentos registrados nesta dívida também são apagados.' : ''}\nNão dá para desfazer.`,
+    acao: 'Excluir dívida',
+    perigo: true,
+  }))) return;
   c.dividas = c.dividas.filter(x => x.id !== dividaId);
   registrarAuditoria('divida_excluida', `Dívida excluída: ${c.imovel} - ${c.inquilino} (${formatDate(d.vencimento)})`);
-  saveState();
+  const ok = await saveState();
   renderAll();
-  showToast('Dívida excluída.', 'success');
+  if (ok) showToast('Dívida excluída.', 'success');
 }
 
 // Gera as dívidas que faltam entre a última já existente e o mês atual —
@@ -1203,45 +2469,50 @@ function gerarDividasFaltantes(c) {
   return vencimentos.length;
 }
 
-function atualizarDividas(contratoId) {
+async function atualizarDividas(contratoId) {
   const c = state.contratos.find(x => x.id === contratoId);
   if (!c) return;
 
   const geradas = gerarDividasFaltantes(c);
   if (!geradas) {
-    showToast('Este contrato já está em dia — nenhuma dívida nova para gerar.', 'error');
+    showToast('Este contrato já está em dia: não há dívida nova para gerar.', 'success');
     return;
   }
 
   registrarAuditoria('divida_editada', `${geradas} nova(s) dívida(s) gerada(s): ${c.imovel} - ${c.inquilino}`);
-  saveState();
+  const ok = await saveState();
   renderAll();
-  showToast(`${geradas} dívida(s) gerada(s) com sucesso.`, 'success');
+  if (ok) showToast(`${geradas} dívida(s) gerada(s) com sucesso.`, 'success');
 }
 
-// Roda a mesma geração para TODOS os contratos de uma vez (botão global no
-// topo, e também automaticamente ao abrir o sistema). Em modo silencioso
-// (usado na checagem automática), só mostra aviso se algo foi de fato gerado.
-function atualizarTodasDividas(silencioso) {
-  let totalGeradas = 0;
-  let contratosAfetados = 0;
+// Roda a mesma geração para TODOS os contratos de uma vez — automaticamente ao
+// abrir o sistema (carregarDados) e pelo botão "Atualizar dívidas" do topo.
+// Só mexe no estado em memória; quem chama decide gravar.
+function gerarDividasDeTodos() {
+  let total = 0;
+  let contratos = 0;
   state.contratos.forEach(c => {
     const geradas = gerarDividasFaltantes(c);
     if (geradas > 0) {
-      totalGeradas += geradas;
-      contratosAfetados++;
+      total += geradas;
+      contratos++;
     }
   });
+  if (total) {
+    registrarAuditoria('divida_editada', `Atualização em lote: ${total} dívida(s) geradas em ${contratos} contrato(s)`);
+  }
+  return { total, contratos };
+}
 
-  if (totalGeradas === 0) {
-    if (!silencioso) showToast('Todos os contratos já estão em dia.', 'success');
+async function atualizarTodasDividas() {
+  const { total, contratos } = gerarDividasDeTodos();
+  if (!total) {
+    showToast('Todos os contratos já estão em dia.', 'success');
     return;
   }
-
-  registrarAuditoria('divida_editada', `Atualização em lote: ${totalGeradas} dívida(s) geradas em ${contratosAfetados} contrato(s)`);
-  saveState();
+  const ok = await saveState();
   renderAll();
-  showToast(`${totalGeradas} dívida(s) geradas em ${contratosAfetados} contrato(s).`, 'success');
+  if (ok) showToast(`${total} dívida(s) geradas em ${contratos} contrato(s).`, 'success');
 }
 
 /* ===================== EDITAR CONTRATO (dados compartilhados + anexo) ===================== */
@@ -1255,7 +2526,7 @@ function openContratoInfo(contratoId) {
   populateCarteiraSelect(document.getElementById('infoCarteira'), c.carteiraId || '');
   atualizarVisibilidadeCamposCarteira();
   document.getElementById('infoInquilino').value = c.inquilino;
-  document.getElementById('infoCaucao').value = c.caucao || '';
+  escreverValor('infoCaucao', c.caucao || '');
   populatePessoaSelect(document.getElementById('infoQuemRecebeu'), c.quemRecebeu || '', 'Nenhum / outro');
   document.getElementById('infoContratoSubtitle').textContent = (c.dataInicio
     ? `Contrato #${c.numero} — Início: ${formatDate(c.dataInicio)}, todo dia ${c.diaPagamento}`
@@ -1264,7 +2535,7 @@ function openContratoInfo(contratoId) {
   populatePessoaSelect(document.getElementById('infoCorretorNome'), c.corretorNome || '', 'Nenhum (sem corretor)');
   document.getElementById('infoCampoCorretorPercentual').classList.toggle('hidden', !c.corretorNome);
   document.getElementById('infoCampoCorretorValor').classList.toggle('hidden', !c.corretorNome);
-  document.getElementById('infoCorretorPercentual').value = c.corretorNome ? c.corretorPercentual : 0;
+  escreverValor('infoCorretorPercentual', c.corretorNome ? c.corretorPercentual : 0);
   atualizarValorCorretorInfo();
 
   renderAnexoAtual(c);
@@ -1274,7 +2545,7 @@ function openContratoInfo(contratoId) {
 function atualizarValorCorretorInfo() {
   const id = document.getElementById('infoContratoId').value;
   const c = state.contratos.find(x => x.id === id);
-  const percentual = Number(document.getElementById('infoCorretorPercentual').value) || 0;
+  const percentual = valorCampo('infoCorretorPercentual');
   const aluguel = c ? c.aluguel : 0;
   document.getElementById('infoCorretorValor').textContent = formatCurrency(aluguel * percentual / 100);
 }
@@ -1287,8 +2558,7 @@ const LABELS_CONTRATO_INFO = {
   caucao: 'Caução (R$)',
 };
 
-formContratoInfo.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(formContratoInfo, async () => {
   const id = document.getElementById('infoContratoId').value;
   const c = state.contratos.find(x => x.id === id);
   if (!c) return;
@@ -1298,8 +2568,8 @@ formContratoInfo.addEventListener('submit', (e) => {
   c.inquilino = document.getElementById('infoInquilino').value.trim();
   c.quemRecebeu = document.getElementById('infoQuemRecebeu').value.trim();
   c.corretorNome = document.getElementById('infoCorretorNome').value;
-  c.corretorPercentual = Number(document.getElementById('infoCorretorPercentual').value) || 0;
-  c.caucao = Number(document.getElementById('infoCaucao').value) || 0;
+  c.corretorPercentual = valorCampo('infoCorretorPercentual');
+  c.caucao = valorCampo('infoCaucao');
 
   const carteiraAntiga = antes.carteiraId || '';
   c.carteiraId = document.getElementById('infoCarteira').value || '';
@@ -1314,10 +2584,10 @@ formContratoInfo.addEventListener('submit', (e) => {
     });
   }
   registrarAuditoria('contrato_editado', `Contrato editado: ${c.imovel} - ${c.inquilino}`, alteracoes);
-  saveState();
+  const ok = await saveState();
   closeModal('modalContratoInfo');
   renderAll();
-  showToast('Contrato atualizado com sucesso.', 'success');
+  if (ok) showToast('Contrato atualizado com sucesso.', 'success');
 });
 
 /* ===================== ANEXO DO CONTRATO ===================== */
@@ -1351,15 +2621,15 @@ document.getElementById('fAnexoInput').addEventListener('change', async () => {
     formData.append('contratoId', c.id);
     formData.append('inquilino', c.inquilino);
     formData.append('imovel', c.imovel);
-    const res = await fetch(API_BASE + 'anexo.php', { method: 'POST', credentials: 'same-origin', body: formData });
+    const res = await apiFetch('anexo.php', { method: 'POST', body: formData });
     const data = await res.json();
     if (res.ok && data.ok) {
       c.anexoContrato = data.filename;
       registrarAuditoria('contrato_editado', `Contrato anexado: ${c.imovel} - ${c.inquilino}`);
-      await saveState();
+      const ok = await saveState();
       renderAnexoAtual(c);
       renderAll();
-      showToast('Contrato anexado com sucesso.', 'success');
+      if (ok) showToast('Contrato anexado com sucesso.', 'success');
     } else {
       status.textContent = data.error || 'Não foi possível enviar o arquivo.';
       showToast(data.error || 'Não foi possível enviar o arquivo.', 'error');
@@ -1374,19 +2644,30 @@ document.getElementById('btnRemoverAnexo').addEventListener('click', async () =>
   const id = document.getElementById('infoContratoId').value;
   const c = state.contratos.find(x => x.id === id);
   if (!c || !c.anexoContrato) return;
-  if (!confirm('Remover o arquivo anexado a este contrato?')) return;
+  if (!(await confirmar({
+    titulo: 'Remover o contrato anexado?',
+    mensagem: `O arquivo ${c.anexoContrato} é apagado do servidor.`,
+    acao: 'Remover anexo',
+    perigo: true,
+  }))) return;
 
-  try {
-    await apiFetch('anexo.php', { method: 'POST', body: JSON.stringify({ action: 'remove', file: c.anexoContrato }) });
-    registrarAuditoria('contrato_editado', `Anexo removido: ${c.imovel} - ${c.inquilino}`);
-    c.anexoContrato = null;
-    await saveState();
+  // Primeiro tira o anexo do contrato e grava; só depois apaga o arquivo. Na
+  // ordem contrária, uma gravação que falhasse deixaria o contrato apontando
+  // para um arquivo que não existe mais.
+  const arquivo = c.anexoContrato;
+  c.anexoContrato = null;
+  registrarAuditoria('contrato_editado', `Anexo removido: ${c.imovel} - ${c.inquilino}`);
+  if (!(await saveState())) {
     renderAnexoAtual(c);
     renderAll();
-    showToast('Anexo removido.', 'success');
-  } catch (err) {
-    showToast('Não foi possível remover o anexo.', 'error');
+    return;
   }
+  try {
+    await apiFetch('anexo.php', { method: 'POST', body: JSON.stringify({ action: 'remove', file: arquivo }) });
+  } catch (err) { /* o contrato já não aponta para o arquivo; sobra só um arquivo solto */ }
+  renderAnexoAtual(c);
+  renderAll();
+  showToast('Anexo removido.', 'success');
 });
 
 /* ===================== REAJUSTE DE VALOR ===================== */
@@ -1404,21 +2685,20 @@ function openReajuste(contratoId) {
     const valorSugerido = valorReajusteSugerido(c);
     document.getElementById('reajusteSugestaoHint').textContent =
       `Este contrato está no aniversário de reajuste. Sugestão (${state.config.percentualReajusteSugerido || 0}%): ${formatCurrency(valorSugerido)}.`;
-    document.getElementById('reajusteNovoValor').value = valorSugerido.toFixed(2);
+    escreverValor('reajusteNovoValor', valorSugerido.toFixed(2));
   } else {
-    document.getElementById('reajusteNovoValor').value = '';
+    escreverValor('reajusteNovoValor', '');
   }
   openModal('modalReajuste');
 }
 
-formReajuste.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(formReajuste, async () => {
   const id = document.getElementById('reajusteContratoId').value;
   const c = state.contratos.find(x => x.id === id);
   if (!c) return;
   const valorAntigo = c.aluguel;
-  const novoValor = Number(document.getElementById('reajusteNovoValor').value) || 0;
-  if (novoValor <= 0) return;
+  const novoValor = valorCampo('reajusteNovoValor');
+  if (novoValor <= 0) return false;
 
   c.aluguel = novoValor;
   c.dataUltimoReajuste = todayStr();
@@ -1433,10 +2713,10 @@ formReajuste.addEventListener('submit', (e) => {
 
   const alteracoes = [{ campo: 'Aluguel (R$)', de: valorAntigo, para: novoValor }];
   registrarAuditoria('contrato_reajustado', `Aluguel reajustado: ${c.imovel} - ${c.inquilino} de ${formatCurrency(valorAntigo)} para ${formatCurrency(novoValor)} (${dividasAtualizadas} dívida(s) em aberto atualizada(s))`, alteracoes);
-  saveState();
+  const ok = await saveState();
   closeModal('modalReajuste');
   renderAll();
-  showToast('Reajuste aplicado com sucesso.', 'success');
+  if (ok) showToast('Reajuste aplicado com sucesso.', 'success');
 });
 
 /* ===================== DEVOLUÇÃO DE CAUÇÃO ===================== */
@@ -1450,27 +2730,26 @@ function abrirDevolucaoCaucao(contratoId) {
   document.getElementById('devCaucaoContratoId').value = c.id;
   document.getElementById('devCaucaoInfo').textContent = `${c.imovel} — ${c.inquilino} — Caução: ${formatCurrency(c.caucao)}`;
   document.getElementById('devCaucaoData').value = c.dataCaucaoDevolvida || todayStr();
-  document.getElementById('devCaucaoValor').value = c.valorCaucaoDevolvida != null ? c.valorCaucaoDevolvida : c.caucao;
+  escreverValor('devCaucaoValor', c.valorCaucaoDevolvida != null ? c.valorCaucaoDevolvida : c.caucao);
   document.getElementById('devCaucaoObservacao').value = '';
   openModal('modalDevolucaoCaucao');
 }
 
-formDevolucaoCaucao.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(formDevolucaoCaucao, async () => {
   const id = document.getElementById('devCaucaoContratoId').value;
   const c = state.contratos.find(x => x.id === id);
   if (!c) return;
 
   c.caucaoDevolvida = true;
   c.dataCaucaoDevolvida = document.getElementById('devCaucaoData').value;
-  c.valorCaucaoDevolvida = Number(document.getElementById('devCaucaoValor').value) || 0;
+  c.valorCaucaoDevolvida = valorCampo('devCaucaoValor');
   const observacao = document.getElementById('devCaucaoObservacao').value.trim();
 
   registrarAuditoria('caucao_devolvida', `Caução devolvida: ${c.imovel} - ${c.inquilino} (${formatCurrency(c.valorCaucaoDevolvida)} em ${formatDate(c.dataCaucaoDevolvida)})${observacao ? ' — ' + observacao : ''}`);
-  saveState();
+  const ok = await saveState();
   closeModal('modalDevolucaoCaucao');
   renderAll();
-  showToast('Devolução de caução registrada.', 'success');
+  if (ok) showToast('Devolução de caução registrada.', 'success');
 });
 
 /* ===================== PAGAMENTO ===================== */
@@ -1498,13 +2777,12 @@ function atualizarValorSugerido() {
   const achado = encontrarDivida(document.getElementById('pagDividaId').value);
   if (!achado) return;
   const { contrato: c, divida: d } = achado;
-  const desconto = Number(document.getElementById('pagDesconto').value) || 0;
+  const desconto = valorCampo('pagDesconto');
   const recebido = condominioRecebidoNoForm();
-  document.getElementById('pagValor').value =
-    Math.max(valorSugeridoPagamento(d, recebido) - desconto, 0).toFixed(2);
+  escreverValor('pagValor', Math.max(valorSugeridoPagamento(d, recebido) - desconto, 0));
   document.getElementById('pagLiquidoPrevia').textContent = formatCurrency(
     valorLiquidoPagamento(c, d, {
-      valor: Number(document.getElementById('pagValor').value) || 0,
+      valor: valorCampo('pagValor'),
       condominioRecebido: recebido,
     })
   );
@@ -1518,7 +2796,7 @@ function openPagamento(dividaId) {
   document.getElementById('pagContratoInfo').textContent = `#${c.numero} — ${c.imovel} — ${c.inquilino} — Vencimento: ${formatDate(d.vencimento)}`;
   document.getElementById('pagExtrato').innerHTML = extratoDividaHtml(c, d);
   document.getElementById('pagData').value = todayStr();
-  document.getElementById('pagDesconto').value = '';
+  escreverValor('pagDesconto', '');
   document.getElementById('pagMotivoDesconto').value = '';
   document.getElementById('pagCampoMotivoDesconto').classList.add('hidden');
   document.getElementById('pagForma').value = '';
@@ -1554,16 +2832,16 @@ document.getElementById('btnSomarAtraso').addEventListener('click', () => {
   const achado = encontrarDivida(document.getElementById('pagDividaId').value);
   if (!achado) return;
   const { divida: d } = achado;
-  const desconto = Number(document.getElementById('pagDesconto').value) || 0;
+  const desconto = valorCampo('pagDesconto');
   const comAtraso = valorSugeridoPagamento(d, condominioRecebidoNoForm()) + calcAtrasoAtual(d) - desconto;
-  document.getElementById('pagValor').value = Math.max(comAtraso, 0).toFixed(2);
+  escreverValor('pagValor', Math.max(comAtraso, 0).toFixed(2));
   showToast('Juros/multa por atraso somados ao valor.', 'success');
 });
 
 document.getElementById('pagCondominioRecebido').addEventListener('change', atualizarValorSugerido);
 
 document.getElementById('pagDesconto').addEventListener('input', () => {
-  const desconto = Number(document.getElementById('pagDesconto').value) || 0;
+  const desconto = valorCampo('pagDesconto');
   atualizarValorSugerido();
   document.getElementById('pagCampoMotivoDesconto').classList.toggle('hidden', desconto <= 0);
 });
@@ -1575,23 +2853,22 @@ document.getElementById('pagValor').addEventListener('input', () => {
   const { contrato: c, divida: d } = achado;
   document.getElementById('pagLiquidoPrevia').textContent = formatCurrency(
     valorLiquidoPagamento(c, d, {
-      valor: Number(document.getElementById('pagValor').value) || 0,
+      valor: valorCampo('pagValor'),
       condominioRecebido: condominioRecebidoNoForm(),
     })
   );
 });
 
-formPagamento.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(formPagamento, async () => {
   const dividaId = document.getElementById('pagDividaId').value;
   const achado = encontrarDivida(dividaId);
   if (!achado) return;
   const { contrato: c, divida: d } = achado;
   const pagamento = {
     data: document.getElementById('pagData').value,
-    desconto: Number(document.getElementById('pagDesconto').value) || 0,
+    desconto: valorCampo('pagDesconto'),
     motivoDesconto: document.getElementById('pagMotivoDesconto').value.trim(),
-    valor: Number(document.getElementById('pagValor').value) || 0,
+    valor: valorCampo('pagValor'),
     forma: document.getElementById('pagForma').value,
     quemRecebeu: document.getElementById('pagQuemRecebeu').value.trim(),
     condominioRecebido: condominioCobrado(d) > 0 ? condominioRecebidoNoForm() : false,
@@ -1602,10 +2879,10 @@ formPagamento.addEventListener('submit', (e) => {
   d.dataPagamento = pagamento.data;
   d.valorAtrasoBase = 0;
   registrarAuditoria('pagamento_registrado', `Pagamento registrado: ${c.imovel} - ${c.inquilino} (${formatDate(d.vencimento)}) - ${formatCurrency(pagamento.valor)}`);
-  saveState();
+  const ok = await saveState();
   closeModal('modalPagamento');
   renderAll();
-  showToast('Pagamento registrado com sucesso.', 'success');
+  if (ok) showToast('Pagamento registrado com sucesso.', 'success');
 });
 
 /* ===================== HISTÓRICO POR CONTRATO ===================== */
@@ -1635,7 +2912,7 @@ function openHistoricoContrato(contratoId) {
             ${p.forma ? ` · ${escapeHtml(p.forma)}` : ''}
             ${p.quemRecebeu ? ` · Recebido por ${escapeHtml(p.quemRecebeu)}` : ''}
             ${p.observacao ? ` · ${escapeHtml(p.observacao)}` : ''}
-            <button type="button" class="btn btn-ghost btn-sm" data-recibo-divida="${d.id}" data-recibo-indice="${indice}">${icon('receipt')} Recibo</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-recibo-divida="${d.id}" data-recibo-indice="${indice}" aria-label="Recibo do pagamento de ${formatDate(p.data)}">${icon('receipt')} Recibo</button>
           </div>
         `;
       }).join('');
@@ -1724,8 +3001,10 @@ function getFilteredContratos() {
 function getFilteredDividasFlat() {
   const filtros = lerFiltrosContratos();
   return todasDividas().filter(d => {
+    // mesma busca da tela (inquilino, imóvel, #número e carteira): o arquivo
+    // precisa sair com o que a tela mostra
     if (filtros.search) {
-      const haystack = (d.inquilino + ' ' + d.imovel).toLowerCase();
+      const haystack = (d.inquilino + ' ' + d.imovel + ' #' + (d.numero || '') + ' ' + carteiraNome(d.carteiraId)).toLowerCase();
       if (!haystack.includes(filtros.search)) return false;
     }
     const venc = parseDate(d.vencimento);
@@ -1740,6 +3019,7 @@ function getFilteredDividasFlat() {
   document.getElementById(id).addEventListener('input', () => {
     contratosPaginaAtual = 1;
     renderContratos();
+    atualizarEndereco();
   });
 });
 
@@ -1942,6 +3222,11 @@ function celulaMoeda(valor, classe) {
   return `<td class="${n === 0 ? 'is-zero' : (classe || '')}">${formatNumero(n)}</td>`;
 }
 
+// "de 10-08-2026, contrato #1" — o complemento do nome dos botões de uma linha.
+function contextoDivida(c, d) {
+  return `de ${formatDate(d.vencimento)}, contrato #${c.numero || '--'}`;
+}
+
 function celulaDivida(c, d, col) {
   const status = getStatus(d);
   switch (col.key) {
@@ -1970,17 +3255,29 @@ function celulaDivida(c, d, col) {
       return d.dataPagamento
         ? `<td class="col-txt">${formatDate(d.dataPagamento)}</td>`
         : '<td class="col-txt is-zero col-vazio">—</td>';
-    case 'acoes':
+    case 'acoes': {
+      // O nome de cada botão diz de qual dívida ele é: para o leitor de tela,
+      // doze linhas de "Excluir dívida" eram doze botões iguais.
+      const qual = contextoDivida(c, d);
       return `<td class="col-acoes">
         <div class="divida-acoes">
-          ${status !== 'pago' ? `<button class="btn-acao is-pagar" data-divida-action="pagar" data-divida-id="${d.id}" title="Registrar pagamento" aria-label="Registrar pagamento">${icon('dollar')}</button>` : ''}
-          ${(d.pagamentos || []).length ? `<button class="btn-acao" data-divida-action="recibo" data-divida-id="${d.id}" title="${d.pagamentos.length > 1 ? `Recibo do pagamento mais recente (esta dívida tem ${d.pagamentos.length}; para os outros, use o Histórico)` : 'Gerar recibo deste pagamento'}" aria-label="Gerar recibo">${icon('receipt')}</button>` : ''}
-          <button class="btn-acao" data-divida-action="editar" data-divida-id="${d.id}" title="Editar esta dívida" aria-label="Editar dívida">${icon('pencil')}</button>
-          <button class="btn-acao is-excluir" data-divida-action="excluir" data-divida-id="${d.id}" title="Excluir esta dívida" aria-label="Excluir dívida">${icon('trash')}</button>
+          ${status !== 'pago' ? `<button type="button" class="btn-acao is-pagar" data-divida-action="pagar" data-divida-id="${d.id}" title="Registrar pagamento" aria-label="Registrar pagamento da dívida ${qual}">${icon('dollar')}</button>` : ''}
+          ${(d.pagamentos || []).length ? `<button type="button" class="btn-acao" data-divida-action="recibo" data-divida-id="${d.id}" title="${d.pagamentos.length > 1 ? `Recibo do pagamento mais recente (esta dívida tem ${d.pagamentos.length}; para os outros, use o Histórico)` : 'Gerar recibo deste pagamento'}" aria-label="Gerar recibo da dívida ${qual}">${icon('receipt')}</button>` : ''}
+          <button type="button" class="btn-acao" data-divida-action="editar" data-divida-id="${d.id}" title="Editar esta dívida" aria-label="Editar dívida ${qual}">${icon('pencil')}</button>
+          <button type="button" class="btn-acao is-excluir" data-divida-action="excluir" data-divida-id="${d.id}" title="Excluir esta dívida" aria-label="Excluir dívida ${qual}">${icon('trash')}</button>
         </div>
       </td>`;
+    }
     default: return '<td></td>';
   }
+}
+
+// Cabeçalho de coluna das tabelas de dívidas. A coluna de ações não tem rótulo
+// visível, mas tem nome para o leitor de tela.
+function cabecalhoDaColuna(col) {
+  const classes = `${col.txt ? 'col-txt' : ''}${col.forte ? ' is-forte' : ''}${col.acoes ? ' col-acoes' : ''}`;
+  const texto = col.acoes ? '<span class="sr-only">Ações</span>' : escapeHtml(col.rotulo);
+  return `<th scope="col" class="${classes}"${col.dica ? ` title="${escapeHtml(col.dica)}"` : ''}>${texto}</th>`;
 }
 
 function dividasTabelaHtml(c, dividas) {
@@ -1989,7 +3286,7 @@ function dividasTabelaHtml(c, dividas) {
     <div class="dividas-scroll">
       <table class="dividas-tabela">
         <thead>
-          <tr>${cols.map(col => `<th class="${col.txt ? 'col-txt' : ''}${col.forte ? ' is-forte' : ''}${col.acoes ? ' col-acoes' : ''}"${col.dica ? ` title="${escapeHtml(col.dica)}"` : ''}>${escapeHtml(col.rotulo)}</th>`).join('')}</tr>
+          <tr>${cols.map(cabecalhoDaColuna).join('')}</tr>
         </thead>
         <tbody>
           ${dividas.map(d => `
@@ -2039,16 +3336,16 @@ function contratoGrupoHtml(c) {
           ${c.encerrado ? `<div class="contrato-sub">Encerrado em ${formatDate(c.dataEncerramento)}</div>` : ''}
         </div>
         <div class="contrato-actions">
-          <button class="btn btn-ghost btn-sm" data-grupo-action="atualizar" data-contrato-id="${c.id}">${icon('calendar')} Atualizar dívidas</button>
-          <button class="btn btn-ghost btn-sm" data-grupo-action="reajustar" data-contrato-id="${c.id}">${icon('trending-up')} Reajustar</button>
-          ${c.anexoContrato ? `<a class="btn btn-ghost btn-sm" href="api/anexo.php?file=${encodeURIComponent(c.anexoContrato)}" target="_blank">${icon('paperclip')} Anexo</a>` : ''}
-          <button class="btn btn-ghost btn-sm" data-grupo-action="historico" data-contrato-id="${c.id}">${icon('receipt')} Histórico</button>
-          <button class="btn btn-ghost btn-sm" data-grupo-action="editar" data-contrato-id="${c.id}">${icon('pencil')} Editar contrato</button>
-          ${c.caucao ? `<button class="btn btn-ghost btn-sm" data-grupo-action="devolver-caucao" data-contrato-id="${c.id}">${icon('wallet')} ${c.caucaoDevolvida ? 'Editar devolução da caução' : 'Devolver caução'}</button>` : ''}
+          <button type="button" class="btn btn-ghost btn-sm" data-grupo-action="atualizar" data-contrato-id="${c.id}" aria-label="Atualizar dívidas do contrato #${c.numero}">${icon('calendar')} Atualizar dívidas</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-grupo-action="reajustar" data-contrato-id="${c.id}" aria-label="Reajustar contrato #${c.numero}">${icon('trending-up')} Reajustar</button>
+          ${c.anexoContrato ? `<a class="btn btn-ghost btn-sm" href="api/anexo.php?file=${encodeURIComponent(c.anexoContrato)}" target="_blank" rel="noopener" aria-label="Anexo do contrato #${c.numero} (abre em nova aba)">${icon('paperclip')} Anexo</a>` : ''}
+          <button type="button" class="btn btn-ghost btn-sm" data-grupo-action="historico" data-contrato-id="${c.id}" aria-label="Histórico do contrato #${c.numero}">${icon('receipt')} Histórico</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-grupo-action="editar" data-contrato-id="${c.id}" aria-label="Editar contrato #${c.numero}">${icon('pencil')} Editar contrato</button>
+          ${c.caucao ? `<button type="button" class="btn btn-ghost btn-sm" data-grupo-action="devolver-caucao" data-contrato-id="${c.id}" aria-label="${c.caucaoDevolvida ? 'Editar devolução da caução' : 'Devolver caução'} do contrato #${c.numero}">${icon('wallet')} ${c.caucaoDevolvida ? 'Editar devolução da caução' : 'Devolver caução'}</button>` : ''}
           ${c.encerrado
-            ? `<button class="btn btn-ghost btn-sm" data-grupo-action="reabrir" data-contrato-id="${c.id}">${icon('trending-up')} Reabrir contrato</button>`
-            : `<button class="btn btn-ghost btn-sm" data-grupo-action="encerrar" data-contrato-id="${c.id}">${icon('clock')} Encerrar contrato</button>`}
-          <button class="btn btn-danger btn-sm" data-grupo-action="excluir" data-contrato-id="${c.id}">${icon('trash')} Excluir contrato</button>
+            ? `<button type="button" class="btn btn-ghost btn-sm" data-grupo-action="reabrir" data-contrato-id="${c.id}" aria-label="Reabrir contrato #${c.numero}">${icon('trending-up')} Reabrir contrato</button>`
+            : `<button type="button" class="btn btn-ghost btn-sm" data-grupo-action="encerrar" data-contrato-id="${c.id}" aria-label="Encerrar contrato #${c.numero}">${icon('clock')} Encerrar contrato</button>`}
+          <button type="button" class="btn btn-danger btn-sm" data-grupo-action="excluir" data-contrato-id="${c.id}" aria-label="Excluir contrato #${c.numero}">${icon('trash')} Excluir contrato</button>
         </div>
       </div>
       <div class="contrato-grupo-dividas">
@@ -2121,9 +3418,9 @@ function celulaDividaFlat(item, col) {
     const status = getStatus(item);
     return `<td class="col-acoes">
       <div class="divida-acoes">
-        ${status !== 'pago' ? `<button class="btn-acao is-pagar" data-divida-action="pagar" data-divida-id="${item.id}" title="Registrar pagamento" aria-label="Registrar pagamento">${icon('dollar')}</button>` : ''}
-        <button class="btn-acao" data-grupo-action="historico" data-contrato-id="${item.contratoId}" title="Histórico deste contrato" aria-label="Histórico do contrato">${icon('receipt')}</button>
-        <button class="btn-acao" data-divida-action="editar" data-divida-id="${item.id}" title="Editar esta dívida" aria-label="Editar dívida">${icon('pencil')}</button>
+        ${status !== 'pago' ? `<button type="button" class="btn-acao is-pagar" data-divida-action="pagar" data-divida-id="${item.id}" title="Registrar pagamento" aria-label="Registrar pagamento da dívida ${contextoDivida(item, item)}">${icon('dollar')}</button>` : ''}
+        <button type="button" class="btn-acao" data-grupo-action="historico" data-contrato-id="${item.contratoId}" title="Histórico deste contrato" aria-label="Histórico do contrato #${item.numero || '--'}">${icon('receipt')}</button>
+        <button type="button" class="btn-acao" data-divida-action="editar" data-divida-id="${item.id}" title="Editar esta dívida" aria-label="Editar dívida ${contextoDivida(item, item)}">${icon('pencil')}</button>
       </div>
     </td>`;
   }
@@ -2137,7 +3434,7 @@ function dividasTabelaFlatHtml(itens) {
     <div class="dividas-scroll">
       <table class="dividas-tabela">
         <thead>
-          <tr>${cols.map(col => `<th class="${col.txt ? 'col-txt' : ''}${col.forte ? ' is-forte' : ''}${col.acoes ? ' col-acoes' : ''}"${col.dica ? ` title="${escapeHtml(col.dica)}"` : ''}>${escapeHtml(col.rotulo)}</th>`).join('')}</tr>
+          <tr>${cols.map(cabecalhoDaColuna).join('')}</tr>
         </thead>
         <tbody>
           ${itens.map(item => `
@@ -2159,6 +3456,40 @@ function bindDividaCardActions(container) {
   });
 }
 
+/* ===================== PAGINAÇÃO (todas as listas) =====================
+ * Os botões são redesenhados a cada troca de página; o foco volta para o botão
+ * equivalente (ou para o outro, quando este ficou desabilitado na última
+ * página), a página nova é anunciada para o leitor de tela e vai para o
+ * endereço.
+ */
+function renderPaginacao(containerId, { pagina, totalPaginas, total, singular, plural, aoMudar }) {
+  const nav = document.getElementById(containerId);
+  if (totalPaginas <= 1) {
+    nav.innerHTML = '';
+    return;
+  }
+  const texto = `Página ${pagina} de ${totalPaginas} (${total} ${total === 1 ? singular : plural})`;
+  nav.innerHTML = `
+    <button type="button" class="btn btn-ghost btn-sm" data-pagina="anterior" ${pagina <= 1 ? 'disabled' : ''}>‹ Anterior<span class="sr-only"> (página ${pagina - 1})</span></button>
+    <span class="pagination-info">${texto}</span>
+    <button type="button" class="btn btn-ghost btn-sm" data-pagina="proxima" ${pagina >= totalPaginas ? 'disabled' : ''}>Próxima ›<span class="sr-only"> (página ${pagina + 1})</span></button>
+  `;
+  const mudar = (n) => {
+    preservandoFoco(() => aoMudar(n));
+    atualizarEndereco();
+    anunciar(`Página ${n} de ${totalPaginas}`);
+  };
+  nav.querySelector('[data-pagina="anterior"]').addEventListener('click', () => mudar(pagina - 1));
+  nav.querySelector('[data-pagina="proxima"]').addEventListener('click', () => mudar(pagina + 1));
+}
+
+// Frase para o leitor de tela, sem nada visível.
+function anunciar(texto) {
+  const regiao = document.getElementById('anuncio');
+  regiao.textContent = '';
+  setTimeout(() => { regiao.textContent = texto; }, 60);
+}
+
 /* ===================== RENDER: CONTRATOS TAB ===================== */
 const CONTRATOS_POR_PAGINA = 20;
 let contratosPaginaAtual = 1;
@@ -2170,8 +3501,18 @@ function renderContratos() {
   const filtered = getFilteredContratos();
 
   if (!filtered.length) {
-    list.innerHTML = '<div class="empty-state">Nenhum contrato encontrado.</div>';
     pagination.innerHTML = '';
+    if (!contratosVisiveis().length) {
+      list.innerHTML = imoveisVisiveis().length
+        ? `<div class="empty-state">Nenhum contrato cadastrado ainda.<button type="button" class="btn btn-primary" data-acao-vazia="novo-contrato">${icon('plus')} Novo contrato</button></div>`
+        : `<div class="empty-state">Nenhum contrato cadastrado ainda. O primeiro passo é cadastrar o imóvel; depois ele aparece na lista ao criar o contrato.<a class="btn btn-primary" href="#/imoveis">${icon('home')} Cadastrar imóvel</a></div>`;
+    } else {
+      list.innerHTML = `<div class="empty-state">Nenhum contrato encontrado para esta busca e estes filtros.<button type="button" class="btn btn-ghost" data-acao-vazia="limpar-filtros">Limpar busca e filtros</button></div>`;
+    }
+    const novo = list.querySelector('[data-acao-vazia="novo-contrato"]');
+    if (novo) novo.addEventListener('click', () => document.getElementById('btnNovoContrato').click());
+    const limpar = list.querySelector('[data-acao-vazia="limpar-filtros"]');
+    if (limpar) limpar.addEventListener('click', () => navegar('contratos', {}, { substituir: true, manterFoco: true }).then(() => document.getElementById('searchContratos').focus()));
     return;
   }
 
@@ -2186,23 +3527,9 @@ function renderContratos() {
 }
 
 function renderContratosPagination(totalPaginas, totalContratos) {
-  const pagination = document.getElementById('contratosPagination');
-  if (totalPaginas <= 1) {
-    pagination.innerHTML = '';
-    return;
-  }
-  pagination.innerHTML = `
-    <button type="button" class="btn btn-ghost btn-sm" id="btnPaginaAnterior" ${contratosPaginaAtual <= 1 ? 'disabled' : ''}>‹ Anterior</button>
-    <span class="pagination-info">Página ${contratosPaginaAtual} de ${totalPaginas} (${totalContratos} contratos)</span>
-    <button type="button" class="btn btn-ghost btn-sm" id="btnPaginaProxima" ${contratosPaginaAtual >= totalPaginas ? 'disabled' : ''}>Próxima ›</button>
-  `;
-  document.getElementById('btnPaginaAnterior').addEventListener('click', () => {
-    contratosPaginaAtual--;
-    renderContratos();
-  });
-  document.getElementById('btnPaginaProxima').addEventListener('click', () => {
-    contratosPaginaAtual++;
-    renderContratos();
+  renderPaginacao('contratosPagination', {
+    pagina: contratosPaginaAtual, totalPaginas, total: totalContratos, singular: 'contrato', plural: 'contratos',
+    aoMudar: (n) => { contratosPaginaAtual = n; renderContratos(); },
   });
 }
 
@@ -2222,9 +3549,14 @@ function renderDashboard() {
   document.getElementById('statAtivos').textContent = contratosEmAndamento;
   document.getElementById('statAtraso').textContent = formatCurrency(totalAtraso);
 
-  const pendentes = dividas.filter(d => getStatus(d) !== 'pago');
-  const proximo = pendentes.slice().sort((a, b) => parseDate(a.vencimento) - parseDate(b.vencimento))[0];
+  // Próximo vencimento de verdade: a próxima dívida a vencer a partir de hoje.
+  // Antes era a dívida em aberto mais antiga — uma data de meses atrás, já
+  // vencida, sob o rótulo "Próximo vencimento". As vencidas vão embaixo.
+  const proximo = ativos.slice().sort((a, b) => parseDate(a.vencimento) - parseDate(b.vencimento))[0];
   document.getElementById('statProximo').textContent = proximo ? formatDate(proximo.vencimento) : '--';
+  document.getElementById('statProximoHint').textContent = atrasados.length
+    ? `${plural(atrasados.length, 'dívida', 'dívidas')} em atraso`
+    : (proximo ? '' : 'Nada a vencer');
 
   const hoje = new Date();
   const despesasMes = despesasVisiveis()
@@ -2240,7 +3572,9 @@ function renderDashboard() {
   const recentList = document.getElementById('dashboardRecentList');
   recentList.innerHTML = recentes.length
     ? dividasTabelaFlatHtml(recentes)
-    : '<div class="empty-state">Nenhum contrato cadastrado ainda. Clique em "Novo contrato" para começar.</div>';
+    : (contratosVisiveis().length
+      ? '<div class="empty-state">Nenhuma dívida ainda.</div>'
+      : `<div class="empty-state">Nenhum contrato cadastrado ainda. Comece cadastrando um imóvel e, depois, o contrato.<span class="contrato-actions"><a class="btn btn-primary" href="#/imoveis">${icon('home')} Cadastrar imóvel</a><a class="btn btn-ghost" href="#/contratos">Ir para Contratos</a></span></div>`);
   bindDividaCardActions(recentList);
 }
 
@@ -2248,12 +3582,7 @@ function renderDashboard() {
 // como "link" clicável nos alertas do Dashboard, para não deixar quem vê o
 // aviso sem um jeito direto de chegar no contrato correspondente.
 function irParaContrato(numero) {
-  const btnContratos = document.querySelector('.tab-btn[data-tab="contratos"]');
-  if (btnContratos) btnContratos.click();
-  const searchInput = document.getElementById('searchContratos');
-  searchInput.value = '#' + numero;
-  contratosPaginaAtual = 1;
-  renderContratos();
+  navegar('contratos', { busca: '#' + numero });
 }
 
 function renderAlertaVencimento(ativos) {
@@ -2380,7 +3709,10 @@ function renderHistorico() {
     : `${entries.length} pagamentos · ${formatCurrency(totalRecebido)}`;
 
   if (!entries.length) {
-    list.innerHTML = '<div class="empty-state">Nenhum pagamento encontrado para esses filtros.</div>';
+    const temAlgum = contratosVisiveis().some(c => c.dividas.some(d => (d.pagamentos || []).length));
+    list.innerHTML = temAlgum
+      ? '<div class="empty-state">Nenhum pagamento encontrado para esta busca e estes filtros.</div>'
+      : '<div class="empty-state">Nenhum pagamento registrado ainda. Para registrar, use o botão de pagamento na linha da dívida, em Contratos ou em Atrasos.</div>';
     paginacao.innerHTML = '';
     return;
   }
@@ -2413,7 +3745,7 @@ function renderHistorico() {
         <div><span>Observação</span><strong>${escapeHtml(e.observacao) || '--'}</strong></div>
       </div>
       <div class="contrato-actions">
-        <button type="button" class="btn btn-ghost btn-sm" data-recibo-divida="${e.divida.id}" data-recibo-indice="${e.indicePagamento}">${icon('receipt')} Recibo</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-recibo-divida="${e.divida.id}" data-recibo-indice="${e.indicePagamento}" aria-label="Recibo do pagamento de ${formatDate(e.data)}, contrato #${e.contrato.numero || '--'}">${icon('receipt')} Recibo</button>
       </div>
     </div>
   `;
@@ -2424,23 +3756,9 @@ function renderHistorico() {
 }
 
 function renderHistoricoPagination(totalPaginas, totalPagamentos) {
-  const paginacao = document.getElementById('historicoPagination');
-  if (totalPaginas <= 1) {
-    paginacao.innerHTML = '';
-    return;
-  }
-  paginacao.innerHTML = `
-    <button type="button" class="btn btn-ghost btn-sm" id="btnHistoricoAnterior" ${historicoPaginaAtual <= 1 ? 'disabled' : ''}>‹ Anterior</button>
-    <span class="pagination-info">Página ${historicoPaginaAtual} de ${totalPaginas} (${totalPagamentos} pagamentos)</span>
-    <button type="button" class="btn btn-ghost btn-sm" id="btnHistoricoProxima" ${historicoPaginaAtual >= totalPaginas ? 'disabled' : ''}>Próxima ›</button>
-  `;
-  document.getElementById('btnHistoricoAnterior').addEventListener('click', () => {
-    historicoPaginaAtual--;
-    renderHistorico();
-  });
-  document.getElementById('btnHistoricoProxima').addEventListener('click', () => {
-    historicoPaginaAtual++;
-    renderHistorico();
+  renderPaginacao('historicoPagination', {
+    pagina: historicoPaginaAtual, totalPaginas, total: totalPagamentos, singular: 'pagamento', plural: 'pagamentos',
+    aoMudar: (n) => { historicoPaginaAtual = n; renderHistorico(); },
   });
 }
 
@@ -2455,11 +3773,13 @@ function bindReciboButtons(container) {
   document.getElementById(id).addEventListener('change', () => {
     historicoPaginaAtual = 1;
     renderHistorico();
+    atualizarEndereco();
   });
 });
 document.getElementById('historicoSearch').addEventListener('input', () => {
   historicoPaginaAtual = 1;
   renderHistorico();
+  atualizarEndereco();
 });
 
 document.getElementById('btnExportHistorico').addEventListener('click', () => {
@@ -2575,14 +3895,15 @@ const DESPESAS_POR_PAGINA = 20;
 let despesasPaginaAtual = 1;
 
 function renderDespesas() {
-  if (!document.getElementById('despData').value) document.getElementById('despData').value = todayStr();
-  populateDespesaContratoSelect();
-  populateDespesaAnoFilter();
-
   const selectCarteira = document.getElementById('despCarteira');
-  // com uma edição em andamento, não mexe no que já está escolhido no formulário
-  populateCarteiraSelect(selectCarteira, document.getElementById('despesaId').value ? selectCarteira.value : carteiraAtiva);
-  atualizarVisibilidadeCamposCarteira();
+  semSujar(formDespesa, () => {
+    if (!document.getElementById('despData').value) document.getElementById('despData').value = todayStr();
+    populateDespesaContratoSelect();
+    // com uma edição em andamento, não mexe no que já está escolhido no formulário
+    populateCarteiraSelect(selectCarteira, document.getElementById('despesaId').value ? selectCarteira.value : carteiraAtiva);
+    atualizarVisibilidadeCamposCarteira();
+  });
+  populateDespesaAnoFilter();
 
   const ano = Number(document.getElementById('despesaFiltroAno').value);
   renderDespesasAnoChart();
@@ -2626,12 +3947,12 @@ function renderDespesas() {
       <table class="dividas-tabela">
         <thead>
           <tr>
-            <th class="col-txt">Data</th>
-            <th class="col-txt">Descrição</th>
-            <th class="col-txt">Contrato</th>
-            ${usaCarteiras ? '<th class="col-txt">Carteira</th>' : ''}
-            <th class="is-forte">Valor</th>
-            <th class="col-acoes"></th>
+            <th scope="col" class="col-txt">Data</th>
+            <th scope="col" class="col-txt">Descrição</th>
+            <th scope="col" class="col-txt">Contrato</th>
+            ${usaCarteiras ? '<th scope="col" class="col-txt">Carteira</th>' : ''}
+            <th scope="col" class="is-forte">Valor</th>
+            <th scope="col" class="col-acoes"><span class="sr-only">Ações</span></th>
           </tr>
         </thead>
         <tbody>
@@ -2646,8 +3967,8 @@ function renderDespesas() {
               <td class="is-forte is-deducao" data-rotulo="Valor">${formatNumero(d.valor)}</td>
               <td class="col-acoes">
                 <div class="divida-acoes">
-                  <button class="btn-acao" data-edit-despesa="${d.id}" title="Editar esta despesa" aria-label="Editar despesa">${icon('pencil')}</button>
-                  <button class="btn-acao is-excluir" data-remove-despesa="${d.id}" title="Excluir esta despesa" aria-label="Excluir despesa">${icon('trash')}</button>
+                  <button type="button" class="btn-acao" data-edit-despesa="${d.id}" title="Editar esta despesa" aria-label="Editar despesa ${escapeHtml(d.descricao)}, de ${formatDate(d.data)}">${icon('pencil')}</button>
+                  <button type="button" class="btn-acao is-excluir" data-remove-despesa="${d.id}" title="Excluir esta despesa" aria-label="Excluir despesa ${escapeHtml(d.descricao)}, de ${formatDate(d.data)}">${icon('trash')}</button>
                 </div>
               </td>
             </tr>
@@ -2669,46 +3990,39 @@ function renderDespesas() {
 }
 
 function renderDespesasPagination(totalPaginas, totalDespesas) {
-  const paginacao = document.getElementById('despesasPagination');
-  if (totalPaginas <= 1) {
-    paginacao.innerHTML = '';
-    return;
-  }
-  paginacao.innerHTML = `
-    <button type="button" class="btn btn-ghost btn-sm" id="btnDespesaAnterior" ${despesasPaginaAtual <= 1 ? 'disabled' : ''}>‹ Anterior</button>
-    <span class="pagination-info">Página ${despesasPaginaAtual} de ${totalPaginas} (${totalDespesas} despesas)</span>
-    <button type="button" class="btn btn-ghost btn-sm" id="btnDespesaProxima" ${despesasPaginaAtual >= totalPaginas ? 'disabled' : ''}>Próxima ›</button>
-  `;
-  document.getElementById('btnDespesaAnterior').addEventListener('click', () => {
-    despesasPaginaAtual--;
-    renderDespesas();
-  });
-  document.getElementById('btnDespesaProxima').addEventListener('click', () => {
-    despesasPaginaAtual++;
-    renderDespesas();
+  renderPaginacao('despesasPagination', {
+    pagina: despesasPaginaAtual, totalPaginas, total: totalDespesas, singular: 'despesa', plural: 'despesas',
+    aoMudar: (n) => { despesasPaginaAtual = n; renderDespesas(); },
   });
 }
 
-function excluirDespesa(id) {
+async function excluirDespesa(id) {
   const d = state.despesas.find(x => x.id === id);
   if (!d) return;
-  if (!confirm(`Excluir a despesa "${d.descricao}" de ${formatCurrency(d.valor)}?`)) return;
+  if (!(await confirmar({
+    titulo: 'Excluir esta despesa?',
+    mensagem: `"${d.descricao}", de ${formatCurrency(d.valor)}, lançada em ${formatDate(d.data)}.`,
+    acao: 'Excluir despesa',
+    perigo: true,
+  }))) return;
   state.despesas = state.despesas.filter(x => x.id !== id);
   registrarAuditoria('despesa_excluida', `Despesa excluída: ${d.descricao} (${formatCurrency(d.valor)})`);
-  saveState();
-  renderDespesas();
-  showToast('Despesa excluída.', 'success');
+  const ok = await saveState();
+  renderAll();
+  if (ok) showToast('Despesa excluída.', 'success');
 }
 
 const LABELS_DESPESA = { data: 'Data', descricao: 'Descrição', valor: 'Valor (R$)', contratoId: 'Contrato relacionado' };
 
-function editarDespesa(id) {
+async function editarDespesa(id) {
+  // clicar em "Editar" com outro item digitado e não salvo não pode apagar o texto sem aviso
+  if (estaSujo(formDespesa) && !(await confirmarDescarte())) return;
   const d = state.despesas.find(x => x.id === id);
   if (!d) return;
   document.getElementById('despesaId').value = d.id;
   document.getElementById('despData').value = d.data;
   document.getElementById('despDescricao').value = d.descricao;
-  document.getElementById('despValor').value = d.valor;
+  escreverValor('despValor', d.valor);
   populateDespesaContratoSelect();
   document.getElementById('despContrato').value = d.contratoId || '';
   populateCarteiraSelect(document.getElementById('despCarteira'), d.carteiraId || '');
@@ -2717,6 +4031,7 @@ function editarDespesa(id) {
   document.getElementById('btnSalvarDespesa').textContent = 'Salvar alterações';
   document.getElementById('btnCancelarEdicaoDespesa').classList.remove('hidden');
   document.getElementById('despDescricao').focus();
+  marcarLimpo(formDespesa);
 }
 
 function cancelarEdicaoDespesa() {
@@ -2729,6 +4044,7 @@ function cancelarEdicaoDespesa() {
   document.getElementById('formDespesaTitle').textContent = 'Nova despesa';
   document.getElementById('btnSalvarDespesa').textContent = 'Adicionar despesa';
   document.getElementById('btnCancelarEdicaoDespesa').classList.add('hidden');
+  marcarLimpo(formDespesa);
 }
 
 document.getElementById('btnCancelarEdicaoDespesa').addEventListener('click', cancelarEdicaoDespesa);
@@ -2737,16 +4053,15 @@ document.getElementById('btnCancelarEdicaoDespesa').addEventListener('click', ca
 // impressão de que dá para pôr a despesa numa carteira diferente do contrato.
 document.getElementById('despContrato').addEventListener('change', atualizarVisibilidadeCamposCarteira);
 
-formDespesa.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(formDespesa, async () => {
   const despesaId = document.getElementById('despesaId').value;
   const data = document.getElementById('despData').value;
   const descricao = document.getElementById('despDescricao').value.trim();
-  const valor = Number(document.getElementById('despValor').value) || 0;
+  const valor = valorCampo('despValor');
   const contratoId = document.getElementById('despContrato').value || null;
   // despesa ligada a contrato herda a carteira dele: não guarda carteira própria
   const carteiraId = contratoId ? '' : (document.getElementById('despCarteira').value || '');
-  if (!data || !descricao || valor <= 0) return;
+  if (!data || !descricao || valor <= 0) return false;
 
   if (despesaId) {
     const d = state.despesas.find(x => x.id === despesaId);
@@ -2755,21 +4070,21 @@ formDespesa.addEventListener('submit', (e) => {
     Object.assign(d, { data, descricao, valor, contratoId, carteiraId });
     const alteracoes = diffCampos(antes, d, LABELS_DESPESA);
     registrarAuditoria('despesa_editada', `Despesa editada: ${descricao} (${formatCurrency(valor)})`, alteracoes);
-    saveState();
+    const ok = await saveState();
     cancelarEdicaoDespesa();
-    renderDespesas();
-    showToast('Despesa atualizada com sucesso.', 'success');
+    renderAll();
+    if (ok) showToast('Despesa atualizada com sucesso.', 'success');
   } else {
     state.despesas.push({ id: uuid(), data, descricao, valor, contratoId, carteiraId, criadoEm: Date.now() });
     registrarAuditoria('despesa_criada', `Despesa registrada: ${descricao} (${formatCurrency(valor)})`);
-    saveState();
+    const ok = await saveState();
     const dataAtual = data;
     formDespesa.reset();
     document.getElementById('despData').value = dataAtual;
     populateCarteiraSelect(document.getElementById('despCarteira'), carteiraId || carteiraAtiva);
     atualizarVisibilidadeCamposCarteira();
-    renderDespesas();
-    showToast('Despesa adicionada com sucesso.', 'success');
+    renderAll();
+    if (ok) showToast('Despesa adicionada com sucesso.', 'success');
   }
 });
 
@@ -2777,17 +4092,20 @@ formDespesa.addEventListener('submit', (e) => {
   document.getElementById(id).addEventListener('change', () => {
     despesasPaginaAtual = 1;
     renderDespesas();
+    atualizarEndereco();
   });
 });
 document.getElementById('despesaBusca').addEventListener('input', () => {
   despesasPaginaAtual = 1;
   renderDespesas();
+  atualizarEndereco();
 });
 
 // O botão do topo leva ao formulário: em tela larga ele fica na coluna da
 // direita, em tela estreita logo acima da lista — nos dois casos o que importa
 // é cair com o cursor no campo de descrição.
-document.getElementById('btnFocarNovaDespesa').addEventListener('click', () => {
+document.getElementById('btnFocarNovaDespesa').addEventListener('click', async () => {
+  if (estaSujo(formDespesa) && !(await confirmarDescarte())) return;
   cancelarEdicaoDespesa();
   // o foco vem primeiro: é ele que importa. A rolagem suave é conforto, e
   // deixá-la depois garante que o cursor chega no campo de qualquer jeito.
@@ -2823,50 +4141,73 @@ document.getElementById('btnExportDespesas').addEventListener('click', () => {
 });
 
 /* ===================== CONFIG ===================== */
+const LABELS_CONFIG = {
+  taxaJurosMensal: 'Taxa de juros mensal (%)', taxaMultaPercent: 'Multa por atraso (%)',
+  corretorPercentualPadrao: 'Percentual padrão do corretor (%)', percentualReajusteSugerido: 'Reajuste sugerido (%)',
+};
+
+function registrarMudancaDeConfig(antes) {
+  const alteracoes = diffCampos(antes, state.config, LABELS_CONFIG);
+  if (alteracoes.length) registrarAuditoria('config_alterada', 'Configuração alterada: ' + alteracoes.map(a => a.campo).join(', '), alteracoes);
+}
+
+// Mensagem "salvo" ao lado do botão (some sozinha) + aviso de sucesso.
+function mostrarSalvo(idMsg, texto) {
+  const msg = document.getElementById(idMsg);
+  msg.classList.remove('hidden');
+  clearTimeout(msg._t);
+  msg._t = setTimeout(() => msg.classList.add('hidden'), 2500);
+  showToast(texto, 'success');
+}
+
 const configForm = document.getElementById('configForm');
 
 function renderConfig() {
-  document.getElementById('configTaxaJuros').value = state.config.taxaJurosMensal;
-  document.getElementById('configTaxaMulta').value = state.config.taxaMultaPercent;
-  document.getElementById('configCorretorPercentualPadrao').value = state.config.corretorPercentualPadrao || 0;
-  document.getElementById('configPercentualReajusteSugerido').value = state.config.percentualReajusteSugerido || 0;
+  // um formulário com algo digitado e não salvo não é sobrescrito por um
+  // redesenho vindo de outra tela
+  if (!estaSujo(configForm)) {
+    escreverValor('configTaxaJuros', state.config.taxaJurosMensal);
+    escreverValor('configTaxaMulta', state.config.taxaMultaPercent);
+    marcarLimpo(configForm);
+  }
+  if (!estaSujo(configPadraoForm)) {
+    escreverValor('configCorretorPercentualPadrao', state.config.corretorPercentualPadrao || 0);
+    marcarLimpo(configPadraoForm);
+  }
+  if (!estaSujo(configReajusteForm)) {
+    escreverValor('configPercentualReajusteSugerido', state.config.percentualReajusteSugerido || 0);
+    marcarLimpo(configReajusteForm);
+  }
   renderCarteirasConfig();
   renderReciboConfig();
 }
 
-configForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  state.config.taxaJurosMensal = Number(document.getElementById('configTaxaJuros').value) || 0;
-  state.config.taxaMultaPercent = Number(document.getElementById('configTaxaMulta').value) || 0;
-  saveState();
-  const msg = document.getElementById('configSaved');
-  msg.classList.remove('hidden');
-  setTimeout(() => msg.classList.add('hidden'), 2200);
+aoEnviar(configForm, async () => {
+  const antes = Object.assign({}, state.config);
+  state.config.taxaJurosMensal = valorCampo('configTaxaJuros');
+  state.config.taxaMultaPercent = valorCampo('configTaxaMulta');
+  registrarMudancaDeConfig(antes);
+  const ok = await saveState();
   renderAll();
-  showToast('Configuração salva com sucesso.', 'success');
+  if (ok) mostrarSalvo('configSaved', 'Configuração salva com sucesso.');
 });
 
 const configPadraoForm = document.getElementById('configPadraoForm');
-configPadraoForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  state.config.corretorPercentualPadrao = Number(document.getElementById('configCorretorPercentualPadrao').value) || 0;
-  saveState();
-  const msg = document.getElementById('configPadraoSaved');
-  msg.classList.remove('hidden');
-  setTimeout(() => msg.classList.add('hidden'), 2200);
-  showToast('Valores padrão salvos com sucesso.', 'success');
+aoEnviar(configPadraoForm, async () => {
+  const antes = Object.assign({}, state.config);
+  state.config.corretorPercentualPadrao = valorCampo('configCorretorPercentualPadrao');
+  registrarMudancaDeConfig(antes);
+  if (await saveState()) mostrarSalvo('configPadraoSaved', 'Valores padrão salvos com sucesso.');
 });
 
 const configReajusteForm = document.getElementById('configReajusteForm');
-configReajusteForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  state.config.percentualReajusteSugerido = Number(document.getElementById('configPercentualReajusteSugerido').value) || 0;
-  saveState();
-  const msg = document.getElementById('configReajusteSaved');
-  msg.classList.remove('hidden');
-  setTimeout(() => msg.classList.add('hidden'), 2200);
+aoEnviar(configReajusteForm, async () => {
+  const antes = Object.assign({}, state.config);
+  state.config.percentualReajusteSugerido = valorCampo('configPercentualReajusteSugerido');
+  registrarMudancaDeConfig(antes);
+  const ok = await saveState();
   renderAll();
-  showToast('Percentual de reajuste salvo com sucesso.', 'success');
+  if (ok) mostrarSalvo('configReajusteSaved', 'Percentual de reajuste salvo com sucesso.');
 });
 
 /* ===================== PESSOAS (cadastro reutilizável: recebedores/corretores) =====================
@@ -2895,14 +4236,14 @@ function populatePessoaSelect(selectEl, valorAtual, placeholder) {
 document.getElementById('fCorretorNome').addEventListener('change', () => {
   const nome = document.getElementById('fCorretorNome').value;
   document.getElementById('fCampoCorretorPercentual').classList.toggle('hidden', !nome);
-  document.getElementById('fCorretorPercentual').value = nome ? (state.config.corretorPercentualPadrao || 5) : 0;
+  escreverValor('fCorretorPercentual', nome ? (state.config.corretorPercentualPadrao || 5) : 0);
 });
 
 document.getElementById('infoCorretorNome').addEventListener('change', () => {
   const nome = document.getElementById('infoCorretorNome').value;
   document.getElementById('infoCampoCorretorPercentual').classList.toggle('hidden', !nome);
   document.getElementById('infoCampoCorretorValor').classList.toggle('hidden', !nome);
-  document.getElementById('infoCorretorPercentual').value = nome ? (state.config.corretorPercentualPadrao || 5) : 0;
+  escreverValor('infoCorretorPercentual', nome ? (state.config.corretorPercentualPadrao || 5) : 0);
   atualizarValorCorretorInfo();
 });
 
@@ -2912,12 +4253,12 @@ function renderPessoasConfig() {
   const selectCarteira = document.getElementById('newPessoaCarteira');
   const usaCarteiras = state.carteiras.length > 0;
   // com uma edição em andamento, não mexe no que já está escolhido no formulário
-  populateCarteiraSelectPessoa(selectCarteira, document.getElementById('pessoaId').value ? selectCarteira.value : carteiraAtiva);
+  semSujar(addPessoaForm, () => populateCarteiraSelectPessoa(selectCarteira, document.getElementById('pessoaId').value ? selectCarteira.value : carteiraAtiva));
   document.getElementById('campoNewPessoaCarteira').classList.toggle('hidden', !usaCarteiras);
   document.getElementById('pessoaCarteiraHint').classList.toggle('hidden', !usaCarteiras);
 
   if (!lista.length) {
-    list.innerHTML = '<div class="empty-state">Nenhuma pessoa cadastrada ainda.</div>';
+    list.innerHTML = '<div class="empty-state">Nenhuma pessoa cadastrada ainda. Cadastre aqui quem recebe os pagamentos (você mesmo, por exemplo): sem ninguém cadastrado não dá para registrar pagamento.</div>';
     return;
   }
   list.innerHTML = lista.map(p => `
@@ -2928,8 +4269,8 @@ function renderPessoasConfig() {
           ${usaCarteiras ? `<div class="contrato-sub">${icon('tag')} ${p.carteiraId && carteiraNome(p.carteiraId) ? escapeHtml(carteiraNome(p.carteiraId)) : 'Todas as carteiras'}</div>` : ''}
         </div>
         <div class="contrato-actions">
-          <button type="button" class="btn btn-ghost btn-sm" data-edit-pessoa="${p.id}">${icon('pencil')} Editar</button>
-          <button type="button" class="btn btn-danger btn-sm" data-remove-pessoa="${p.id}">${icon('trash')} Remover</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-edit-pessoa="${p.id}" aria-label="Editar ${escapeHtml(p.nome)}">${icon('pencil')} Editar</button>
+          <button type="button" class="btn btn-danger btn-sm" data-remove-pessoa="${p.id}" aria-label="Remover ${escapeHtml(p.nome)}">${icon('trash')} Remover</button>
         </div>
       </div>
     </div>
@@ -2951,7 +4292,9 @@ function populateCarteiraSelectPessoa(selectEl, valorAtual) {
   selectEl.value = state.carteiras.some(c => c.id === atual) ? atual : '';
 }
 
-function editarPessoa(id) {
+async function editarPessoa(id) {
+  // clicar em "Editar" com outro item digitado e não salvo não pode apagar o texto sem aviso
+  if (estaSujo(addPessoaForm) && !(await confirmarDescarte())) return;
   const p = state.pessoas.find(x => x.id === id);
   if (!p) return;
   document.getElementById('pessoaId').value = p.id;
@@ -2960,6 +4303,7 @@ function editarPessoa(id) {
   document.getElementById('btnSalvarPessoa').textContent = 'Salvar alterações';
   document.getElementById('btnCancelarEdicaoPessoa').classList.remove('hidden');
   document.getElementById('newPessoaNome').focus();
+  marcarLimpo(addPessoaForm);
 }
 
 function cancelarEdicaoPessoa() {
@@ -2968,23 +4312,29 @@ function cancelarEdicaoPessoa() {
   populateCarteiraSelectPessoa(document.getElementById('newPessoaCarteira'), carteiraAtiva);
   document.getElementById('btnSalvarPessoa').textContent = 'Adicionar pessoa';
   document.getElementById('btnCancelarEdicaoPessoa').classList.add('hidden');
+  marcarLimpo(addPessoaForm);
 }
 
 document.getElementById('btnCancelarEdicaoPessoa').addEventListener('click', cancelarEdicaoPessoa);
 
-function removePessoa(id) {
+async function removePessoa(id) {
   const p = state.pessoas.find(x => x.id === id);
   if (!p) return;
-  if (!confirm(`Remover "${p.nome}" da lista de pessoas? Contratos/pagamentos que já usam esse nome não são afetados.`)) return;
+  if (!(await confirmar({
+    titulo: `Remover ${p.nome} da lista de pessoas?`,
+    mensagem: 'Contratos e pagamentos que já usam esse nome continuam como estão.',
+    acao: 'Remover pessoa',
+    perigo: true,
+  }))) return;
   state.pessoas = state.pessoas.filter(x => x.id !== id);
+  registrarAuditoria('pessoa_removida', `Pessoa removida da lista: ${p.nome}`);
   if (document.getElementById('pessoaId').value === id) cancelarEdicaoPessoa();
-  saveState();
-  renderPessoasConfig();
-  showToast('Pessoa removida.', 'success');
+  const ok = await saveState();
+  renderAll();
+  if (ok) showToast('Pessoa removida.', 'success');
 }
 
-addPessoaForm.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(addPessoaForm, async () => {
   const pessoaId = document.getElementById('pessoaId').value;
   const nome = document.getElementById('newPessoaNome').value.trim();
   const carteiraId = document.getElementById('newPessoaCarteira').value || '';
@@ -3000,8 +4350,17 @@ addPessoaForm.addEventListener('submit', (e) => {
     // renomear atualiza os contratos/pagamentos que já usam o nome antigo,
     // mesma lógica do cadastro de imóveis (a referência é pelo nome)
     const nomeAntigo = p.nome;
+    const carteiraAntiga = p.carteiraId || '';
     p.nome = nome;
     p.carteiraId = carteiraId;
+    const alteracoes = [];
+    if (nomeAntigo !== nome) alteracoes.push({ campo: 'Nome', de: nomeAntigo, para: nome });
+    if (carteiraAntiga !== carteiraId) {
+      alteracoes.push({ campo: 'Carteira', de: carteiraNome(carteiraAntiga) || 'Todas', para: carteiraNome(carteiraId) || 'Todas' });
+    }
+    if (alteracoes.length) {
+      registrarAuditoria('pessoa_editada', `Pessoa editada: ${nomeAntigo}${nomeAntigo !== nome ? ` → ${nome} (contratos e pagamentos com o nome antigo foram atualizados)` : ''}`, alteracoes);
+    }
     if (nomeAntigo !== nome) {
       state.contratos.forEach(c => {
         if (c.quemRecebeu === nomeAntigo) c.quemRecebeu = nome;
@@ -3011,15 +4370,15 @@ addPessoaForm.addEventListener('submit', (e) => {
         }));
       });
     }
-    showToast('Pessoa atualizada com sucesso.', 'success');
   } else {
     state.pessoas.push({ id: uuid(), nome, carteiraId });
-    showToast('Pessoa adicionada com sucesso.', 'success');
+    registrarAuditoria('pessoa_criada', `Pessoa cadastrada: ${nome}`);
   }
 
   cancelarEdicaoPessoa();
-  saveState();
+  const ok = await saveState();
   renderAll();
+  if (ok) showToast(pessoaId ? 'Pessoa atualizada com sucesso.' : 'Pessoa adicionada com sucesso.', 'success');
 });
 
 /* ===================== CARTEIRAS (cadastro + seletor global) ===================== */
@@ -3047,8 +4406,8 @@ function renderCarteirasConfig() {
           ${c.observacao ? `<div class="contrato-sub">${escapeHtml(c.observacao)}</div>` : ''}
         </div>
         <div class="contrato-actions">
-          <button type="button" class="btn btn-ghost btn-sm" data-edit-carteira="${c.id}">${icon('pencil')} Editar</button>
-          <button type="button" class="btn btn-danger btn-sm" data-remove-carteira="${c.id}">${icon('trash')} Remover</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-edit-carteira="${c.id}" aria-label="Editar carteira ${escapeHtml(c.nome)}">${icon('pencil')} Editar</button>
+          <button type="button" class="btn btn-danger btn-sm" data-remove-carteira="${c.id}" aria-label="Remover carteira ${escapeHtml(c.nome)}">${icon('trash')} Remover</button>
         </div>
       </div>
     </div>
@@ -3062,7 +4421,9 @@ function renderCarteirasConfig() {
   });
 }
 
-function editarCarteira(id) {
+async function editarCarteira(id) {
+  // clicar em "Editar" com outro item digitado e não salvo não pode apagar o texto sem aviso
+  if (estaSujo(formCarteira) && !(await confirmarDescarte())) return;
   const c = carteiraPorId(id);
   if (!c) return;
   document.getElementById('carteiraId').value = c.id;
@@ -3073,6 +4434,7 @@ function editarCarteira(id) {
   document.getElementById('btnSalvarCarteira').textContent = 'Salvar alterações';
   document.getElementById('btnCancelarEdicaoCarteira').classList.remove('hidden');
   document.getElementById('carteiraNome').focus();
+  marcarLimpo(formCarteira);
 }
 
 function cancelarEdicaoCarteira() {
@@ -3080,13 +4442,14 @@ function cancelarEdicaoCarteira() {
   formCarteira.reset();
   document.getElementById('btnSalvarCarteira').textContent = 'Adicionar carteira';
   document.getElementById('btnCancelarEdicaoCarteira').classList.add('hidden');
+  marcarLimpo(formCarteira);
 }
 
 document.getElementById('btnCancelarEdicaoCarteira').addEventListener('click', cancelarEdicaoCarteira);
 
 // Remover uma carteira NÃO apaga nada: os contratos, imóveis e despesas dela
 // continuam existindo, só voltam a contar como "sem carteira" (imóvel próprio).
-function removerCarteira(id) {
+async function removerCarteira(id) {
   const c = carteiraPorId(id);
   if (!c) return;
   const contratos = state.contratos.filter(x => (x.carteiraId || '') === c.id).length;
@@ -3094,7 +4457,12 @@ function removerCarteira(id) {
   const aviso = (contratos || imoveis)
     ? `\n\n${contratos} contrato(s) e ${imoveis} imóvel(is) usam esta carteira. Nada é apagado: eles passam a ficar sem carteira.`
     : '';
-  if (!confirm(`Remover a carteira "${c.nome}"?${aviso}`)) return;
+  if (!(await confirmar({
+    titulo: `Remover a carteira "${c.nome}"?`,
+    mensagem: aviso.trim() || 'Nenhum contrato ou imóvel usa esta carteira.',
+    acao: 'Remover carteira',
+    perigo: true,
+  }))) return;
 
   state.carteiras = state.carteiras.filter(x => x.id !== id);
   state.contratos.forEach(x => { if (x.carteiraId === id) x.carteiraId = ''; });
@@ -3106,9 +4474,9 @@ function removerCarteira(id) {
   if (document.getElementById('carteiraId').value === id) cancelarEdicaoCarteira();
 
   registrarAuditoria('carteira_excluida', `Carteira excluída: ${c.nome}${contratos ? ` (${contratos} contrato(s) ficaram sem carteira)` : ''}`);
-  saveState();
+  const ok = await saveState();
   renderAll();
-  showToast('Carteira removida.', 'success');
+  if (ok) showToast('Carteira removida.', 'success');
 }
 
 const LABELS_CARTEIRA = {
@@ -3116,8 +4484,7 @@ const LABELS_CARTEIRA = {
   documento: 'CPF / CNPJ', observacao: 'Observação',
 };
 
-formCarteira.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(formCarteira, async () => {
   const id = document.getElementById('carteiraId').value;
   const nome = document.getElementById('carteiraNome').value.trim();
   const proprietario = document.getElementById('carteiraProprietario').value.trim();
@@ -3135,16 +4502,15 @@ formCarteira.addEventListener('submit', (e) => {
     const antes = Object.assign({}, c);
     Object.assign(c, { nome, proprietario, documento, observacao });
     registrarAuditoria('carteira_editada', `Carteira editada: ${nome}`, diffCampos(antes, c, LABELS_CARTEIRA));
-    showToast('Carteira atualizada com sucesso.', 'success');
   } else {
     state.carteiras.push({ id: uuid(), nome, proprietario, documento, observacao, criadoEm: Date.now() });
     registrarAuditoria('carteira_criada', `Carteira criada: ${nome}${proprietario ? ` (${proprietario})` : ''}`);
-    showToast('Carteira adicionada com sucesso.', 'success');
   }
 
   cancelarEdicaoCarteira();
-  saveState();
+  const ok = await saveState();
   renderAll();
+  if (ok) showToast(id ? 'Carteira atualizada com sucesso.' : 'Carteira adicionada com sucesso.', 'success');
 });
 
 document.getElementById('carteiraSeletor').addEventListener('change', (e) => {
@@ -3169,19 +4535,41 @@ function populateImovelSelect(selectEl, valorAtual) {
   selectEl.value = atual;
 }
 
+const IMOVEIS_POR_PAGINA = 12;
+let imoveisPaginaAtual = 1;
+
 function renderImoveis() {
   const list = document.getElementById('imoveisList');
-  const lista = imoveisVisiveis();
+  const todos = imoveisVisiveis();
+  const busca = document.getElementById('uiImoveisSearch').value.trim().toLowerCase();
   const selectCarteira = document.getElementById('newImovelCarteira');
   // com uma edição em andamento, não mexe no que já está escolhido no formulário
-  populateCarteiraSelect(selectCarteira, document.getElementById('imovelId').value ? selectCarteira.value : carteiraAtiva);
-  atualizarVisibilidadeCamposCarteira();
+  semSujar(formImovel, () => {
+    populateCarteiraSelect(selectCarteira, document.getElementById('imovelId').value ? selectCarteira.value : carteiraAtiva);
+    atualizarVisibilidadeCamposCarteira();
+  });
 
-  if (!lista.length) {
-    list.innerHTML = '<div class="empty-state">Nenhum imóvel cadastrado ainda.</div>';
+  const lista = busca
+    ? todos.filter(i => (i.nome + ' ' + carteiraNome(i.carteiraId)).toLowerCase().includes(busca))
+    : todos;
+  document.getElementById('uiImoveisCount').textContent = plural(lista.length, 'imóvel', 'imóveis');
+
+  if (!todos.length) {
+    list.innerHTML = '<div class="empty-state">Nenhum imóvel cadastrado ainda. Cadastre o primeiro no formulário ao lado — depois ele aparece na lista ao criar um contrato.</div>';
+    document.getElementById('uiImoveisPagination').innerHTML = '';
     return;
   }
-  list.innerHTML = lista.map(i => `
+  if (!lista.length) {
+    list.innerHTML = '<div class="empty-state">Nenhum imóvel encontrado para esta busca.</div>';
+    document.getElementById('uiImoveisPagination').innerHTML = '';
+    return;
+  }
+
+  const totalPaginas = Math.max(1, Math.ceil(lista.length / IMOVEIS_POR_PAGINA));
+  imoveisPaginaAtual = Math.min(Math.max(imoveisPaginaAtual, 1), totalPaginas);
+  const inicio = (imoveisPaginaAtual - 1) * IMOVEIS_POR_PAGINA;
+
+  list.innerHTML = lista.slice(inicio, inicio + IMOVEIS_POR_PAGINA).map(i => `
     <div class="card">
       <div class="contrato-top">
         <div>
@@ -3189,8 +4577,8 @@ function renderImoveis() {
           ${i.carteiraId && carteiraNome(i.carteiraId) ? `<div class="contrato-sub">${icon('tag')} ${escapeHtml(carteiraNome(i.carteiraId))}</div>` : ''}
         </div>
         <div class="contrato-actions">
-          <button type="button" class="btn btn-ghost btn-sm" data-edit-imovel="${i.id}">${icon('pencil')} Editar</button>
-          <button type="button" class="btn btn-danger btn-sm" data-remove-imovel="${i.id}">${icon('trash')} Remover</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-edit-imovel="${i.id}" aria-label="Editar imóvel ${escapeHtml(i.nome)}">${icon('pencil')} Editar</button>
+          <button type="button" class="btn btn-danger btn-sm" data-remove-imovel="${i.id}" aria-label="Remover imóvel ${escapeHtml(i.nome)}">${icon('trash')} Remover</button>
         </div>
       </div>
     </div>
@@ -3201,23 +4589,41 @@ function renderImoveis() {
   list.querySelectorAll('[data-edit-imovel]').forEach(btn => {
     btn.addEventListener('click', () => editarImovel(btn.dataset.editImovel));
   });
+  renderPaginacao('uiImoveisPagination', {
+    pagina: imoveisPaginaAtual, totalPaginas, total: lista.length, singular: 'imóvel', plural: 'imóveis',
+    aoMudar: (n) => { imoveisPaginaAtual = n; renderImoveis(); },
+  });
 }
 
-function removeImovel(id) {
+document.getElementById('uiImoveisSearch').addEventListener('input', () => {
+  imoveisPaginaAtual = 1;
+  renderImoveis();
+  atualizarEndereco();
+});
+
+async function removeImovel(id) {
   const i = state.imoveis.find(x => x.id === id);
   if (!i) return;
-  if (!confirm(`Remover "${i.nome}" da lista de imóveis? Contratos que já usam esse imóvel não são afetados.`)) return;
+  if (!(await confirmar({
+    titulo: `Remover "${i.nome}" da lista de imóveis?`,
+    mensagem: 'Contratos que já usam esse imóvel continuam como estão.',
+    acao: 'Remover imóvel',
+    perigo: true,
+  }))) return;
   state.imoveis = state.imoveis.filter(x => x.id !== id);
+  registrarAuditoria('imovel_removido', `Imóvel removido da lista: "${i.nome}"`);
   if (document.getElementById('imovelId').value === id) cancelarEdicaoImovel();
-  saveState();
-  renderImoveis();
-  showToast('Imóvel removido.', 'success');
+  const ok = await saveState();
+  renderAll();
+  if (ok) showToast('Imóvel removido.', 'success');
 }
 
 // Editar carrega o imóvel no mesmo formulário do lado (que passa a ser "Editar
 // imóvel"), igual ao formulário de Despesas — a carteira é um select, então não
 // dá para editar por `prompt`.
-function editarImovel(id) {
+async function editarImovel(id) {
+  // clicar em "Editar" com outro item digitado e não salvo não pode apagar o texto sem aviso
+  if (estaSujo(formImovel) && !(await confirmarDescarte())) return;
   const i = state.imoveis.find(x => x.id === id);
   if (!i) return;
   document.getElementById('imovelId').value = i.id;
@@ -3228,6 +4634,7 @@ function editarImovel(id) {
   document.getElementById('btnSalvarImovel').textContent = 'Salvar alterações';
   document.getElementById('btnCancelarEdicaoImovel').classList.remove('hidden');
   document.getElementById('newImovelNome').focus();
+  marcarLimpo(formImovel);
 }
 
 function cancelarEdicaoImovel() {
@@ -3238,12 +4645,12 @@ function cancelarEdicaoImovel() {
   document.getElementById('formImovelTitle').innerHTML = `${icon('plus')} Novo imóvel`;
   document.getElementById('btnSalvarImovel').textContent = 'Adicionar imóvel';
   document.getElementById('btnCancelarEdicaoImovel').classList.add('hidden');
+  marcarLimpo(formImovel);
 }
 
 document.getElementById('btnCancelarEdicaoImovel').addEventListener('click', cancelarEdicaoImovel);
 
-formImovel.addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(formImovel, async () => {
   const imovelId = document.getElementById('imovelId').value;
   const nomeInput = document.getElementById('newImovelNome');
   const nome = nomeInput.value.trim();
@@ -3282,16 +4689,17 @@ formImovel.addEventListener('submit', (e) => {
         alteracoes
       );
     }
-    saveState();
+    const ok = await saveState();
     cancelarEdicaoImovel();
     renderAll();
-    showToast('Imóvel atualizado com sucesso.', 'success');
+    if (ok) showToast('Imóvel atualizado com sucesso.', 'success');
   } else {
     state.imoveis.push({ id: uuid(), nome, carteiraId });
-    saveState();
+    registrarAuditoria('imovel_criado', `Imóvel cadastrado: "${nome}"${carteiraId ? ` (carteira ${carteiraNome(carteiraId)})` : ''}`);
+    const ok = await saveState();
     cancelarEdicaoImovel();
-    renderImoveis();
-    showToast('Imóvel adicionado com sucesso.', 'success');
+    renderAll();
+    if (ok) showToast('Imóvel adicionado com sucesso.', 'success');
   }
 });
 
@@ -3301,15 +4709,17 @@ formImovel.addEventListener('submit', (e) => {
  * dentro de Configurações, e conta de usuário não é "configuração do sistema".
  */
 function renderUsuarios() {
-  document.getElementById('accUsername').value = currentUsername;
+  if (!estaSujo(accountForm)) {
+    document.getElementById('accUsername').value = currentUsername;
+    marcarLimpo(accountForm);
+  }
   loadUsers();
   renderPessoasConfig();
 }
 
 const accountForm = document.getElementById('accountForm');
 
-accountForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
+aoEnviar(accountForm, async () => {
   const newUsername = document.getElementById('accUsername').value.trim();
   const currentPassword = document.getElementById('accCurrentPassword').value;
   const newPassword = document.getElementById('accNewPassword').value;
@@ -3353,13 +4763,17 @@ accountForm.addEventListener('submit', async (e) => {
 /* ===================== SEGURANÇA (regenerar COOKIE_SECRET) ===================== */
 const regenerateSecretForm = document.getElementById('regenerateSecretForm');
 
-regenerateSecretForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
+aoEnviar(regenerateSecretForm, async () => {
   const currentPassword = document.getElementById('secretCurrentPassword').value;
   const errorEl = document.getElementById('regenerateSecretError');
   errorEl.classList.add('hidden');
 
-  if (!confirm('Gerar uma nova chave vai desconectar automaticamente todos os OUTROS usuários administradores que estiverem logados agora (eles precisam entrar de novo). Deseja continuar?')) return;
+  if (!(await confirmar({
+    titulo: 'Desconectar todos os outros acessos?',
+    mensagem: 'Todo mundo que estiver conectado em outro computador ou navegador vai precisar entrar de novo. Você continua conectado.',
+    acao: 'Desconectar os outros acessos',
+    perigo: true,
+  }))) return false;
 
   try {
     const res = await apiFetch('regenerate_secret.php', {
@@ -3372,9 +4786,9 @@ regenerateSecretForm.addEventListener('submit', async (e) => {
       const msg = document.getElementById('regenerateSecretSaved');
       msg.classList.remove('hidden');
       setTimeout(() => msg.classList.add('hidden'), 2200);
-      registrarAuditoria('cookie_secret_regenerado', 'COOKIE_SECRET regenerado pelo administrador');
-      saveState();
-      showToast('Nova chave gerada com sucesso.', 'success');
+      registrarAuditoria('cookie_secret_regenerado', 'Todos os outros acessos foram desconectados (nova chave de acesso)');
+      await saveState();
+      showToast('Todos os outros acessos foram desconectados.', 'success');
     } else {
       errorEl.textContent = data.error || 'Não foi possível gerar a nova chave.';
       errorEl.classList.remove('hidden');
@@ -3404,7 +4818,7 @@ function renderUsers(users) {
     <div class="card">
       <div class="contrato-top">
         <div class="contrato-title">${escapeHtml(u.username)}${u.username === currentUsername ? ' (você)' : ''}</div>
-        ${u.username !== currentUsername && users.length > 1 ? `<button type="button" class="btn btn-danger btn-sm" data-remove-user="${u.id}" data-remove-username="${escapeHtml(u.username)}">${icon('trash')} Remover</button>` : ''}
+        ${u.username !== currentUsername && users.length > 1 ? `<button type="button" class="btn btn-danger btn-sm" data-remove-user="${u.id}" data-remove-username="${escapeHtml(u.username)}" aria-label="Remover o acesso de ${escapeHtml(u.username)}">${icon('trash')} Remover</button>` : ''}
       </div>
     </div>
   `).join('');
@@ -3414,27 +4828,35 @@ function renderUsers(users) {
 }
 
 async function removeUser(id, username) {
-  if (!confirm('Remover este usuário? Ele não vai mais conseguir fazer login no sistema.')) return;
-  const currentPassword = prompt('Confirme sua senha atual para remover este usuário:');
-  if (currentPassword === null) return;
-  try {
-    const res = await apiFetch('users.php', { method: 'POST', body: JSON.stringify({ action: 'remove', id, currentPassword }) });
-    const data = await res.json();
-    if (res.ok && data.ok) {
-      registrarAuditoria('usuario_removido', `Usuário removido: ${username}`);
-      saveState();
-      showToast('Usuário removido.', 'success');
-      loadUsers();
-    } else {
-      showToast(data.error || 'Não foi possível remover o usuário.', 'error');
-    }
-  } catch (err) {
-    showToast('Não foi possível conectar ao servidor.', 'error');
-  }
+  let removido = false;
+  await pedirTexto({
+    titulo: `Remover o acesso de ${username}?`,
+    mensagem: `${username} não vai mais conseguir entrar no sistema. Para confirmar, informe a sua senha atual.`,
+    rotulo: 'Sua senha atual',
+    tipo: 'password',
+    autocomplete: 'current-password',
+    acao: 'Remover usuário',
+    perigo: true,
+    validar: (senha) => senha ? null : 'Informe a sua senha atual.',
+    aoConfirmar: async (currentPassword) => {
+      try {
+        const res = await apiFetch('users.php', { method: 'POST', body: JSON.stringify({ action: 'remove', id, currentPassword }) });
+        const data = await res.json();
+        if (res.ok && data.ok) { removido = true; return null; }
+        return data.error || 'Não foi possível remover o usuário.';
+      } catch (err) {
+        return 'Não foi possível conectar ao servidor. Confira a internet e tente de novo.';
+      }
+    },
+  });
+  if (!removido) return;
+  registrarAuditoria('usuario_removido', `Usuário removido: ${username}`);
+  await saveState();
+  showToast(`O acesso de ${username} foi removido.`, 'success');
+  loadUsers();
 }
 
-addUserForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
+aoEnviar(addUserForm, async () => {
   const username = document.getElementById('newUserUsername').value.trim();
   const password = document.getElementById('newUserPassword').value;
   const confirmPassword = document.getElementById('newUserConfirmPassword').value;
@@ -3457,7 +4879,7 @@ addUserForm.addEventListener('submit', async (e) => {
     if (res.ok && data.ok) {
       addUserForm.reset();
       registrarAuditoria('usuario_adicionado', `Usuário adicionado: ${username}`);
-      saveState();
+      await saveState();
       showToast('Usuário adicionado com sucesso.', 'success');
       loadUsers();
     } else {
@@ -3472,13 +4894,7 @@ addUserForm.addEventListener('submit', async (e) => {
 
 /* ===================== BACKUP COMPLETO DO BANCO DE DADOS ===================== */
 document.getElementById('btnExportBackup').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `backup_aluguel_${todayStr()}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+  baixarArquivo(`backup_aluguel_${todayStr()}.json`, JSON.stringify(state, null, 2), 'application/json;charset=utf-8;');
   showToast('Backup exportado com sucesso.', 'success');
 });
 
@@ -3503,9 +4919,15 @@ document.getElementById('inputImportBackup').addEventListener('change', (e) => {
       showToast('Arquivo de backup inválido (formato inesperado).', 'error');
       return;
     }
-    if (!confirm('Restaurar este backup vai substituir TODOS os dados atuais (contratos e configurações). Deseja continuar?')) return;
+    if (!(await confirmar({
+      titulo: 'Restaurar este backup?',
+      mensagem: `Todos os dados atuais — contratos, pagamentos, despesas e configurações — serão substituídos pelos do arquivo ${file.name}. Se quiser guardar os dados de agora, exporte um backup antes.`,
+      acao: 'Substituir pelos dados do backup',
+      perigo: true,
+    }))) return;
 
     state = parsed;
+    delete state.versao; // quem manda na versão é o servidor
     if (precisaMigrarContratos(state.contratos)) {
       state.contratos = migrarContratos(state.contratos);
     }
@@ -3521,10 +4943,10 @@ document.getElementById('inputImportBackup').addEventListener('change', (e) => {
     state.config = Object.assign({}, CONFIG_PADRAO, state.config || {});
     state.config.recibo = Object.assign({}, RECIBO_PADRAO, state.config.recibo || {});
     reciboFormSujo = false; // o backup restaurado manda no formulário
-    await saveState();
+    registrarAuditoria('backup_restaurado', `Backup restaurado do arquivo ${file.name}: ${state.contratos.length} contrato(s)`);
+    const ok = await saveState();
     renderAll();
-    renderPessoasConfig();
-    showToast('Backup restaurado com sucesso.', 'success');
+    if (ok) showToast('Backup restaurado com sucesso.', 'success');
   };
   reader.readAsText(file, 'UTF-8');
   e.target.value = '';
@@ -3532,18 +4954,22 @@ document.getElementById('inputImportBackup').addEventListener('change', (e) => {
 
 /* ===================== ZONA DE PERIGO: EXCLUIR TODOS OS DADOS ===================== */
 document.getElementById('btnDeleteDatabase').addEventListener('click', async () => {
-  if (!confirm('Isso vai APAGAR PERMANENTEMENTE todos os contratos, pagamentos e configurações salvos no servidor. Esta ação não pode ser desfeita. Deseja continuar?')) return;
-  const digitado = prompt('Para confirmar, digite EXCLUIR (em maiúsculas):');
-  if (digitado !== 'EXCLUIR') {
-    showToast('Exclusão cancelada.', 'error');
-    return;
-  }
+  const digitado = await pedirTexto({
+    titulo: 'Excluir todos os dados?',
+    mensagem: 'Isso apaga para sempre todos os contratos, pagamentos, despesas e configurações salvos no servidor. Os usuários e senhas de acesso continuam. Não dá para desfazer: exporte um backup antes, se quiser guardar os dados.',
+    rotulo: 'Para confirmar, digite EXCLUIR',
+    acao: 'Excluir todos os dados',
+    perigo: true,
+    validar: (v) => v === 'EXCLUIR' ? null : 'Digite EXCLUIR, em letras maiúsculas, para confirmar.',
+  });
+  if (digitado === null) return;
   state = estadoVazio();
+  registrarAuditoria('dados_excluidos', 'Todos os dados foram excluídos (Zona de perigo)');
   definirCarteiraAtiva('', true);
   reciboFormSujo = false;
-  await saveState();
+  const ok = await saveState();
   renderAll();
-  showToast('Todos os dados foram excluídos.', 'success');
+  if (ok) showToast('Todos os dados foram excluídos.', 'success');
 });
 
 /* ===================== RECIBO DE PAGAMENTO =====================
@@ -3902,7 +5328,7 @@ function renderCodigosRecibo() {
 
   alvo.innerHTML = CODIGOS_RECIBO.map(g => `
     <div class="codigo-grupo">
-      <h4>${escapeHtml(g.grupo)}</h4>
+      <h3>${escapeHtml(g.grupo)}</h3>
       <div class="codigo-lista">
         ${g.itens.map(([codigo, descricao]) => `
           <button type="button" class="codigo-item" data-codigo="${codigo}" title="Clique para inserir {{${codigo}}} no texto">
@@ -3928,6 +5354,7 @@ function renderReciboConfig() {
   document.getElementById('reciboCidade').value = cfg.cidade;
   document.getElementById('reciboCorpo').value = cfg.corpo;
   document.getElementById('reciboRodape').value = cfg.rodape;
+  marcarLimpo(document.getElementById('formRecibo'));
   renderCodigosRecibo();
 }
 
@@ -3940,16 +5367,18 @@ function lerFormularioRecibo() {
   };
 }
 
-document.getElementById('formRecibo').addEventListener('submit', (e) => {
-  e.preventDefault();
+aoEnviar(document.getElementById('formRecibo'), async () => {
+  const reciboAntes = state.config.recibo || {};
   state.config.recibo = lerFormularioRecibo();
   reciboFormSujo = false;
-  saveState();
-  const msg = document.getElementById('reciboSaved');
-  msg.classList.remove('hidden');
-  setTimeout(() => msg.classList.add('hidden'), 2200);
+  const mudou = ['titulo', 'cidade', 'corpo', 'rodape'].filter(k => (reciboAntes[k] || '') !== state.config.recibo[k]);
+  if (mudou.length) {
+    const nomes = { titulo: 'título', cidade: 'cidade', corpo: 'corpo', rodape: 'rodapé' };
+    registrarAuditoria('config_alterada', `Texto do recibo alterado (${mudou.map(k => nomes[k]).join(', ')})`);
+  }
+  const ok = await saveState();
   renderCodigosRecibo();
-  showToast('Texto do recibo salvo com sucesso.', 'success');
+  if (ok) mostrarSalvo('reciboSaved', 'Texto do recibo salvo com sucesso.');
 });
 
 // A prévia usa o que está NO FORMULÁRIO (mesmo sem salvar), para dar para
@@ -3968,8 +5397,12 @@ document.getElementById('btnPreviaRecibo').addEventListener('click', () => {
   );
 });
 
-document.getElementById('btnRestaurarRecibo').addEventListener('click', () => {
-  if (!confirm('Restaurar o texto padrão do recibo? O texto atual será substituído (a cidade é mantida).')) return;
+document.getElementById('btnRestaurarRecibo').addEventListener('click', async () => {
+  if (!(await confirmar({
+    titulo: 'Voltar ao texto padrão do recibo?',
+    mensagem: 'O título, o corpo e o rodapé que estão na tela são trocados pelo texto de fábrica (a cidade é mantida). Nada é salvo até você clicar em "Salvar texto do recibo".',
+    acao: 'Usar o texto padrão',
+  }))) return;
   const cidade = document.getElementById('reciboCidade').value;
   document.getElementById('reciboTitulo').value = RECIBO_PADRAO.titulo;
   document.getElementById('reciboCorpo').value = RECIBO_PADRAO.corpo;
@@ -4138,6 +5571,71 @@ function drawChartTooltip(ctx, w, x, y, titulo, linhas) {
   });
 }
 
+/* ---- Gráficos sem mouse ----
+ * Um canvas é só uma imagem: sem isto, os valores de cada mês só apareciam
+ * passando o mouse (nada para teclado, leitor de tela ou toque). Cada gráfico
+ * ganha um nome com resumo (role="img") e um "Ver dados" com a tabela gerada
+ * dos mesmos números que desenham o gráfico.
+ */
+function tituloDoGrafico(canvas) {
+  const card = canvas.closest('.chart-card');
+  const h = card && card.querySelector('h2, h3');
+  return h ? h.textContent.replace(/\s+/g, ' ').trim() : 'Gráfico';
+}
+
+function definirDadosDoGrafico(canvas, { resumo, cabecalho, linhas, dicaTeclado }) {
+  const titulo = tituloDoGrafico(canvas);
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', `${titulo}. ${resumo}${dicaTeclado ? ' Use as setas para a esquerda e para a direita para ouvir cada mês.' : ''}`);
+  let detalhes = canvas.parentElement.querySelector(`details[data-grafico="${canvas.id}"]`);
+  if (!detalhes) {
+    detalhes = document.createElement('details');
+    detalhes.className = 'chart-dados';
+    detalhes.dataset.grafico = canvas.id;
+    detalhes.innerHTML = '<summary>Ver dados</summary><div class="chart-dados-tabela"></div>';
+    canvas.parentElement.appendChild(detalhes);
+  }
+  detalhes.querySelector('summary').innerHTML = `Ver dados<span class="sr-only"> de ${escapeHtml(titulo)}</span>`;
+  detalhes.querySelector('.chart-dados-tabela').innerHTML = linhas.length ? `
+    <table class="report-table">
+      <caption class="sr-only">${escapeHtml(titulo)}</caption>
+      <thead><tr>${cabecalho.map((c, i) => `<th scope="col"${i ? ' class="num"' : ''}>${escapeHtml(c)}</th>`).join('')}</tr></thead>
+      <tbody>${linhas.map(l => `<tr><th scope="row">${escapeHtml(String(l[0]))}</th>${l.slice(1).map(v => `<td class="num">${escapeHtml(String(v))}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table>` : '<p class="modal-subtitle">Sem dados neste ano.</p>';
+}
+
+// Resumo de uma série mensal: total, e o mês de maior valor.
+function resumoMensal(meses, valores) {
+  const total = valores.reduce((a, b) => a + b, 0);
+  if (!total) return 'Sem valores neste ano.';
+  const i = valores.indexOf(Math.max(...valores));
+  return `Total ${formatCurrency(total)}; maior mês: ${MESES_PT[meses[i].month]}, ${formatCurrency(valores[i])}.`;
+}
+
+// Mês destacado pelo teclado (setas) ou pelo toque, com o valor anunciado.
+function ligarNavegacaoPorMes(canvas, n, desenhar, textoDoMes) {
+  canvas.tabIndex = 0;
+  canvas.onkeydown = (e) => {
+    const atual = canvas.__hover;
+    let idx = null;
+    if (e.key === 'ArrowRight') idx = atual == null ? 0 : Math.min(atual + 1, n - 1);
+    else if (e.key === 'ArrowLeft') idx = atual == null ? n - 1 : Math.max(atual - 1, 0);
+    else if (e.key === 'Home') idx = 0;
+    else if (e.key === 'End') idx = n - 1;
+    else if (e.key === 'Escape' && atual != null) { canvas.__hover = null; desenhar(null); e.stopPropagation(); return; }
+    else return;
+    e.preventDefault();
+    canvas.__hover = idx;
+    desenhar(idx);
+    anunciar(textoDoMes(idx));
+  };
+  canvas.onblur = () => {
+    if (canvas.__hover == null) return;
+    canvas.__hover = null;
+    desenhar(null);
+  };
+}
+
 function renderCharts() {
   populateGraficoAnoFilter();
   const ano = anoGraficoSelecionado();
@@ -4161,6 +5659,13 @@ function renderDonutChart(canvasId, legendId, data, centerValue, centerLabel) {
 
   const positivos = data.filter(d => d.value > 0);
   const total = positivos.reduce((sum, d) => sum + d.value, 0);
+  definirDadosDoGrafico(canvas, {
+    resumo: total > 0
+      ? `${centerValue} ${centerLabel}: ` + data.map(d => `${d.label} ${d.displayValue}`).join('; ') + '.'
+      : 'Sem dados neste ano.',
+    cabecalho: ['Item', 'Valor'],
+    linhas: total > 0 ? data.map(d => [d.label, d.displayValue]) : [],
+  });
   if (total <= 0) {
     drawChartEmptyState(ctx, w, h, 'Sem dados neste ano');
     legendEl.innerHTML = '';
@@ -4366,9 +5871,10 @@ function renderLineChart(canvasId, months, series, legendId) {
     canvas.__geo = { padLeft, stepX, n: months.length };
   }
 
-  // `onmousemove` (propriedade, não addEventListener) para não empilhar
-  // handlers a cada re-render do gráfico.
-  canvas.onmousemove = (e) => {
+  // Handlers por propriedade (não addEventListener) para não empilhar a cada
+  // re-render do gráfico. Eventos de ponteiro cobrem mouse, toque e caneta: no
+  // celular, tocar num mês mostra o valor (e ele fica até tocar em outro).
+  const apontar = (e) => {
     const geo = canvas.__geo;
     if (!geo || geo.n < 2) return;
     const rect = canvas.getBoundingClientRect();
@@ -4380,14 +5886,27 @@ function renderLineChart(canvasId, months, series, legendId) {
       desenhar(idx);
     }
   };
-  canvas.onmouseleave = () => {
-    if (canvas.__hover == null) return;
+  canvas.onpointermove = apontar;
+  canvas.onpointerdown = apontar;
+  canvas.onpointerleave = (e) => {
+    if (e.pointerType !== 'mouse' || canvas.__hover == null) return;
     canvas.__hover = null;
     desenhar(null);
   };
 
   canvas.__hover = null;
   desenhar(null);
+
+  const textoDoMes = (i) => `${MESES_PT[months[i].month]}: ` + series.map(s => `${s.label ? s.label + ' ' : ''}${formatCurrency(s.values[i])}`).join(', ');
+  ligarNavegacaoPorMes(canvas, months.length, desenhar, textoDoMes);
+  definirDadosDoGrafico(canvas, {
+    resumo: series.length > 1
+      ? series.map(s => `${s.label}: ${resumoMensal(months, s.values)}`).join(' ')
+      : resumoMensal(months, series[0].values),
+    cabecalho: ['Mês', ...series.map(s => s.label || 'Valor')],
+    linhas: months.map((m, i) => [MESES_PT[m.month], ...series.map(s => formatCurrency(s.values[i]))]),
+    dicaTeclado: true,
+  });
 
   if (legendId) {
     const legendEl = document.getElementById(legendId);
@@ -4467,6 +5986,13 @@ function renderHorizontalBarChart(canvasId, entries, colorVarName) {
   const { ctx, w, h } = setupCanvas(canvas);
   const color = cssVar(colorVarName);
 
+  definirDadosDoGrafico(canvas, {
+    resumo: entries.length
+      ? entries.map((en, i) => `${i + 1}º ${en.label}: ${formatCurrency(en.value)}`).join('; ') + '.'
+      : 'Nenhuma dívida em atraso neste ano.',
+    cabecalho: ['Quem', 'Total em atraso'],
+    linhas: entries.map(en => [en.label, formatCurrency(en.value)]),
+  });
   if (!entries.length) {
     drawChartEmptyState(ctx, w, h, 'Nenhuma dívida em atraso neste ano');
     return;
@@ -4602,7 +6128,7 @@ function renderColumnChart(canvasId, labels, values, colorVarName, vazioTexto) {
     canvas.__geo = { padLeft, faixa, n: values.length };
   }
 
-  canvas.onmousemove = (e) => {
+  const apontar = (e) => {
     const geo = canvas.__geo;
     if (!geo) return;
     const rect = canvas.getBoundingClientRect();
@@ -4613,18 +6139,34 @@ function renderColumnChart(canvasId, labels, values, colorVarName, vazioTexto) {
       desenhar(valido);
     }
   };
-  canvas.onmouseleave = () => {
-    if (canvas.__hover == null) return;
+  canvas.onpointermove = apontar;
+  canvas.onpointerdown = apontar;
+  canvas.onpointerleave = (e) => {
+    if (e.pointerType !== 'mouse' || canvas.__hover == null) return;
     canvas.__hover = null;
     desenhar(null);
   };
 
   canvas.__hover = null;
   desenhar(null);
+
+  // `labels` são os meses abreviados; o texto falado usa o nome inteiro
+  const nomeDoMes = (i) => MESES_PT.find(m => m.startsWith(labels[i])) || labels[i];
+  const temValor = values.some(v => v > 0);
+  if (temValor) ligarNavegacaoPorMes(canvas, values.length, desenhar, (i) => `${nomeDoMes(i)}: ${formatCurrency(values[i])}`);
+  else { canvas.removeAttribute('tabindex'); canvas.onkeydown = null; }
+  const total = values.reduce((a, b) => a + b, 0);
+  const iMaior = values.indexOf(Math.max(...values));
+  definirDadosDoGrafico(canvas, {
+    resumo: temValor ? `Total ${formatCurrency(total)}; maior mês: ${nomeDoMes(iMaior)}, ${formatCurrency(values[iMaior])}.` : (vazioTexto || 'Sem dados neste período.'),
+    cabecalho: ['Mês', 'Valor'],
+    linhas: temValor ? values.map((v, i) => [nomeDoMes(i), formatCurrency(v)]) : [],
+    dicaTeclado: temValor,
+  });
 }
 
-document.getElementById('inadimplenciaAgrupador').addEventListener('change', () => renderInadimplenciaChart());
-document.getElementById('graficoAno').addEventListener('change', renderCharts);
+document.getElementById('inadimplenciaAgrupador').addEventListener('change', () => { renderInadimplenciaChart(); atualizarEndereco(); });
+document.getElementById('graficoAno').addEventListener('change', () => { renderCharts(); atualizarEndereco(); });
 
 window.addEventListener('resize', () => {
   if (document.getElementById('tab-graficos').classList.contains('active')) renderCharts();
@@ -5179,11 +6721,11 @@ function renderAuditoria() {
   `).join('');
 }
 
-document.getElementById('relatorioAno').addEventListener('change', renderRelatorios);
-document.getElementById('relatorioMes').addEventListener('change', renderRelatorios);
+document.getElementById('relatorioAno').addEventListener('change', () => { renderRelatorios(); atualizarEndereco(); });
+document.getElementById('relatorioMes').addEventListener('change', () => { renderRelatorios(); atualizarEndereco(); });
 
 ['auditoriaFiltroAno', 'auditoriaFiltroMes', 'auditoriaFiltroUsuario'].forEach(id => {
-  document.getElementById(id).addEventListener('change', renderAuditoria);
+  document.getElementById(id).addEventListener('change', () => { renderAuditoria(); atualizarEndereco(); });
 });
 
 /* ===================== CALENDÁRIO ===================== */
@@ -5324,8 +6866,9 @@ function renderCalendario() {
   grid.querySelectorAll('.calendar-day[data-data]').forEach(el => {
     el.addEventListener('click', () => {
       calendarioDiaSelecionado = el.dataset.data;
-      renderCalendario();
-      renderCalendarioDetalhe(el.dataset.data);
+      // a grade é redesenhada: o foco volta para o mesmo dia
+      preservandoFoco(renderCalendarioCompleto);
+      atualizarEndereco();
     });
   });
 
@@ -5339,6 +6882,13 @@ function renderCalendario() {
       renderCalendarioDetalhe(hojeStr);
     }
   }
+}
+
+// Grade + detalhe do dia escolhido (o que vem no endereço, ou hoje).
+function renderCalendarioCompleto() {
+  renderCalendario();
+  if (calendarioDiaSelecionado) renderCalendarioDetalhe(calendarioDiaSelecionado);
+  else document.getElementById('calendarioDetalheCard').classList.add('hidden');
 }
 
 const DIAS_SEMANA_PT = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira',
@@ -5382,14 +6932,14 @@ function renderCalendarioDetalhe(dataStr) {
   // cartõezinhos só de leitura: dava para ver o vencimento e não fazer nada.
   if (vencimentos.length) {
     blocos.push(`
-      <h4 class="calendar-detalhe-secao">${icon('calendar')} Vencimentos do dia</h4>
+      <h3 class="calendar-detalhe-secao">${icon('calendar')} Vencimentos do dia</h3>
       ${dividasTabelaFlatHtml(vencimentos)}
     `);
   }
 
   if (pagamentos.length) {
     blocos.push(`
-      <h4 class="calendar-detalhe-secao">${icon('dollar')} Pagamentos recebidos</h4>
+      <h3 class="calendar-detalhe-secao">${icon('dollar')} Pagamentos recebidos</h3>
       <div class="cards-list">
         ${pagamentos.map(p => {
           const liquido = valorLiquidoPagamento(p.divida, p.divida, p);
@@ -5409,8 +6959,8 @@ function renderCalendarioDetalhe(dataStr) {
               <div class="valor-item"><span>Recebido por</span><strong>${escapeHtml(p.quemRecebeu) || '--'}</strong></div>
             </div>
             <div class="contrato-actions">
-              <button type="button" class="btn btn-ghost btn-sm" data-recibo-divida="${p.divida.id}" data-recibo-indice="${p.indice}">${icon('receipt')} Recibo</button>
-              <button type="button" class="btn btn-ghost btn-sm" data-grupo-action="historico" data-contrato-id="${p.divida.contratoId}">${icon('receipt')} Histórico</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-recibo-divida="${p.divida.id}" data-recibo-indice="${p.indice}" aria-label="Recibo do pagamento do contrato #${p.divida.numero || '--'}">${icon('receipt')} Recibo</button>
+              <button type="button" class="btn btn-ghost btn-sm" data-grupo-action="historico" data-contrato-id="${p.divida.contratoId}" aria-label="Histórico do contrato #${p.divida.numero || '--'}">${icon('receipt')} Histórico</button>
             </div>
           </div>
         `;
@@ -5427,8 +6977,9 @@ function renderCalendarioDetalhe(dataStr) {
 function mudarMesCalendario(delta) {
   calendarioAtual.setMonth(calendarioAtual.getMonth() + delta);
   calendarioDiaSelecionado = null;
-  document.getElementById('calendarioDetalheCard').classList.add('hidden');
-  renderCalendario();
+  renderCalendarioCompleto();
+  atualizarEndereco();
+  anunciar(document.getElementById('calendarioMesAno').textContent);
 }
 
 document.getElementById('btnCalendarioAnterior').addEventListener('click', () => mudarMesCalendario(-1));
@@ -5437,11 +6988,24 @@ document.getElementById('btnCalendarioHoje').addEventListener('click', () => {
   calendarioAtual = new Date();
   calendarioAtual.setDate(1);
   calendarioDiaSelecionado = null;
-  document.getElementById('calendarioDetalheCard').classList.add('hidden');
-  renderCalendario();
+  renderCalendarioCompleto();
+  atualizarEndereco();
+  anunciar(document.getElementById('calendarioMesAno').textContent);
 });
 
-/* ===================== EXPORT CSV ===================== */
+/* ===================== DOWNLOAD / EXPORT CSV ===================== */
+function baixarArquivo(nome, conteudo, tipo) {
+  const blob = new Blob([conteudo], { type: tipo });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nome;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 // Recebe as linhas já prontas (inclusive linhas em branco, usadas para separar
 // seções num relatório) e gera o arquivo. O BOM no início é o que faz o Excel
 // abrir os acentos corretamente.
@@ -5450,13 +7014,7 @@ function downloadCsvRows(filename, rows) {
     .map(row => row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(';'))
     .join('\r\n');
 
-  const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  baixarArquivo(filename, '\ufeff' + csvContent, 'text/csv;charset=utf-8;');
 }
 
 function downloadCsv(filename, headers, rows) {
@@ -5626,7 +7184,7 @@ document.getElementById('inputImportCSV').addEventListener('change', (e) => {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     const linhas = parseCsv(String(reader.result));
     const linhasDados = linhas.slice(1); // pula o cabeçalho
     let importados = 0;
@@ -5686,11 +7244,14 @@ document.getElementById('inputImportCSV').addEventListener('change', (e) => {
       importados++;
     });
 
-    if (importados > 0) {
-      saveState();
-      renderAll();
+    if (!importados) {
+      showToast(`Nenhum contrato importado${ignorados ? `: ${ignorados} linha(s) sem vencimento, imóvel ou inquilino` : ''}. Confira se o arquivo é um CSV exportado por este sistema.`, 'error');
+      return;
     }
-    showToast(`${importados} contrato(s) importado(s)${ignorados ? `, ${ignorados} ignorado(s)` : ''}.`, importados ? 'success' : 'error');
+    registrarAuditoria('contrato_criado', `Importação de CSV: ${importados} contrato(s) criado(s)${ignorados ? `, ${ignorados} linha(s) ignorada(s)` : ''}`);
+    const ok = await saveState();
+    renderAll();
+    if (ok) showToast(`${importados} contrato(s) importado(s)${ignorados ? `, ${ignorados} linha(s) ignorada(s)` : ''}.`, 'success');
   };
   reader.readAsText(file, 'UTF-8');
   e.target.value = '';
@@ -5944,6 +7505,10 @@ document.getElementById('btnExportPDF').addEventListener('click', () => {
 
 /* ===================== RENDER ALL ===================== */
 function renderAll() {
+  preservandoFoco(renderTudo);
+}
+
+function renderTudo() {
   renderDashboard();
   renderPessoasConfig();
   renderImoveis();
@@ -5958,7 +7523,7 @@ function renderAll() {
   const auditoriaTab = document.getElementById('tab-auditoria');
   if (auditoriaTab.classList.contains('active')) renderAuditoria();
   const calendarioTab = document.getElementById('tab-calendario');
-  if (calendarioTab.classList.contains('active')) renderCalendario();
+  if (calendarioTab.classList.contains('active')) renderCalendarioCompleto();
   const despesasTab = document.getElementById('tab-despesas');
   if (despesasTab.classList.contains('active')) renderDespesas();
   ajustarTabelasVisiveis();
@@ -5969,7 +7534,7 @@ function renderAll() {
   const session = await checkSession();
   if (session) {
     setCurrentUsername(session.username);
-    await showApp();
+    await showApp({ primeiraVez: true });
   } else {
     showLogin();
   }

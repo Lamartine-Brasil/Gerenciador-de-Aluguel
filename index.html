@@ -12,10 +12,12 @@
   Software desenvolvido por Lamartine Barbosa — https://github.com/Lamartine-Brasil
 -->
 
-<link rel="stylesheet" href="css/tokens.css">
-<link rel="stylesheet" href="css/components.css">
-<link rel="stylesheet" href="css/layout.css">
-<link rel="stylesheet" href="css/screens.css">
+<!-- O ?v= muda a cada versão: sem ele o navegador pode juntar o HTML novo
+     com um index.js antigo guardado em cache, e o sistema quebra. -->
+<link rel="stylesheet" href="css/tokens.css?v=3.0">
+<link rel="stylesheet" href="css/components.css?v=3.0">
+<link rel="stylesheet" href="css/layout.css?v=3.0">
+<link rel="stylesheet" href="css/screens.css?v=3.0">
 </head>
 <body>
 
@@ -65,8 +67,31 @@
   </defs>
 </svg>
 
+<!-- ===================== CARREGANDO =====================
+     Aparece enquanto o sistema confere se já existe uma sessão aberta — sem
+     isso, quem já estava logado via a tela de login piscar a cada F5. -->
+<div id="telaCarregando" class="tela-status" role="status">
+  <span class="spinner" aria-hidden="true"></span>
+  <span>Carregando…</span>
+</div>
+
+<!-- ===================== ERRO AO CARREGAR =====================
+     Sem os dados do servidor o sistema não abre: abrir "vazio" e deixar gravar
+     por cima era o caminho para apagar tudo. -->
+<main id="telaErroCarga" class="tela-status hidden">
+  <div class="card tela-status-card">
+    <h1 tabindex="-1">Não foi possível carregar os dados</h1>
+    <p id="erroCargaDetalhe" class="modal-subtitle"></p>
+    <p class="modal-subtitle">Nada foi alterado. Confira a conexão com a internet e tente de novo. Se continuar assim, o servidor pode estar fora do ar ou com algum problema no arquivo de dados.</p>
+    <div class="contrato-actions">
+      <button type="button" class="btn btn-primary" id="btnTentarCarregar"><svg class="icon"><use href="#icon-refresh"></use></svg> Tentar de novo</button>
+      <button type="button" class="btn btn-ghost" id="btnSairErroCarga"><svg class="icon"><use href="#icon-log-out"></use></svg> Sair</button>
+    </div>
+  </div>
+</main>
+
 <!-- ===================== LOGIN ===================== -->
-<section id="loginScreen" class="login-screen">
+<section id="loginScreen" class="login-screen hidden">
 
   <aside class="login-aside" aria-hidden="true">
     <span class="brand">
@@ -85,12 +110,12 @@
     <span class="login-foot">Dados armazenados no seu próprio servidor.</span>
   </aside>
 
-  <div class="login-main">
+  <main class="login-main">
     <div class="login-card">
       <div class="login-logo"><svg class="icon"><use href="#icon-home"></use></svg></div>
       <h1>Bem-vindo de volta</h1>
       <p class="login-sub">Acesse o painel administrativo</p>
-      <form id="loginForm" autocomplete="off">
+      <form id="loginForm" data-sem-rascunho>
         <label class="field">
           <span>Usuário</span>
           <input type="text" id="loginUser" name="username" placeholder="Seu usuário" required autocomplete="username">
@@ -99,21 +124,24 @@
           <span>Senha</span>
           <input type="password" id="loginPass" name="password" placeholder="Sua senha" required autocomplete="current-password">
         </label>
-        <p id="loginError" class="error-msg hidden">Usuário ou senha incorretos.</p>
+        <p id="loginError" class="error-msg hidden" role="alert">Usuário ou senha incorretos.</p>
         <button type="submit" class="btn btn-primary btn-block">Entrar</button>
       </form>
-      <p class="login-foot">Sessão protegida por cookie assinado. Após 5 tentativas o acesso é bloqueado temporariamente.</p>
+      <p class="login-foot">Depois de 5 tentativas erradas seguidas, o acesso fica bloqueado por 15 minutos.</p>
       <p class="login-credit">
         Software desenvolvido por
         <a href="https://github.com/Lamartine-Brasil" target="_blank" rel="noopener noreferrer">Lamartine Barbosa</a>
       </p>
     </div>
-  </div>
+  </main>
 
 </section>
 
 <!-- ===================== APP ===================== -->
 <div id="app" class="app hidden">
+
+  <!-- Primeiro item do Tab em qualquer tela: pula o menu e o cabeçalho. -->
+  <nav aria-label="Acesso rápido"><a class="pular-conteudo" href="#conteudo" id="linkPularConteudo">Pular para o conteúdo</a></nav>
 
   <!-- ---------- SIDEBAR ---------- -->
   <aside class="sidebar" id="uiSidebar">
@@ -126,34 +154,34 @@
 
     <nav class="tabs" id="tabsNav" aria-label="Navegação principal">
       <div class="nav-group">
-        <button class="tab-btn active" data-tab="dashboard" data-tooltip="Dashboard" aria-current="page"><span class="tab-icon"><svg class="icon"><use href="#icon-grid"></use></svg></span><span class="tab-label">Dashboard</span></button>
+        <a class="tab-btn" href="#/" data-tab="dashboard" data-tooltip="Dashboard" aria-label="Dashboard"><span class="tab-icon"><svg class="icon"><use href="#icon-grid"></use></svg></span><span class="tab-label">Dashboard</span></a>
       </div>
 
       <div class="nav-group">
         <p class="nav-group-label">Gestão</p>
-        <button class="tab-btn" data-tab="imoveis" data-tooltip="Imóveis"><span class="tab-icon"><svg class="icon"><use href="#icon-home"></use></svg></span><span class="tab-label">Imóveis</span></button>
-        <button class="tab-btn" data-tab="contratos" data-tooltip="Contratos"><span class="tab-icon"><svg class="icon"><use href="#icon-file-text"></use></svg></span><span class="tab-label">Contratos</span></button>
-        <button class="tab-btn" data-tab="atrasos" data-tooltip="Atrasos"><span class="tab-icon"><svg class="icon"><use href="#icon-clock"></use></svg></span><span class="tab-label">Atrasos</span></button>
-        <button class="tab-btn" data-tab="historico" data-tooltip="Histórico"><span class="tab-icon"><svg class="icon"><use href="#icon-receipt"></use></svg></span><span class="tab-label">Histórico</span></button>
+        <a class="tab-btn" href="#/imoveis" data-tab="imoveis" data-tooltip="Imóveis" aria-label="Imóveis"><span class="tab-icon"><svg class="icon"><use href="#icon-home"></use></svg></span><span class="tab-label">Imóveis</span></a>
+        <a class="tab-btn" href="#/contratos" data-tab="contratos" data-tooltip="Contratos" aria-label="Contratos"><span class="tab-icon"><svg class="icon"><use href="#icon-file-text"></use></svg></span><span class="tab-label">Contratos</span></a>
+        <a class="tab-btn" href="#/atrasos" data-tab="atrasos" data-tooltip="Atrasos" aria-label="Atrasos"><span class="tab-icon"><svg class="icon"><use href="#icon-clock"></use></svg></span><span class="tab-label">Atrasos</span></a>
+        <a class="tab-btn" href="#/historico" data-tab="historico" data-tooltip="Histórico" aria-label="Histórico"><span class="tab-icon"><svg class="icon"><use href="#icon-receipt"></use></svg></span><span class="tab-label">Histórico</span></a>
       </div>
 
       <div class="nav-group">
         <p class="nav-group-label">Financeiro</p>
-        <button class="tab-btn" data-tab="despesas" data-tooltip="Despesas"><span class="tab-icon"><svg class="icon"><use href="#icon-wallet"></use></svg></span><span class="tab-label">Despesas</span></button>
-        <button class="tab-btn" data-tab="graficos" data-tooltip="Gráficos"><span class="tab-icon"><svg class="icon"><use href="#icon-bar-chart"></use></svg></span><span class="tab-label">Gráficos</span></button>
-        <button class="tab-btn" data-tab="relatorios" data-tooltip="Relatórios"><span class="tab-icon"><svg class="icon"><use href="#icon-clipboard-list"></use></svg></span><span class="tab-label">Relatórios</span></button>
+        <a class="tab-btn" href="#/despesas" data-tab="despesas" data-tooltip="Despesas" aria-label="Despesas"><span class="tab-icon"><svg class="icon"><use href="#icon-wallet"></use></svg></span><span class="tab-label">Despesas</span></a>
+        <a class="tab-btn" href="#/graficos" data-tab="graficos" data-tooltip="Gráficos" aria-label="Gráficos"><span class="tab-icon"><svg class="icon"><use href="#icon-bar-chart"></use></svg></span><span class="tab-label">Gráficos</span></a>
+        <a class="tab-btn" href="#/relatorios" data-tab="relatorios" data-tooltip="Relatórios" aria-label="Relatórios"><span class="tab-icon"><svg class="icon"><use href="#icon-clipboard-list"></use></svg></span><span class="tab-label">Relatórios</span></a>
       </div>
 
       <div class="nav-group">
         <p class="nav-group-label">Agenda</p>
-        <button class="tab-btn" data-tab="calendario" data-tooltip="Calendário"><span class="tab-icon"><svg class="icon"><use href="#icon-calendar"></use></svg></span><span class="tab-label">Calendário</span></button>
+        <a class="tab-btn" href="#/calendario" data-tab="calendario" data-tooltip="Calendário" aria-label="Calendário"><span class="tab-icon"><svg class="icon"><use href="#icon-calendar"></use></svg></span><span class="tab-label">Calendário</span></a>
       </div>
 
       <div class="nav-group">
         <p class="nav-group-label">Sistema</p>
-        <button class="tab-btn" data-tab="auditoria" data-tooltip="Auditoria"><span class="tab-icon"><svg class="icon"><use href="#icon-shield-check"></use></svg></span><span class="tab-label">Auditoria</span></button>
-        <button class="tab-btn" data-tab="usuarios" data-tooltip="Usuários"><span class="tab-icon"><svg class="icon"><use href="#icon-users"></use></svg></span><span class="tab-label">Usuários</span></button>
-        <button class="tab-btn" data-tab="config" data-tooltip="Configurações"><span class="tab-icon"><svg class="icon"><use href="#icon-gear"></use></svg></span><span class="tab-label">Configurações</span></button>
+        <a class="tab-btn" href="#/auditoria" data-tab="auditoria" data-tooltip="Auditoria" aria-label="Auditoria"><span class="tab-icon"><svg class="icon"><use href="#icon-shield-check"></use></svg></span><span class="tab-label">Auditoria</span></a>
+        <a class="tab-btn" href="#/usuarios" data-tab="usuarios" data-tooltip="Usuários" aria-label="Usuários"><span class="tab-icon"><svg class="icon"><use href="#icon-users"></use></svg></span><span class="tab-label">Usuários</span></a>
+        <a class="tab-btn" href="#/configuracoes" data-tab="config" data-tooltip="Configurações" aria-label="Configurações"><span class="tab-icon"><svg class="icon"><use href="#icon-gear"></use></svg></span><span class="tab-label">Configurações</span></a>
       </div>
     </nav>
 
@@ -201,37 +229,45 @@
         <div class="topbar-divider" aria-hidden="true"></div>
 
         <div class="dropdown" id="uiNotifications">
-          <button type="button" class="icon-btn" id="uiNotifButton" aria-label="Notificações" aria-haspopup="true" aria-expanded="false">
+          <button type="button" class="icon-btn" id="uiNotifButton" aria-label="Notificações" aria-expanded="false">
             <svg class="icon"><use href="#icon-bell"></use></svg>
             <span class="notif-badge hidden" id="uiNotifBadge">0</span>
           </button>
-          <div class="dropdown-menu dropdown-menu-lg hidden" id="uiNotifMenu" role="menu" aria-label="Notificações">
+          <div class="dropdown-menu dropdown-menu-lg hidden" id="uiNotifMenu">
             <div class="dropdown-header">Notificações <span id="uiNotifSummary"></span></div>
             <div class="notif-list" id="uiNotifList"></div>
           </div>
         </div>
 
+        <!-- Salvando… / Salvo / Não salvo. Só vira botão (clicável) quando algo
+             não foi salvo: aí tentar de novo ou ver o conflito. -->
+        <button type="button" id="statusGravacao" class="status-gravacao" hidden disabled></button>
+
         <button id="btnThemeToggle" class="icon-btn" title="Alternar tema claro/escuro" aria-label="Alternar tema claro/escuro"></button>
 
         <div class="dropdown" id="uiUserMenu">
-          <button type="button" class="user-chip" id="uiUserButton" aria-haspopup="true" aria-expanded="false">
+          <button type="button" class="user-chip" id="uiUserButton" aria-expanded="false">
             <span class="avatar" id="uiUserAvatar" aria-hidden="true">A</span>
+            <span class="sr-only">Menu da conta: </span>
             <span class="user-chip-name" id="currentUserName">admin</span>
-            <svg class="icon"><use href="#icon-chevron-down"></use></svg>
+            <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
           </button>
-          <div class="dropdown-menu hidden" id="uiUserDropdown" role="menu">
+          <div class="dropdown-menu hidden" id="uiUserDropdown">
             <div class="dropdown-header">Conta</div>
-            <button type="button" class="dropdown-item" data-tab-link="config">
-              <svg class="icon"><use href="#icon-gear"></use></svg> Configurações
-            </button>
-            <button type="button" class="dropdown-item" data-tab-link="usuarios">
-              <svg class="icon"><use href="#icon-users"></use></svg> Usuários
-            </button>
-            <button type="button" class="dropdown-item" data-tab-link="auditoria">
-              <svg class="icon"><use href="#icon-shield-check"></use></svg> Auditoria
+            <a class="dropdown-item" href="#/configuracoes">
+              <svg class="icon" aria-hidden="true"><use href="#icon-gear"></use></svg> Configurações
+            </a>
+            <a class="dropdown-item" href="#/usuarios">
+              <svg class="icon" aria-hidden="true"><use href="#icon-users"></use></svg> Usuários
+            </a>
+            <a class="dropdown-item" href="#/auditoria">
+              <svg class="icon" aria-hidden="true"><use href="#icon-shield-check"></use></svg> Auditoria
+            </a>
+            <button type="button" class="dropdown-item" id="btnAtalhosMenu">
+              <svg class="icon" aria-hidden="true"><use href="#icon-code"></use></svg> Atalhos de teclado
             </button>
             <hr class="dropdown-sep">
-            <button id="btnLogout" class="dropdown-item dropdown-item-danger">
+            <button type="button" id="btnLogout" class="dropdown-item dropdown-item-danger">
               <svg class="icon"><use href="#icon-log-out"></use></svg> Sair
             </button>
           </div>
@@ -239,13 +275,13 @@
       </div>
     </header>
 
-    <main class="content">
+    <main class="content" id="conteudo">
 
       <!-- ---------- DASHBOARD ---------- -->
-      <section id="tab-dashboard" class="tab-panel active">
+      <section id="tab-dashboard" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Painel principal</h2>
+            <h1 tabindex="-1">Painel principal</h1>
             <span class="panel-desc">Visão geral da sua carteira de aluguéis hoje.</span>
           </div>
         </div>
@@ -272,6 +308,7 @@
             <div class="stat-info">
               <span class="stat-value" id="statProximo">--</span>
               <span class="stat-label">Próximo vencimento</span>
+              <span class="stat-hint" id="statProximoHint"></span>
             </div>
           </div>
           <div class="card stat-card stat-warn">
@@ -299,7 +336,7 @@
         </div>
 
         <!-- Linha 3: últimos contratos -->
-        <h3 class="section-title"><svg class="icon"><use href="#icon-file-text"></use></svg> Últimos contratos</h3>
+        <h2 class="section-title"><svg class="icon" aria-hidden="true"><use href="#icon-file-text"></use></svg> Dívidas mais recentes</h2>
         <div id="dashboardRecentList" class="cards-list"></div>
 
       </section>
@@ -308,7 +345,7 @@
       <section id="tab-imoveis" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Imóveis</h2>
+            <h1 tabindex="-1">Imóveis</h1>
             <span class="panel-desc">Cadastro reutilizável — escolha o imóvel pela lista ao criar um contrato.</span>
           </div>
         </div>
@@ -327,12 +364,12 @@
               <span class="col-acoes">Ações</span>
             </div>
             <div id="imoveisList" class="cards-list"></div>
-            <div class="pagination" id="uiImoveisPagination"></div>
+            <nav class="pagination" id="uiImoveisPagination" aria-label="Páginas da lista de imóveis"></nav>
           </div>
 
           <aside class="split-aside">
             <div class="card">
-              <h3 id="formImovelTitle"><svg class="icon"><use href="#icon-plus"></use></svg> Novo imóvel</h3>
+              <h2 id="formImovelTitle"><svg class="icon"><use href="#icon-plus"></use></svg> Novo imóvel</h2>
               <p class="modal-subtitle">Cadastre aqui os imóveis para escolher pela lista ao criar um contrato, sem digitar o endereço toda vez.</p>
               <form id="formImovel" class="config-form">
                 <input type="hidden" id="imovelId">
@@ -358,7 +395,7 @@
       <section id="tab-contratos" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Contratos</h2>
+            <h1 tabindex="-1">Contratos</h1>
             <span class="panel-desc">Cada contrato reúne todas as dívidas mensais do mesmo imóvel e inquilino.</span>
           </div>
           <div class="panel-actions">
@@ -371,7 +408,7 @@
         <div class="toolbar">
           <div class="search-wrap">
             <svg class="icon search-wrap-icon"><use href="#icon-search"></use></svg>
-            <input type="search" id="searchContratos" class="input" placeholder="Buscar por inquilino, imóvel ou #número..." title="Atalho: /">
+            <input type="search" id="searchContratos" class="input" placeholder="Buscar por inquilino, imóvel ou #número..." aria-label="Buscar contratos por inquilino, imóvel, número ou carteira">
           </div>
           <select id="filterAno" class="input select" aria-label="Filtrar por ano"></select>
           <select id="filterMes" class="input select" aria-label="Filtrar por mês">
@@ -402,14 +439,14 @@
         </div>
 
         <div id="contratosList" class="cards-list"></div>
-        <div id="contratosPagination" class="pagination"></div>
+        <nav id="contratosPagination" class="pagination" aria-label="Páginas da lista de contratos"></nav>
       </section>
 
       <!-- ---------- ATRASOS ---------- -->
       <section id="tab-atrasos" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Contratos em atraso</h2>
+            <h1 tabindex="-1">Contratos em atraso</h1>
             <span class="panel-desc">Dívidas vencidas e não pagas, da mais antiga para a mais recente.</span>
           </div>
         </div>
@@ -431,7 +468,7 @@
       <section id="tab-historico" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Histórico de pagamentos</h2>
+            <h1 tabindex="-1">Histórico de pagamentos</h1>
             <span class="panel-desc">Todos os pagamentos registrados, do mais recente para o mais antigo.</span>
           </div>
         </div>
@@ -454,14 +491,14 @@
         </div>
 
         <div id="historicoList" class="cards-list"></div>
-        <div id="historicoPagination" class="pagination"></div>
+        <nav id="historicoPagination" class="pagination" aria-label="Páginas da lista de pagamentos"></nav>
       </section>
 
       <!-- ---------- DESPESAS ---------- -->
       <section id="tab-despesas" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Despesas</h2>
+            <h1 tabindex="-1">Despesas</h1>
             <span class="panel-desc">Lançamentos avulsos ou ligados a um contrato específico. Não entram no cálculo de nenhuma dívida — são um controle à parte, que aparece no lucro líquido dos Relatórios.</span>
           </div>
           <div class="panel-actions">
@@ -527,7 +564,7 @@
 
         <div class="card chart-card">
           <!-- Um único filho: o `gap` do flex no h3 separaria o texto do ano. -->
-          <h3><span>Despesas por mês em <span id="despesasChartAno"></span></span></h3>
+          <h2><span>Despesas por mês em <span id="despesasChartAno"></span></span></h2>
           <canvas id="chartDespesasAno" height="240"></canvas>
         </div>
 
@@ -538,7 +575,7 @@
         <div class="split-layout split-layout-form-first">
           <aside class="split-aside">
             <div class="card">
-              <h3 id="formDespesaTitle">Nova despesa</h3>
+              <h2 id="formDespesaTitle">Nova despesa</h2>
               <p class="modal-subtitle">Cadastro rápido: depois de salvar, o formulário fica pronto para o próximo lançamento com a mesma data.</p>
               <form id="formDespesa" class="config-form">
                 <input type="hidden" id="despesaId">
@@ -552,7 +589,7 @@
                 </label>
                 <label class="field">
                   <span>Valor (R$) *</span>
-                  <input type="number" id="despValor" step="0.01" min="0.01" required>
+                  <input type="text" inputmode="decimal" autocomplete="off" id="despValor" data-numero="dinheiro" data-min="0.01" required>
                 </label>
                 <label class="field">
                   <span>Contrato relacionado (opcional)</span>
@@ -576,7 +613,7 @@
 
           <div>
             <div id="despesasList"></div>
-            <div id="despesasPagination" class="pagination"></div>
+            <nav id="despesasPagination" class="pagination" aria-label="Páginas da lista de despesas"></nav>
           </div>
         </div>
       </section>
@@ -585,7 +622,7 @@
       <section id="tab-graficos" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Gráficos</h2>
+            <h1 tabindex="-1">Gráficos</h1>
             <span class="panel-desc">Todos os gráficos abaixo mostram o ano selecionado. Valores recebidos são líquidos: já descontam a comissão do corretor (quando houver) e o condomínio, mesma convenção usada em Relatórios.</span>
           </div>
           <div class="panel-actions">
@@ -595,31 +632,31 @@
 
         <div class="charts-grid">
           <div class="card chart-card">
-            <h3>Dívidas por status</h3>
+            <h2>Dívidas por status</h2>
             <canvas id="chartStatus" height="230"></canvas>
             <div class="chart-legend" id="legendStatus"></div>
           </div>
           <div class="card chart-card">
-            <h3>Pagamentos por forma (líquido)</h3>
+            <h2>Pagamentos por forma (líquido)</h2>
             <canvas id="chartFormaPagamento" height="230"></canvas>
             <div class="chart-legend" id="legendFormaPagamento"></div>
           </div>
           <div class="card chart-card chart-card-wide">
-            <h3>Receita líquida × despesas por mês</h3>
+            <h2>Receita líquida × despesas por mês</h2>
             <canvas id="chartReceitaMensal" height="260"></canvas>
             <div class="chart-legend" id="legendReceitaMensal"></div>
           </div>
           <div class="card chart-card">
-            <h3>Total em atraso por mês</h3>
+            <h2>Total em atraso por mês</h2>
             <canvas id="chartAtrasoEvolucao" height="240"></canvas>
           </div>
           <div class="card chart-card">
-            <h3>Despesas por mês</h3>
+            <h2>Despesas por mês</h2>
             <canvas id="chartDespesasMensal" height="240"></canvas>
           </div>
           <div class="card chart-card chart-card-wide">
             <div class="panel-header panel-header-tight">
-              <h3>Inadimplência — quem mais atrasa</h3>
+              <h2>Inadimplência — quem mais atrasa</h2>
               <select id="inadimplenciaAgrupador" class="input select" aria-label="Agrupar inadimplência">
                 <option value="inquilino">Por inquilino</option>
                 <option value="imovel">Por imóvel</option>
@@ -634,7 +671,7 @@
       <section id="tab-relatorios" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Relatórios</h2>
+            <h1 tabindex="-1">Relatórios</h1>
             <span class="panel-desc">Valores recebidos são líquidos: já descontam a comissão do corretor (quando houver) e o condomínio, já que nenhum dos dois fica com o proprietário.</span>
           </div>
           <div class="panel-actions">
@@ -702,63 +739,63 @@
         </div>
 
         <!-- A conta aberta do que entrou: bruto, o que foi repassado, e o que sobrou -->
-        <div class="card table-card">
-          <h3>Como se chega ao recebido líquido</h3>
+        <div class="card table-card" tabindex="0" role="region" aria-labelledby="tituloTabelaRel1">
+          <h2 id="tituloTabelaRel1">Como se chega ao recebido líquido</h2>
           <p class="modal-subtitle">Os cards acima e todas as tabelas mostram o valor <strong>líquido</strong>. Esta é a conta que leva até ele, somando os pagamentos do período escolhido.</p>
           <table class="report-table">
             <tbody id="relatorioExtratoBody"></tbody>
           </table>
         </div>
 
-        <div class="card table-card hidden" id="relatorioCarteiraCard">
-          <h3>Por carteira <span data-periodo>no ano</span></h3>
+        <div class="card table-card hidden" id="relatorioCarteiraCard" tabindex="0" role="region" aria-labelledby="tituloTabelaCarteira">
+          <h2 id="tituloTabelaCarteira">Por carteira <span data-periodo>no ano</span></h2>
           <p class="modal-subtitle">Quanto cada proprietário rendeu no período escolhido. Aparece só quando há carteiras cadastradas e nenhuma está filtrada no topo — com uma carteira escolhida, o relatório inteiro já é dela.</p>
           <table class="report-table">
             <thead>
-              <tr><th>Carteira</th><th>Contratos</th><th>Recebido (líquido)</th><th>Despesas</th><th>Em atraso</th><th>Resultado</th></tr>
+              <tr><th scope="col">Carteira</th><th scope="col">Contratos</th><th scope="col">Recebido (líquido)</th><th scope="col">Despesas</th><th scope="col">Em atraso</th><th scope="col">Resultado</th></tr>
             </thead>
             <tbody id="relatorioCarteiraBody"></tbody>
           </table>
         </div>
 
-        <div class="card table-card">
-          <h3>Pagamentos por forma <span data-periodo>no ano</span></h3>
+        <div class="card table-card" tabindex="0" role="region" aria-labelledby="tituloTabelaRel2">
+          <h2 id="tituloTabelaRel2">Pagamentos por forma <span data-periodo>no ano</span></h2>
           <table class="report-table">
             <thead>
-              <tr><th>Forma</th><th>Quantidade</th><th>Recebido (bruto)</th><th>Recebido (líquido)</th></tr>
+              <tr><th scope="col">Forma</th><th scope="col">Quantidade</th><th scope="col">Recebido (bruto)</th><th scope="col">Recebido (líquido)</th></tr>
             </thead>
             <tbody id="relatorioFormaPagamentoBody"></tbody>
           </table>
         </div>
 
-        <div class="card table-card hidden" id="relatorioCorretorCard">
-          <h3>Comissão de corretores <span data-periodo>no ano</span></h3>
+        <div class="card table-card hidden" id="relatorioCorretorCard" tabindex="0" role="region" aria-labelledby="tituloTabelaCorretor">
+          <h2 id="tituloTabelaCorretor">Comissão de corretores <span data-periodo>no ano</span></h2>
           <p class="modal-subtitle">Quanto precisa ser pago a cada corretor, somando as dívidas que vencem no período selecionado. A base de cálculo é <strong>só o valor do aluguel</strong> de cada dívida — condomínio, juros, multa e valores em atraso não entram.</p>
           <table class="report-table">
             <thead>
-              <tr><th>Corretor</th><th>Contratos</th><th>Dívidas</th><th>Comissão <span data-periodo>no ano</span></th></tr>
+              <tr><th scope="col">Corretor</th><th scope="col">Contratos</th><th scope="col">Dívidas</th><th scope="col">Comissão <span data-periodo>no ano</span></th></tr>
             </thead>
             <tbody id="relatorioCorretorBody"></tbody>
           </table>
         </div>
 
-        <div class="card table-card">
-          <h3>Mês a mês</h3>
+        <div class="card table-card" tabindex="0" role="region" aria-labelledby="tituloTabelaRel3">
+          <h2 id="tituloTabelaRel3">Mês a mês</h2>
           <p class="modal-subtitle">Sempre os 12 meses do ano escolhido, para dar contexto — com o mês filtrado em destaque, quando há um.</p>
           <table class="report-table">
             <thead>
-              <tr><th>Mês</th><th>Recebido (bruto)</th><th>Recebido (líquido)</th><th>Descontos</th><th>Despesas</th><th>Total em atraso (aluguel + juros/multa)</th><th>Contratos</th><th>Dívidas</th></tr>
+              <tr><th scope="col">Mês</th><th scope="col">Recebido (bruto)</th><th scope="col">Recebido (líquido)</th><th scope="col">Descontos</th><th scope="col">Despesas</th><th scope="col">Total em atraso (aluguel + juros/multa)</th><th scope="col">Contratos</th><th scope="col">Dívidas</th></tr>
             </thead>
             <tbody id="relatorioTabelaBody"></tbody>
           </table>
         </div>
 
-        <div class="card table-card">
-          <h3 id="comparativoTitulo">Comparativo anual</h3>
+        <div class="card table-card" tabindex="0" role="region" aria-labelledby="comparativoTitulo">
+          <h2 id="comparativoTitulo">Comparativo anual</h2>
           <p class="modal-subtitle" id="comparativoSubtitulo">Totais de cada ano lado a lado, para comparar a evolução ano a ano.</p>
           <table class="report-table">
             <thead>
-              <tr><th>Ano</th><th>Recebido (líquido)</th><th>Despesas</th><th>Resultado</th><th>Total em atraso (aluguel + juros/multa)</th><th>Contratos</th><th>Dívidas</th></tr>
+              <tr><th scope="col">Ano</th><th scope="col">Recebido (líquido)</th><th scope="col">Despesas</th><th scope="col">Resultado</th><th scope="col">Total em atraso (aluguel + juros/multa)</th><th scope="col">Contratos</th><th scope="col">Dívidas</th></tr>
             </thead>
             <tbody id="comparativoAnualBody"></tbody>
           </table>
@@ -769,7 +806,7 @@
       <section id="tab-calendario" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Calendário</h2>
+            <h1 tabindex="-1">Calendário</h1>
             <span class="panel-desc">Vencimentos e pagamentos recebidos, dia a dia.</span>
           </div>
           <div class="panel-actions">
@@ -823,7 +860,7 @@
 
         <div class="card hidden" id="calendarioDetalheCard">
           <div class="panel-header-tight">
-            <h3 id="calendarioDetalheTitulo"></h3>
+            <h2 id="calendarioDetalheTitulo"></h2>
             <span class="panel-desc" id="calendarioDetalheResumo"></span>
           </div>
           <div id="calendarioDetalheLista"></div>
@@ -834,7 +871,7 @@
       <section id="tab-auditoria" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Auditoria</h2>
+            <h1 tabindex="-1">Auditoria</h1>
             <span class="panel-desc">Últimos eventos importantes: contratos criados/editados/excluídos, pagamentos registrados e usuários adicionados/removidos.</span>
           </div>
         </div>
@@ -870,14 +907,14 @@
       <section id="tab-usuarios" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Usuários</h2>
+            <h1 tabindex="-1">Usuários</h1>
             <span class="panel-desc">Duas coisas diferentes, no mesmo lugar: as <strong>contas de acesso</strong> (quem entra no sistema, com senha) e as <strong>pessoas</strong> que aparecem nos cadastros como recebedor ou corretor, sem login.</span>
           </div>
         </div>
 
         <div class="config-grid">
           <div class="card">
-            <h3><svg class="icon"><use href="#icon-user"></use></svg> Conta do administrador</h3>
+            <h2><svg class="icon"><use href="#icon-user"></use></svg> Conta do administrador</h2>
             <form id="accountForm" class="config-form">
               <label class="field">
                 <span>Nome de usuário</span>
@@ -895,28 +932,28 @@
                 <span>Confirmar nova senha</span>
                 <input type="password" id="accConfirmPassword" autocomplete="new-password">
               </label>
-              <p id="accountError" class="error-msg hidden"></p>
+              <p id="accountError" class="error-msg hidden" role="alert"></p>
               <button type="submit" class="btn btn-primary">Salvar alterações</button>
               <p id="accountSaved" class="success-msg hidden">Dados de acesso atualizados!</p>
             </form>
           </div>
 
           <div class="card">
-            <h3><svg class="icon"><use href="#icon-lock"></use></svg> Segurança</h3>
-            <p class="modal-subtitle">A chave <code>COOKIE_SECRET</code> (em <code>api/config.php</code>) assina o cookie de login. Gerar uma nova desconecta automaticamente todos os OUTROS usuários que estiverem logados agora (precisam entrar de novo) — a sua sessão continua ativa normalmente.</p>
+            <h2><svg class="icon"><use href="#icon-lock"></use></svg> Acessos abertos</h2>
+            <p class="modal-subtitle">Se você entrou no sistema num computador que não é seu, ou acha que alguém pode estar usando seu acesso, desconecte todo mundo de uma vez: quem estiver conectado em outro computador ou navegador precisa entrar de novo com usuário e senha. Você continua conectado aqui.</p>
             <form id="regenerateSecretForm" class="config-form">
               <label class="field">
                 <span>Confirme sua senha atual *</span>
                 <input type="password" id="secretCurrentPassword" required autocomplete="current-password">
               </label>
-              <p id="regenerateSecretError" class="error-msg hidden"></p>
-              <button type="submit" class="btn btn-danger">Gerar novo COOKIE_SECRET</button>
-              <p id="regenerateSecretSaved" class="success-msg hidden">Nova chave gerada com sucesso!</p>
+              <p id="regenerateSecretError" class="error-msg hidden" role="alert"></p>
+              <button type="submit" class="btn btn-danger">Desconectar todos os outros acessos</button>
+              <p id="regenerateSecretSaved" class="success-msg hidden">Pronto: todos os outros acessos foram desconectados.</p>
             </form>
           </div>
 
           <div class="card config-span">
-            <h3><svg class="icon"><use href="#icon-lock"></use></svg> Contas de acesso</h3>
+            <h2><svg class="icon"><use href="#icon-lock"></use></svg> Contas de acesso</h2>
             <p class="modal-subtitle">Quem pode <strong>entrar no sistema</strong>, com usuário e senha. Todos têm acesso total — não existe usuário "só leitura".</p>
             <div id="usersList" class="cards-list"></div>
             <form id="addUserForm" class="config-form mt-md">
@@ -937,13 +974,13 @@
                 <input type="password" id="newUserCurrentPassword" required autocomplete="current-password">
               </label>
               <p class="modal-subtitle">Adicionar um novo administrador exige confirmar sua senha, já que dá acesso total ao sistema para outra pessoa.</p>
-              <p id="addUserError" class="error-msg hidden"></p>
+              <p id="addUserError" class="error-msg hidden" role="alert"></p>
               <button type="submit" class="btn btn-primary">Adicionar usuário</button>
             </form>
           </div>
 
           <div class="card config-span">
-            <h3><svg class="icon"><use href="#icon-users"></use></svg> Pessoas (recebedores / corretores)</h3>
+            <h2><svg class="icon"><use href="#icon-users"></use></svg> Pessoas (recebedores / corretores)</h2>
             <p class="modal-subtitle">Quem recebe pagamentos e/ou atua como corretor. <strong>Não são contas de acesso</strong> — não entram no sistema nem têm senha: é uma lista de nomes reutilizável, para escolher pelos seletores "Quem recebe" e "Corretor" sem digitar toda vez.</p>
             <div id="pessoasList" class="cards-list"></div>
             <form id="addPessoaForm" class="config-form mt-md">
@@ -970,43 +1007,43 @@
       <section id="tab-config" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Configurações</h2>
+            <h1 tabindex="-1">Configurações</h1>
             <span class="panel-desc">Taxas, carteiras, texto do recibo e manutenção dos dados. Contas de acesso e o cadastro de pessoas ficam em <strong>Usuários</strong>.</span>
           </div>
         </div>
 
-        <div class="seg-tabs" id="uiConfigTabs" role="tablist">
-          <button type="button" class="seg-tab is-active" data-config-tab="financeiro" role="tab" aria-selected="true">
-            <svg class="icon"><use href="#icon-percent"></use></svg> Financeiro
-          </button>
-          <button type="button" class="seg-tab" data-config-tab="carteiras" role="tab" aria-selected="false">
-            <svg class="icon"><use href="#icon-tag"></use></svg> Carteiras
-          </button>
-          <button type="button" class="seg-tab" data-config-tab="recibo" role="tab" aria-selected="false">
-            <svg class="icon"><use href="#icon-receipt"></use></svg> Recibo
-          </button>
-          <button type="button" class="seg-tab" data-config-tab="dados" role="tab" aria-selected="false">
-            <svg class="icon"><use href="#icon-database"></use></svg> Dados
-          </button>
-          <button type="button" class="seg-tab" data-config-tab="perigo" role="tab" aria-selected="false">
-            <svg class="icon"><use href="#icon-alert-triangle"></use></svg> Zona de perigo
-          </button>
-        </div>
+        <nav class="seg-tabs" id="uiConfigTabs" aria-label="Seções de Configurações">
+          <a class="seg-tab" href="#/configuracoes/financeiro" data-config-tab="financeiro">
+            <svg class="icon" aria-hidden="true"><use href="#icon-percent"></use></svg> Financeiro
+          </a>
+          <a class="seg-tab" href="#/configuracoes/carteiras" data-config-tab="carteiras">
+            <svg class="icon" aria-hidden="true"><use href="#icon-tag"></use></svg> Carteiras
+          </a>
+          <a class="seg-tab" href="#/configuracoes/recibo" data-config-tab="recibo">
+            <svg class="icon" aria-hidden="true"><use href="#icon-receipt"></use></svg> Recibo
+          </a>
+          <a class="seg-tab" href="#/configuracoes/dados" data-config-tab="dados">
+            <svg class="icon" aria-hidden="true"><use href="#icon-database"></use></svg> Dados
+          </a>
+          <a class="seg-tab" href="#/configuracoes/perigo" data-config-tab="perigo">
+            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle"></use></svg> Zona de perigo
+          </a>
+        </nav>
 
         <!-- Financeiro -->
-        <div data-config-section="financeiro" class="is-active" role="tabpanel" aria-label="Financeiro">
+        <div data-config-section="financeiro">
           <div class="config-grid">
             <div class="card">
-              <h3><svg class="icon"><use href="#icon-percent"></use></svg> Taxa de juros por atraso</h3>
+              <h2><svg class="icon"><use href="#icon-percent"></use></svg> Taxa de juros por atraso</h2>
               <p class="modal-subtitle">Usada para calcular o acréscimo automático sobre dívidas vencidas, e também como percentual padrão de Juros/Multa ao criar um novo contrato.</p>
               <form id="configForm" class="config-form">
                 <label class="field">
                   <span>Taxa de juros mensal (%)</span>
-                  <input type="number" id="configTaxaJuros" step="0.01" min="0" required>
+                  <input type="text" inputmode="decimal" autocomplete="off" id="configTaxaJuros" data-numero="percentual" data-min="0" required>
                 </label>
                 <label class="field">
                   <span>Taxa de multa fixa por atraso (%)</span>
-                  <input type="number" id="configTaxaMulta" step="0.01" min="0" required>
+                  <input type="text" inputmode="decimal" autocomplete="off" id="configTaxaMulta" data-numero="percentual" data-min="0" required>
                 </label>
                 <button type="submit" class="btn btn-primary">Salvar configuração</button>
                 <p id="configSaved" class="success-msg hidden">Configuração salva!</p>
@@ -1014,25 +1051,37 @@
             </div>
 
             <div class="card">
-              <h3><svg class="icon"><use href="#icon-user"></use></svg> Valores padrão para novos contratos</h3>
+              <h2><svg class="icon"><use href="#icon-user"></use></svg> Valores padrão para novos contratos</h2>
               <p class="modal-subtitle">Preenchidos automaticamente ao criar um novo contrato, para evitar digitar sempre. Podem ser alterados individualmente em cada contrato.</p>
               <form id="configPadraoForm" class="config-form">
                 <label class="field">
                   <span>Percentual padrão do corretor (%)</span>
-                  <input type="number" id="configCorretorPercentualPadrao" step="0.01" min="0" max="100" required>
+                  <input type="text" inputmode="decimal" autocomplete="off" id="configCorretorPercentualPadrao" data-numero="percentual" data-min="0" data-max="100" required>
                 </label>
                 <button type="submit" class="btn btn-primary">Salvar valores padrão</button>
                 <p id="configPadraoSaved" class="success-msg hidden">Valores padrão salvos!</p>
               </form>
             </div>
 
-            <div class="card config-span">
-              <h3><svg class="icon"><use href="#icon-trending-up"></use></svg> Reajuste sugerido</h3>
+            <div class="card">
+              <h2><svg class="icon"><use href="#icon-code"></use></svg> Atalhos de teclado</h2>
+              <p class="modal-subtitle">Atalhos de uma tecla só: <kbd>N</kbd> abre um novo contrato, <kbd>/</kbd> vai para a busca e <kbd>?</kbd> mostra a lista. Desligue se você usa comando de voz ou costuma digitar sem olhar para a tela e acaba disparando algum sem querer. A escolha vale para este navegador.</p>
+              <div class="config-form">
+                <label class="checkbox-field">
+                  <input type="checkbox" id="configAtalhos" checked>
+                  <span>Usar atalhos de uma tecla</span>
+                </label>
+                <button type="button" class="btn btn-ghost" id="btnVerAtalhos">Ver todos os atalhos</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <h2><svg class="icon"><use href="#icon-trending-up"></use></svg> Reajuste sugerido</h2>
               <p class="modal-subtitle">Um contrato "vence" para reajuste 1 ano depois do último reajuste (ou do início, se nunca foi reajustado). O Dashboard avisa quando isso acontece, sugerindo um novo valor com base no percentual abaixo — o sistema não consulta nenhum índice externo real (IGP-M/IPCA) automaticamente, já que não tem acesso à internet; ajuste esse percentual manualmente conforme o índice vigente.</p>
               <form id="configReajusteForm" class="config-form">
                 <label class="field">
                   <span>Percentual de reajuste sugerido (%)</span>
-                  <input type="number" id="configPercentualReajusteSugerido" step="0.01" min="0" required>
+                  <input type="text" inputmode="decimal" autocomplete="off" id="configPercentualReajusteSugerido" data-numero="percentual" data-min="0" required>
                 </label>
                 <button type="submit" class="btn btn-primary">Salvar</button>
                 <p id="configReajusteSaved" class="success-msg hidden">Percentual salvo!</p>
@@ -1043,10 +1092,10 @@
         </div>
 
         <!-- Carteiras -->
-        <div data-config-section="carteiras" role="tabpanel" aria-label="Carteiras">
+        <div data-config-section="carteiras">
           <div class="config-grid">
             <div class="card config-span">
-              <h3><svg class="icon"><use href="#icon-tag"></use></svg> Carteiras (proprietários)</h3>
+              <h2><svg class="icon"><use href="#icon-tag"></use></svg> Carteiras (proprietários)</h2>
               <p class="modal-subtitle">Use carteiras se você administra imóveis de mais de um dono. Cada carteira representa um proprietário (ou um grupo de imóveis), e cada imóvel/contrato pode ser vinculado a uma delas. Com pelo menos uma carteira cadastrada, aparece um seletor no topo do sistema que filtra <strong>tudo</strong> (Dashboard, Contratos, Atrasos, Histórico, Despesas, Gráficos, Relatórios, Calendário) pela carteira escolhida. Se você só administra os próprios imóveis, é só não cadastrar nenhuma — o sistema continua funcionando exatamente como antes.</p>
               <div id="carteirasList" class="cards-list"></div>
               <form id="formCarteira" class="config-form mt-md">
@@ -1076,10 +1125,10 @@
         </div>
 
         <!-- Recibo -->
-        <div data-config-section="recibo" role="tabpanel" aria-label="Recibo">
+        <div data-config-section="recibo">
           <div class="config-grid">
             <div class="card config-span">
-              <h3><svg class="icon"><use href="#icon-receipt"></use></svg> Texto do recibo</h3>
+              <h2><svg class="icon"><use href="#icon-receipt"></use></svg> Texto do recibo</h2>
               <p class="modal-subtitle">Aqui você edita <strong>só o texto</strong> do recibo. Todos os dados (inquilino, imóvel, valores, datas...) são preenchidos automaticamente pelo sistema no momento em que o recibo é gerado — para isso, escreva os <strong>códigos</strong> listados ao lado no meio do texto. Onde estiver <code>{{inquilino}}</code>, por exemplo, sai o nome do inquilino daquele pagamento.</p>
               <form id="formRecibo" class="config-form">
                 <label class="field">
@@ -1109,7 +1158,7 @@
             </div>
 
             <div class="card config-span">
-              <h3><svg class="icon"><use href="#icon-code"></use></svg> Códigos disponíveis</h3>
+              <h2><svg class="icon"><use href="#icon-code"></use></svg> Códigos disponíveis</h2>
               <p class="modal-subtitle">Clique em qualquer código para inseri-lo no ponto onde estava o cursor (no último campo em que você clicou). A coluna da direita mostra um exemplo de como aquele código sai no recibo pronto.</p>
               <div id="reciboCodigos" class="codigo-grupos"></div>
             </div>
@@ -1117,9 +1166,9 @@
         </div>
 
         <!-- Dados -->
-        <div data-config-section="dados" role="tabpanel" aria-label="Dados">
+        <div data-config-section="dados">
           <div class="card">
-            <h3><svg class="icon"><use href="#icon-database"></use></svg> Backup do banco de dados</h3>
+            <h2><svg class="icon"><use href="#icon-database"></use></svg> Backup do banco de dados</h2>
             <p class="modal-subtitle">Baixe um arquivo com todos os contratos, pagamentos e configurações, ou restaure a partir de um backup salvo anteriormente. Restaurar substitui todos os dados atuais.</p>
             <div class="contrato-actions mt-sm">
               <button type="button" class="btn btn-ghost" id="btnExportBackup"><svg class="icon"><use href="#icon-download"></use></svg> Exportar backup (JSON)</button>
@@ -1130,15 +1179,26 @@
         </div>
 
         <!-- Zona de perigo -->
-        <div data-config-section="perigo" role="tabpanel" aria-label="Zona de perigo">
+        <div data-config-section="perigo">
           <div class="card danger-zone">
-            <h3><svg class="icon"><use href="#icon-alert-triangle"></use></svg> Zona de perigo</h3>
+            <h2><svg class="icon"><use href="#icon-alert-triangle"></use></svg> Zona de perigo</h2>
             <p class="modal-subtitle">Apaga permanentemente todos os contratos, pagamentos e configurações salvos no servidor. Esta ação não pode ser desfeita — exporte um backup antes, se quiser manter os dados.</p>
             <div class="contrato-actions mt-sm">
               <button type="button" class="btn btn-danger" id="btnDeleteDatabase"><svg class="icon"><use href="#icon-trash"></use></svg> Excluir todos os dados</button>
             </div>
           </div>
         </div>
+      </section>
+
+      <!-- ---------- ENDEREÇO DESCONHECIDO ---------- -->
+      <section id="tab-nao-encontrada" class="tab-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h1 tabindex="-1">Página não encontrada</h1>
+            <span class="panel-desc">O endereço <code id="enderecoNaoEncontrado"></code> não corresponde a nenhuma tela do sistema. Confira o link ou comece pelo Dashboard.</span>
+          </div>
+        </div>
+        <p><a class="btn btn-primary" href="#/"><svg class="icon" aria-hidden="true"><use href="#icon-grid"></use></svg> Ir para o Dashboard</a></p>
       </section>
 
     </main>
@@ -1149,8 +1209,8 @@
 <div id="modalContrato" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalContratoTitle">
   <div class="modal">
     <div class="modal-header">
-      <h3 id="modalContratoTitle">Novo contrato</h3>
-      <button class="modal-close" data-close aria-label="Fechar">&times;</button>
+      <h2 id="modalContratoTitle" tabindex="-1">Novo contrato</h2>
+      <button type="button" class="modal-close" data-close aria-label="Fechar">&times;</button>
     </div>
     <form id="formContrato" class="modal-body">
       <input type="hidden" id="contratoId">
@@ -1170,7 +1230,7 @@
         </label>
         <label class="field" id="fCampoImovel">
           <span>Imóvel *</span>
-          <select id="fImovel" required>
+          <select id="fImovel" required aria-describedby="fSemImovelHint">
             <option value="" disabled selected>Selecione um imóvel...</option>
           </select>
         </label>
@@ -1198,35 +1258,35 @@
         </label>
         <label class="field hidden" id="fCampoCorretorPercentual">
           <span>Percentual do corretor (%)</span>
-          <input type="number" id="fCorretorPercentual" min="0" max="100" step="0.01" placeholder="Ex: 5">
+          <input type="text" inputmode="decimal" autocomplete="off" id="fCorretorPercentual" data-numero="percentual" data-min="0" data-max="100" placeholder="Ex: 5">
         </label>
         <label class="field">
           <span>Aluguel (R$) *</span>
-          <input type="number" id="fAluguel" step="0.01" min="0" required>
+          <input type="text" inputmode="decimal" autocomplete="off" id="fAluguel" data-numero="dinheiro" data-min="0" required>
         </label>
         <label class="field">
           <span>Desconto (R$)</span>
-          <input type="number" id="fDesconto" step="0.01" min="0" placeholder="0,00">
+          <input type="text" inputmode="decimal" autocomplete="off" id="fDesconto" data-numero="dinheiro" data-min="0" placeholder="0,00">
         </label>
         <label class="field" id="fCampoJurosPercentual">
           <span>Juros (%)</span>
-          <input type="number" id="fJurosPercentual" step="0.01" min="0" placeholder="Ex: 1">
+          <input type="text" inputmode="decimal" autocomplete="off" id="fJurosPercentual" data-numero="percentual" data-min="0" placeholder="Ex: 1">
         </label>
         <label class="field" id="fCampoMultaPercentual">
           <span>Multa (%)</span>
-          <input type="number" id="fMultaPercentual" step="0.01" min="0" placeholder="Ex: 2">
+          <input type="text" inputmode="decimal" autocomplete="off" id="fMultaPercentual" data-numero="percentual" data-min="0" placeholder="Ex: 2">
         </label>
         <label class="field" id="fCampoJuros">
           <span>Juros (R$)</span>
-          <input type="number" id="fJuros" step="0.01" min="0" placeholder="0,00">
+          <input type="text" inputmode="decimal" autocomplete="off" id="fJuros" data-numero="dinheiro" data-min="0" placeholder="0,00">
         </label>
         <label class="field" id="fCampoMulta">
           <span>Multa (R$)</span>
-          <input type="number" id="fMulta" step="0.01" min="0" placeholder="0,00">
+          <input type="text" inputmode="decimal" autocomplete="off" id="fMulta" data-numero="dinheiro" data-min="0" placeholder="0,00">
         </label>
         <label class="field">
           <span>Condomínio (R$)</span>
-          <input type="number" id="fCondominio" step="0.01" min="0" placeholder="0,00">
+          <input type="text" inputmode="decimal" autocomplete="off" id="fCondominio" data-numero="dinheiro" data-min="0" placeholder="0,00">
         </label>
         <label class="field">
           <span>Quem paga o condomínio?</span>
@@ -1237,14 +1297,14 @@
         </label>
         <label class="field">
           <span>Valor em atraso já existente (R$)</span>
-          <input type="number" id="fValorAtraso" step="0.01" min="0" placeholder="0,00">
+          <input type="text" inputmode="decimal" autocomplete="off" id="fValorAtraso" data-numero="dinheiro" data-min="0" placeholder="0,00">
         </label>
         <label class="field" id="fCampoCaucao">
           <span>Caução (R$) — opcional</span>
-          <input type="number" id="fCaucao" step="0.01" min="0" placeholder="0,00">
+          <input type="text" inputmode="decimal" autocomplete="off" id="fCaucao" data-numero="dinheiro" data-min="0" placeholder="0,00">
         </label>
       </div>
-      <p class="modal-subtitle hidden" id="fSemImovelHint">Nenhum imóvel cadastrado ainda. Cadastre um na aba <strong>Imóveis</strong> antes de criar um contrato.</p>
+      <p class="modal-subtitle hidden" id="fSemImovelHint">Nenhum imóvel cadastrado ainda. Para criar um contrato, <a href="#/imoveis">cadastre primeiro o imóvel em Imóveis</a>.</p>
       <p class="modal-subtitle" id="fRetroativoHint">Contrato antigo? Se a data de início já passou, o sistema gera automaticamente uma dívida para cada mês, do mês de início até o mês atual (útil para lançar de uma vez o histórico de um contrato antigo).</p>
       <p class="modal-subtitle" id="fCorretorHint">A comissão do corretor <strong>não é cobrada do inquilino</strong> (não entra no total a cobrar), mas <strong>é deduzida do total líquido</strong> — é dinheiro que vai ser pago a ele, então não fica com o proprietário. O condomínio funciona parecido: é cobrado do inquilino e depois deduzido, porque também é repassado.</p>
       <p class="modal-subtitle" id="fCaucaoHint">O valor da caução não é somado a nenhum total — é só uma anotação informativa no contrato (o valor é, em teoria, devolvido no final).</p>
@@ -1269,11 +1329,11 @@
 </div>
 
 <!-- ===================== MODAL: EDITAR CONTRATO (dados compartilhados) ===================== -->
-<div id="modalContratoInfo" class="modal-overlay hidden" role="dialog" aria-modal="true">
+<div id="modalContratoInfo" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalContratoInfoTitulo">
   <div class="modal modal-sm">
     <div class="modal-header">
-      <h3>Editar contrato</h3>
-      <button class="modal-close" data-close aria-label="Fechar">&times;</button>
+      <h2 id="modalContratoInfoTitulo" tabindex="-1">Editar contrato</h2>
+      <button type="button" class="modal-close" data-close aria-label="Fechar">&times;</button>
     </div>
     <form id="formContratoInfo" class="modal-body">
       <input type="hidden" id="infoContratoId">
@@ -1296,7 +1356,7 @@
       </label>
       <label class="field">
         <span>Caução (R$) — opcional</span>
-        <input type="number" id="infoCaucao" step="0.01" min="0" placeholder="0,00">
+        <input type="text" inputmode="decimal" autocomplete="off" id="infoCaucao" data-numero="dinheiro" data-min="0" placeholder="0,00">
       </label>
       <p class="modal-subtitle">O valor da caução não é somado a nenhum total — é só uma anotação informativa no contrato.</p>
       <label class="field">
@@ -1316,7 +1376,7 @@
         </label>
         <label class="field hidden" id="infoCampoCorretorPercentual">
           <span>Percentual do corretor (%)</span>
-          <input type="number" id="infoCorretorPercentual" min="0" max="100" step="0.01">
+          <input type="text" inputmode="decimal" autocomplete="off" id="infoCorretorPercentual" data-numero="percentual" data-min="0" data-max="100">
         </label>
         <div class="total-preview hidden" id="infoCampoCorretorValor">
           <span>Valor calculado (sobre o aluguel atual):</span>
@@ -1324,7 +1384,7 @@
         </div>
       </div>
       <div class="field" id="fAnexoSection">
-        <span>Contrato assinado (anexo)</span>
+        <label for="fAnexoInput" id="fAnexoRotulo">Contrato assinado (anexo)</label>
         <div id="fAnexoAtual" class="total-preview hidden">
           <span id="fAnexoNome"></span>
           <div class="contrato-actions">
@@ -1332,7 +1392,7 @@
             <button type="button" class="btn btn-danger btn-sm" id="btnRemoverAnexo"><svg class="icon"><use href="#icon-trash"></use></svg> Remover</button>
           </div>
         </div>
-        <input type="file" id="fAnexoInput" accept=".pdf,.jpg,.jpeg,.png">
+        <input type="file" id="fAnexoInput" accept=".pdf,.jpg,.jpeg,.png" aria-describedby="fAnexoStatus">
         <p class="modal-subtitle" id="fAnexoStatus">PDF, JPG ou PNG, até 15MB. Enviado automaticamente ao escolher o arquivo.</p>
       </div>
       <div class="modal-actions">
@@ -1344,11 +1404,11 @@
 </div>
 
 <!-- ===================== MODAL: PAGAMENTO ===================== -->
-<div id="modalPagamento" class="modal-overlay hidden" role="dialog" aria-modal="true">
+<div id="modalPagamento" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalPagamentoTitulo">
   <div class="modal modal-sm">
     <div class="modal-header">
-      <h3>Registrar pagamento</h3>
-      <button class="modal-close" data-close aria-label="Fechar">&times;</button>
+      <h2 id="modalPagamentoTitulo" tabindex="-1">Registrar pagamento</h2>
+      <button type="button" class="modal-close" data-close aria-label="Fechar">&times;</button>
     </div>
     <form id="formPagamento" class="modal-body">
       <input type="hidden" id="pagDividaId">
@@ -1373,7 +1433,7 @@
       </label>
       <label class="field">
         <span>Desconto (R$)</span>
-        <input type="number" id="pagDesconto" step="0.01" min="0" placeholder="0,00">
+        <input type="text" inputmode="decimal" autocomplete="off" id="pagDesconto" data-numero="dinheiro" data-min="0" placeholder="0,00">
       </label>
       <label class="field hidden" id="pagCampoMotivoDesconto">
         <span>Motivo do desconto</span>
@@ -1391,7 +1451,7 @@
       </label>
       <label class="field">
         <span>Valor pago (R$) *</span>
-        <input type="number" id="pagValor" step="0.01" min="0" required>
+        <input type="text" inputmode="decimal" autocomplete="off" id="pagValor" data-numero="dinheiro" data-min="0" required>
       </label>
       <div class="total-preview total-preview-liquido">
         <span>Fica com você (líquido, já sem corretor e condomínio):</span>
@@ -1408,11 +1468,11 @@
       </label>
       <label class="field">
         <span>Quem recebeu *</span>
-        <select id="pagQuemRecebeu" required>
+        <select id="pagQuemRecebeu" required aria-describedby="pagSemPessoasHint">
           <option value="" disabled selected>Selecione...</option>
         </select>
       </label>
-      <p class="modal-subtitle hidden" id="pagSemPessoasHint">Nenhuma pessoa cadastrada ainda. Cadastre quem recebe em <strong>Configurações &rsaquo; Financeiro &rsaquo; Pessoas</strong> para poder registrar o pagamento.</p>
+      <p class="modal-subtitle hidden" id="pagSemPessoasHint">Nenhuma pessoa cadastrada ainda. Para registrar o pagamento, <a href="#/usuarios">cadastre quem recebe em Usuários › Pessoas</a>.</p>
       <label class="field">
         <span>Observação</span>
         <textarea id="pagObservacao" rows="2" placeholder="Observação (opcional)"></textarea>
@@ -1426,11 +1486,11 @@
 </div>
 
 <!-- ===================== MODAL: REAJUSTE DE VALOR ===================== -->
-<div id="modalReajuste" class="modal-overlay hidden" role="dialog" aria-modal="true">
+<div id="modalReajuste" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalReajusteTitulo">
   <div class="modal modal-sm">
     <div class="modal-header">
-      <h3>Reajustar valor do aluguel</h3>
-      <button class="modal-close" data-close aria-label="Fechar">&times;</button>
+      <h2 id="modalReajusteTitulo" tabindex="-1">Reajustar valor do aluguel</h2>
+      <button type="button" class="modal-close" data-close aria-label="Fechar">&times;</button>
     </div>
     <form id="formReajuste" class="modal-body">
       <input type="hidden" id="reajusteContratoId">
@@ -1443,7 +1503,7 @@
       </div>
       <label class="field">
         <span>Novo valor do aluguel (R$) *</span>
-        <input type="number" id="reajusteNovoValor" step="0.01" min="0.01" required>
+        <input type="text" inputmode="decimal" autocomplete="off" id="reajusteNovoValor" data-numero="dinheiro" data-min="0.01" required>
       </label>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
@@ -1454,11 +1514,11 @@
 </div>
 
 <!-- ===================== MODAL: DEVOLUÇÃO DE CAUÇÃO ===================== -->
-<div id="modalDevolucaoCaucao" class="modal-overlay hidden" role="dialog" aria-modal="true">
+<div id="modalDevolucaoCaucao" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalDevolucaoCaucaoTitulo">
   <div class="modal modal-sm">
     <div class="modal-header">
-      <h3>Devolver caução</h3>
-      <button class="modal-close" data-close aria-label="Fechar">&times;</button>
+      <h2 id="modalDevolucaoCaucaoTitulo" tabindex="-1">Devolver caução</h2>
+      <button type="button" class="modal-close" data-close aria-label="Fechar">&times;</button>
     </div>
     <form id="formDevolucaoCaucao" class="modal-body">
       <input type="hidden" id="devCaucaoContratoId">
@@ -1470,7 +1530,7 @@
       </label>
       <label class="field">
         <span>Valor devolvido (R$) *</span>
-        <input type="number" id="devCaucaoValor" step="0.01" min="0" required>
+        <input type="text" inputmode="decimal" autocomplete="off" id="devCaucaoValor" data-numero="dinheiro" data-min="0" required>
       </label>
       <label class="field">
         <span>Observação</span>
@@ -1485,11 +1545,11 @@
 </div>
 
 <!-- ===================== MODAL: HISTÓRICO DO CONTRATO ===================== -->
-<div id="modalHistoricoContrato" class="modal-overlay hidden" role="dialog" aria-modal="true">
+<div id="modalHistoricoContrato" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalHistoricoContratoTitulo" data-foco-inicial="#modalHistoricoContratoTitulo">
   <div class="modal">
     <div class="modal-header">
-      <h3>Histórico do contrato</h3>
-      <button class="modal-close" data-close aria-label="Fechar">&times;</button>
+      <h2 id="modalHistoricoContratoTitulo" tabindex="-1">Histórico do contrato</h2>
+      <button type="button" class="modal-close" data-close aria-label="Fechar">&times;</button>
     </div>
     <div class="modal-body">
       <p class="modal-subtitle" id="histContratoInfo"></p>
@@ -1499,10 +1559,114 @@
   </div>
 </div>
 
-<!-- toast -->
-<div id="toast" class="toast hidden"></div>
+<!-- ===================== ATALHOS DE TECLADO ===================== -->
+<div id="modalAtalhos" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="atalhosTitulo" data-foco-inicial="#atalhosTitulo">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 id="atalhosTitulo" tabindex="-1">Atalhos de teclado</h2>
+      <button type="button" class="modal-close" data-close aria-label="Fechar">&times;</button>
+    </div>
+    <div class="modal-body">
+      <table class="report-table tabela-atalhos">
+        <caption class="sr-only">Atalhos de teclado</caption>
+        <thead><tr><th scope="col">Tecla</th><th scope="col">O que faz</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>N</kbd></td><td>Abre um novo contrato</td></tr>
+          <tr><td><kbd>/</kbd></td><td>Vai para a busca do topo</td></tr>
+          <tr><td><kbd>?</kbd></td><td>Mostra esta lista</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Fecha a janela ou o menu aberto</td></tr>
+          <tr><td><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd></td><td>Passa para o próximo / volta para o anterior</td></tr>
+          <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Num gráfico mensal com foco, passa de um mês para o outro</td></tr>
+        </tbody>
+      </table>
+      <p class="modal-subtitle">N, / e ? não funcionam enquanto você digita num campo, e podem ser desligados em <a href="#/configuracoes/financeiro">Configurações › Financeiro</a>.</p>
+    </div>
+  </div>
+</div>
 
-<script src="index.js"></script>
-<script src="ui.js"></script>
+<!-- ===================== DIÁLOGO DE CONFIRMAÇÃO (substitui confirm() e prompt()) ===================== -->
+<div id="modalConfirmacao" class="modal-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="confTitulo" aria-describedby="confMensagem">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 id="confTitulo" tabindex="-1"></h2>
+    </div>
+    <form id="formConfirmacao" class="modal-body" novalidate data-sem-rascunho data-validacao-propria>
+      <p class="modal-subtitle modal-mensagem" id="confMensagem"></p>
+      <label class="field hidden" id="confCampo">
+        <span id="confRotulo"></span>
+        <input type="text" id="confEntrada" autocomplete="off" aria-describedby="confErro">
+      </label>
+      <p id="confErro" class="error-msg hidden"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="confCancelar">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="confOk">Confirmar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== CONFLITO: alguém gravou antes ===================== -->
+<div id="modalConflito" class="modal-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="conflitoTitulo" aria-describedby="conflitoTexto" data-foco-inicial="#btnConflitoRecarregar" data-sem-fechar-fora>
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 id="conflitoTitulo" tabindex="-1">Os dados foram alterados em outro lugar</h2>
+    </div>
+    <div class="modal-body">
+      <div id="conflitoTexto">
+        <p class="modal-subtitle">Enquanto você trabalhava, os dados foram alterados em outra aba ou por outro usuário. Para não apagar o que foi feito lá, <strong>a sua última alteração não foi salva</strong>.</p>
+        <p class="modal-subtitle">Carregue os dados atuais e faça a alteração de novo. Se preferir guardar uma cópia do que está na sua tela antes, baixe as suas alterações.</p>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btnConflitoBaixar"><svg class="icon"><use href="#icon-download"></use></svg> Baixar minhas alterações</button>
+        <button type="button" class="btn btn-primary" id="btnConflitoRecarregar"><svg class="icon"><use href="#icon-refresh"></use></svg> Carregar os dados atuais</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== SESSÃO EXPIRADA: entrar de novo sem recarregar ===================== -->
+<div id="modalSessao" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="sessaoTitulo" aria-describedby="sessaoTexto" data-sem-fechar-fora>
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 id="sessaoTitulo" tabindex="-1">Sua sessão expirou</h2>
+    </div>
+    <form id="formSessao" class="modal-body" data-sem-rascunho>
+      <p class="modal-subtitle" id="sessaoTexto">Entre de novo para continuar. O que você estava fazendo continua aqui e é salvo assim que você entrar.</p>
+      <label class="field">
+        <span>Usuário</span>
+        <input type="text" id="sessaoUsuario" required autocomplete="username">
+      </label>
+      <label class="field">
+        <span>Senha</span>
+        <input type="password" id="sessaoSenha" required autocomplete="current-password" aria-describedby="sessaoErro">
+      </label>
+      <p id="sessaoErro" class="error-msg hidden"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btnSessaoCancelar">Agora não</button>
+        <button type="submit" class="btn btn-primary">Entrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== AVISOS =====================
+     Duas regiões fixas, sempre presentes no HTML (uma região de anúncio que
+     aparece junto com o texto não é lida pelos leitores de tela):
+     sucesso em role="status" (some sozinho), erro em role="alert" (fica até
+     ser fechado). -->
+<div id="toastErro" class="toast toast-error" role="alert">
+  <span id="toastErroTexto"></span>
+  <span class="toast-acoes">
+    <button type="button" class="btn btn-ghost btn-sm hidden" id="toastErroAcao"></button>
+    <button type="button" class="toast-fechar" id="toastErroFechar" aria-label="Fechar aviso">&times;</button>
+  </span>
+</div>
+<!-- Anúncios só para leitor de tela (página da lista, valor do mês no gráfico...) -->
+<div id="anuncio" class="sr-only" role="status" aria-live="polite"></div>
+<!-- vem depois do de erro no HTML para subir quando os dois aparecem juntos -->
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="index.js?v=3.0"></script>
+<script src="ui.js?v=3.0"></script>
 </body>
 </html>
