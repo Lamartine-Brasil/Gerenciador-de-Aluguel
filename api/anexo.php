@@ -17,9 +17,10 @@ function anexoErro($status, $mensagem) {
     exit;
 }
 
-// Garante que o nome do arquivo não escapa da pasta contratos/ (sem "/", "\" ou "..").
+// Garante que o nome do arquivo não escapa da pasta contratos/ (sem "/", "\" ou "..")
+// e não é um arquivo oculto: sem isso, remover ".htaccess" apagava a proteção da pasta.
 function nomeArquivoValido($nome) {
-    return $nome !== '' && $nome === basename($nome) && strpos($nome, '..') === false;
+    return $nome !== '' && $nome[0] !== '.' && $nome === basename($nome) && strpos($nome, '..') === false;
 }
 
 if ($method === 'GET') {
