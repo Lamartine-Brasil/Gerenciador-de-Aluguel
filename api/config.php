@@ -14,11 +14,14 @@ define('COOKIE_SECRET', 'x7K9pQ2mZ4rL8vN1sT6wA3yB5cD0eF-troque-esta-chave');
 define('COOKIE_NAME', 'aluguel_auth');
 define('COOKIE_DAYS', 30);
 
-define('DATA_DIR', __DIR__ . '/../data');
+// As pastas de dados podem vir de variáveis de ambiente — usado só pelos testes,
+// para rodar o sistema contra uma cópia isolada e nunca contra os dados reais.
+// Sem as variáveis definidas (o caso de qualquer hospedagem), nada muda.
+define('DATA_DIR', getenv('ALUGUEL_DATA_DIR') ?: __DIR__ . '/../data');
 define('DATA_FILE', DATA_DIR . '/dados.json');
 define('AUTH_FILE', DATA_DIR . '/auth.json');
 
-define('CONTRATOS_DIR', __DIR__ . '/../contratos');
+define('CONTRATOS_DIR', getenv('ALUGUEL_CONTRATOS_DIR') ?: __DIR__ . '/../contratos');
 define('ANEXO_TIPOS_PERMITIDOS', ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png']);
 define('ANEXO_TAMANHO_MAXIMO', 15 * 1024 * 1024); // 15MB
 
