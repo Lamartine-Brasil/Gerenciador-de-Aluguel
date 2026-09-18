@@ -1,0 +1,14 @@
+{
+  "name": "gerenciador-aluguel-testes",
+  "private": true,
+  "description": "Testes de navegador do Gerenciador de Aluguel. Só para desenvolvimento: o sistema em si não depende de nada daqui.",
+  "scripts": {
+    "test": "playwright test",
+    "test:chromium": "playwright test --project=chromium",
+    "report": "playwright show-report resultados/relatorio"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.63.0"
+  }
+}
