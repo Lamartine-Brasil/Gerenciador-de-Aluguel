@@ -1,4 +1,4 @@
-# agent.md — estado da revisão (navegação, dados, acessibilidade)
+# agents.md — estado da revisão (navegação, dados, acessibilidade)
 
 Este arquivo é para retomar o trabalho depois, por você ou por outro agente.
 Ele registra o pedido, as regras combinadas, o que já foi feito (com commits),
@@ -184,4 +184,4 @@ a item está em `docs/revisao-funcional.md` ("Status na entrega").
 - `php -S` é de um processo só; para simular o Apache (concorrência), use
   `PHP_CLI_SERVER_WORKERS=6`.
 - Ao lançar versão nova, trocar o `?v=` dos CSS/JS no `index.html`.
-- `agent.md` e `tests/diagnostico/` estão commitados (a pedido do dono).
+- `agents.md` e `tests/diagnostico/` estão commitados (a pedido do dono).
