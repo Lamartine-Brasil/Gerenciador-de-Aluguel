@@ -142,7 +142,7 @@
 .input {
   width: 100%;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-controle);
   color: var(--text);
   border-radius: var(--radius-sm);
   padding: 9px var(--space-3);
@@ -159,7 +159,7 @@
 .field input:hover,
 .field select:hover,
 .field textarea:hover,
-.input:hover { border-color: var(--border-strong); }
+.input:hover { border-color: var(--text-dim); }
 
 .field input:focus,
 .field select:focus,

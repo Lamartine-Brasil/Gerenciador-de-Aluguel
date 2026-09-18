@@ -39,6 +39,9 @@
   --border:        #242a36;
   --border-strong: #323a4a;
   --border-subtle: #1c212b;
+  /* Borda de campos e seletores: é ela que mostra onde o campo está, então
+     precisa de 3:1 com o fundo (a --border dos cartões é só decorativa). */
+  --border-controle: #6c7484;
 
   /* ---------- Texto ---------- */
   --text:       #e9ecf4;
@@ -148,6 +151,7 @@
   --border:        #e3e6ef;
   --border-strong: #cdd2e0;
   --border-subtle: #edeff5;
+  --border-controle: #838896;
 
   --text:       #101322;
   --text-dim:   #5a6479;

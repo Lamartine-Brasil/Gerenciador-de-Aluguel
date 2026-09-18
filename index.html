@@ -124,7 +124,7 @@
           <span>Senha</span>
           <input type="password" id="loginPass" name="password" placeholder="Sua senha" required autocomplete="current-password">
         </label>
-        <p id="loginError" class="error-msg hidden">Usuário ou senha incorretos.</p>
+        <p id="loginError" class="error-msg hidden" role="alert">Usuário ou senha incorretos.</p>
         <button type="submit" class="btn btn-primary btn-block">Entrar</button>
       </form>
       <p class="login-foot">Depois de 5 tentativas erradas seguidas, o acesso fica bloqueado por 15 minutos.</p>
@@ -932,7 +932,7 @@
                 <span>Confirmar nova senha</span>
                 <input type="password" id="accConfirmPassword" autocomplete="new-password">
               </label>
-              <p id="accountError" class="error-msg hidden"></p>
+              <p id="accountError" class="error-msg hidden" role="alert"></p>
               <button type="submit" class="btn btn-primary">Salvar alterações</button>
               <p id="accountSaved" class="success-msg hidden">Dados de acesso atualizados!</p>
             </form>
@@ -946,7 +946,7 @@
                 <span>Confirme sua senha atual *</span>
                 <input type="password" id="secretCurrentPassword" required autocomplete="current-password">
               </label>
-              <p id="regenerateSecretError" class="error-msg hidden"></p>
+              <p id="regenerateSecretError" class="error-msg hidden" role="alert"></p>
               <button type="submit" class="btn btn-danger">Desconectar todos os outros acessos</button>
               <p id="regenerateSecretSaved" class="success-msg hidden">Pronto: todos os outros acessos foram desconectados.</p>
             </form>
@@ -974,7 +974,7 @@
                 <input type="password" id="newUserCurrentPassword" required autocomplete="current-password">
               </label>
               <p class="modal-subtitle">Adicionar um novo administrador exige confirmar sua senha, já que dá acesso total ao sistema para outra pessoa.</p>
-              <p id="addUserError" class="error-msg hidden"></p>
+              <p id="addUserError" class="error-msg hidden" role="alert"></p>
               <button type="submit" class="btn btn-primary">Adicionar usuário</button>
             </form>
           </div>

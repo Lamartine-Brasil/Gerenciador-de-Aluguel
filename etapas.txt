@@ -645,6 +645,10 @@ inclusive a carteira selecionada.
       `--text-faint`, `--accent` e, no tema claro, `--success`, `--danger` e `--warn` foram
       ajustados só no brilho, mantendo o tom; zeros e dias de fora do mês continuam
       apagados, mas legíveis
+- [x] Bordas de campos e seletores com pelo menos 3:1 contra o fundo (`--border-controle`,
+      nos dois temas) — é a borda que mostra onde o campo está; a `--border` dos cartões
+      continua sutil, porque é só decoração. Anel de foco com 5,5:1 ou mais
+- [x] Mensagens de erro de formulário (login, conta, usuários) com `role="alert"`
 - [x] Estrutura: `nav`, `header` e `main` em todas as telas (login também); um `h1` por tela
       e cartões com `h2`, sem pular nível; `th scope="col"` em todas as tabelas, e a coluna
       de ações com nome para leitor de tela; tabelas roláveis de Relatórios alcançáveis e

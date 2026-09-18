@@ -93,6 +93,22 @@ test.describe('Cada tela com endereço próprio', () => {
       '#/graficos', '#/relatorios', '#/calendario', '#/auditoria', '#/usuarios', '#/configuracoes']);
   });
 
+  test('Ctrl+clique e botão do meio no menu abrem a tela numa aba nova', async ({ page, context, app }) => {
+    await app.entrar('#/');
+    for (const clique of [{ modifiers: ['ControlOrMeta'] }, { button: 'middle' }]) {
+      const [nova] = await Promise.all([
+        context.waitForEvent('page'),
+        page.locator('#tabsNav a[href="#/relatorios"]').click(clique),
+      ]);
+      await nova.waitForLoadState();
+      expect(nova.url()).toMatch(/#\/relatorios$/);
+      await expect(nova.locator('#tab-relatorios')).toBeVisible();
+      await nova.close();
+      // a aba de origem continua onde estava
+      await expect(page.locator('#tab-dashboard')).toBeVisible();
+    }
+  });
+
   test('parâmetro inválido é ignorado e some do endereço', async ({ page, app }) => {
     await app.entrar('#/contratos?status=xyz&pagina=-3&foo=1');
     await expect(page.locator('#filterStatus')).toHaveValue('');

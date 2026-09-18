@@ -98,6 +98,11 @@ dos que dependem de decisão. Cada correção tem teste em `tests/specs/`
 | Firefox | **pendente**: configurado, mas não roda nesta máquina | — |
 | Apache real | **pendente**: `.htaccess` de `data/` só se confirma numa hospedagem | — |
 
+Achados na conferência final contra o pedido (corrigidos em seguida): as
+mensagens de erro do login e dos formulários de Usuários ainda não eram
+anunciadas (parte do item P), e a borda dos campos tinha contraste de 1,24:1
+(o checklist pede 3:1 para bordas de controles, que o axe não mede).
+
 Achados durante a correção (já corrigidos): o card de despesas do Dashboard
 não acompanhava lançamentos; preencher formulário por código contava como
 "alteração não salva"; "Editar" e "Nova despesa" apagavam o que estava

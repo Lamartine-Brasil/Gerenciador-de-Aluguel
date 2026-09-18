@@ -52,6 +52,41 @@ for (const tema of ['dark', 'light']) {
   });
 }
 
+test.describe('Contraste que o axe não mede', () => {
+  for (const tema of ['dark', 'light']) {
+    test(`borda dos campos com pelo menos 3:1 (tema ${tema === 'dark' ? 'escuro' : 'claro'})`, async ({ page, app }) => {
+      await page.emulateMedia({ colorScheme: tema, reducedMotion: 'reduce' });
+      await app.entrar('#/despesas');
+      const ruins = await page.evaluate(() => {
+        const rgb = (c) => c.match(/\d+(\.\d+)?/g).slice(0, 3).map(Number);
+        const lum = ([r, g, b]) => [r, g, b].map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+          .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+        const razao = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+        const fundo = (el) => {
+          for (let p = el.parentElement; p; p = p.parentElement) {
+            const c = getComputedStyle(p).backgroundColor;
+            if (!/rgba\(.*,\s*0\)$/.test(c) && c !== 'transparent') return rgb(c);
+          }
+          return [255, 255, 255];
+        };
+        return Array.from(document.querySelectorAll('#tab-despesas input:not([type="hidden"]), #tab-despesas select'))
+          .filter(el => el.getClientRects().length)
+          .map(el => ({ id: el.id, r: razao(rgb(getComputedStyle(el).borderTopColor), fundo(el)) }))
+          .filter(x => x.r < 3);
+      });
+      expect(ruins).toEqual([]);
+    });
+  }
+
+  test('erro do login é anunciado (role="alert")', async ({ page, servidor }) => {
+    await page.goto(servidor.url);
+    await page.locator('#loginUser').fill('admin');
+    await page.locator('#loginPass').fill('errada');
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('alert').filter({ hasText: 'Usuário ou senha incorretos.' })).toBeVisible();
+  });
+});
+
 test.describe('Área clicável e telas estreitas', () => {
   test('botões e links do conteúdo têm pelo menos 24×24 px', async ({ page, app }) => {
     await app.entrar('#/');
