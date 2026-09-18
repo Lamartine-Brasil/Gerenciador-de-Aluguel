@@ -3359,7 +3359,7 @@ regenerateSecretForm.addEventListener('submit', async (e) => {
   const errorEl = document.getElementById('regenerateSecretError');
   errorEl.classList.add('hidden');
 
-  if (!confirm('Gerar uma nova chave vai desconectar automaticamente todos os OUTROS usuários administradores que estiverem logados agora (eles precisam entrar de novo). Deseja continuar?')) return;
+  if (!confirm('Todo mundo que estiver conectado em outro computador ou navegador vai precisar entrar de novo. Você continua conectado. Deseja continuar?')) return;
 
   try {
     const res = await apiFetch('regenerate_secret.php', {
@@ -3372,9 +3372,9 @@ regenerateSecretForm.addEventListener('submit', async (e) => {
       const msg = document.getElementById('regenerateSecretSaved');
       msg.classList.remove('hidden');
       setTimeout(() => msg.classList.add('hidden'), 2200);
-      registrarAuditoria('cookie_secret_regenerado', 'COOKIE_SECRET regenerado pelo administrador');
+      registrarAuditoria('cookie_secret_regenerado', 'Todos os outros acessos foram desconectados (nova chave de acesso)');
       saveState();
-      showToast('Nova chave gerada com sucesso.', 'success');
+      showToast('Todos os outros acessos foram desconectados.', 'success');
     } else {
       errorEl.textContent = data.error || 'Não foi possível gerar a nova chave.';
       errorEl.classList.remove('hidden');

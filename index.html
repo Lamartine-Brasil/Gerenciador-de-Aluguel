@@ -102,7 +102,7 @@
         <p id="loginError" class="error-msg hidden">Usuário ou senha incorretos.</p>
         <button type="submit" class="btn btn-primary btn-block">Entrar</button>
       </form>
-      <p class="login-foot">Sessão protegida por cookie assinado. Após 5 tentativas o acesso é bloqueado temporariamente.</p>
+      <p class="login-foot">Depois de 5 tentativas erradas seguidas, o acesso fica bloqueado por 15 minutos.</p>
       <p class="login-credit">
         Software desenvolvido por
         <a href="https://github.com/Lamartine-Brasil" target="_blank" rel="noopener noreferrer">Lamartine Barbosa</a>
@@ -902,16 +902,16 @@
           </div>
 
           <div class="card">
-            <h3><svg class="icon"><use href="#icon-lock"></use></svg> Segurança</h3>
-            <p class="modal-subtitle">A chave <code>COOKIE_SECRET</code> (em <code>api/config.php</code>) assina o cookie de login. Gerar uma nova desconecta automaticamente todos os OUTROS usuários que estiverem logados agora (precisam entrar de novo) — a sua sessão continua ativa normalmente.</p>
+            <h3><svg class="icon"><use href="#icon-lock"></use></svg> Acessos abertos</h3>
+            <p class="modal-subtitle">Se você entrou no sistema num computador que não é seu, ou acha que alguém pode estar usando seu acesso, desconecte todo mundo de uma vez: quem estiver conectado em outro computador ou navegador precisa entrar de novo com usuário e senha. Você continua conectado aqui.</p>
             <form id="regenerateSecretForm" class="config-form">
               <label class="field">
                 <span>Confirme sua senha atual *</span>
                 <input type="password" id="secretCurrentPassword" required autocomplete="current-password">
               </label>
               <p id="regenerateSecretError" class="error-msg hidden"></p>
-              <button type="submit" class="btn btn-danger">Gerar novo COOKIE_SECRET</button>
-              <p id="regenerateSecretSaved" class="success-msg hidden">Nova chave gerada com sucesso!</p>
+              <button type="submit" class="btn btn-danger">Desconectar todos os outros acessos</button>
+              <p id="regenerateSecretSaved" class="success-msg hidden">Pronto: todos os outros acessos foram desconectados.</p>
             </form>
           </div>
 

@@ -63,7 +63,7 @@ Usuário: admin
 Senha:   12345678
 ```
 
-> ⚠️ **Troque essa senha imediatamente após o primeiro login.** Vá em **Configurações →
+> ⚠️ **Troque essa senha imediatamente após o primeiro login.** Vá em **Usuários →
 > Conta do administrador**, informe a senha atual (`12345678`) e cadastre um usuário e senha
 > só seus. Enquanto isso não for feito, qualquer pessoa que souber a URL do sistema e essas
 > credenciais padrão consegue entrar.
@@ -103,13 +103,31 @@ Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servid
    organização de pastas
 2. **Acesse pelo navegador** e faça login com `admin` / `12345678`
 3. **Troque a senha na hora**, como explicado na seção acima
-4. **Gere uma chave de segurança própria**: vá em **Configurações → Segurança** e clique em
-   "Gerar novo COOKIE_SECRET" (protege o cookie de login contra falsificação). Também dá
-   pra fazer manualmente, abrindo `api/config.php` e trocando o valor de `COOKIE_SECRET`
+4. **Não precisa gerar chave nenhuma**: a chave que protege o login contra falsificação é
+   criada sozinha no primeiro acesso, só para a sua instalação, em `data/cookie_secret.php`
+   (fora do Git). Se um dia quiser tirar do sistema todo mundo que estiver conectado — por
+   exemplo, depois de entrar num computador que não é seu —, vá em **Usuários → Acessos
+   abertos** e clique em **Desconectar todos os outros acessos**
 5. **Confirme que os dados estão protegidos**: tente acessar
    `https://seusite.com/data/dados.json` diretamente no navegador — o servidor deve
    recusar o acesso (erro 403). Isso só funciona em Apache com `.htaccess` habilitado
    (`AllowOverride All`), que é o padrão na maioria das hospedagens compartilhadas
+
+**Para atualizar o sistema depois**, envie de novo só o código (`index.html`, `index.js`,
+`ui.js`, `css/`, `api/`) e **não sobrescreva `data/` nem `contratos/`** no servidor: é lá
+que ficam os seus dados, os usuários e senhas (`data/auth.json`) e a chave de login
+(`data/cookie_secret.php`). Se `data/auth.json` for substituído, os usuários voltam a ser só
+`admin` / `12345678`.
+
+> **Atualizando de uma versão anterior a esta?** Até aqui a chave do login vinha pronta
+> dentro de `api/config.php` — a mesma para todo mundo, e publicada no GitHub. Quem nunca
+> tinha clicado em "Gerar novo COOKIE_SECRET" estava com uma chave que qualquer pessoa podia
+> usar para montar um login válido sem saber a senha. Ao atualizar, a chave nova é criada
+> sozinha e todos precisam entrar de novo uma vez. Se você tinha trocado o valor à mão
+> dentro do `api/config.php` do servidor e não sobrescrever esse arquivo, ele continua
+> valendo e ninguém é desconectado. `data/auth.json` também saiu do Git: ele é criado
+> sozinho, e versioná-lo fazia a senha voltar para `admin`/`12345678` a cada atualização
+> (ou publicava o hash de uma senha trocada localmente).
 
 ## O que o sistema faz
 
@@ -244,12 +262,12 @@ Se você não usa corretor nem condomínio, nada disso aparece: a tela mostra um
 
 - **Auditoria** — histórico dos eventos principais (contrato criado/editado/excluído/
   encerrado, caução devolvida, pagamento registrado, despesa lançada/editada, imóvel
-  editado, usuário adicionado/removido, chave de segurança regenerada), com quem fez e
+  editado, usuário adicionado/removido, outros acessos desconectados), com quem fez e
   quando. Edições de contrato, dívida, despesa e reajuste mostram um diff campo a campo
   (valor antigo → novo). Filtros por ano, mês e usuário
 - **Usuários** — todo mundo que o sistema conhece, numa tela só, separado em duas coisas
-  diferentes: as **contas de acesso** (sua conta, os outros administradores e a chave
-  `COOKIE_SECRET` — quem entra no sistema, com senha) e as **pessoas** (recebedores e
+  diferentes: as **contas de acesso** (sua conta, os outros administradores e o botão de
+  desconectar todos os outros acessos — quem entra no sistema, com senha) e as **pessoas** (recebedores e
   corretores, que aparecem nos seletores dos contratos e pagamentos mas não têm login)
 - **Configurações** — taxas de juros/multa, valores padrão, percentual de reajuste
   sugerido, **carteiras (proprietários)**, **texto do recibo**, backup completo
@@ -321,7 +339,7 @@ existindo, só voltam a ficar sem carteira.
 Não. Tudo é salvo em arquivos JSON dentro da pasta `data/`, criados automaticamente.
 
 **Posso ter mais de um usuário administrador?**
-Sim. Em **Configurações → Usuários administradores** você adiciona outros usuários (ex:
+Sim. Em **Usuários → Contas de acesso** você adiciona outros usuários (ex:
 um sócio ou gerente). Todos têm o mesmo nível de acesso — não existe usuário "só leitura".
 Não é possível remover a si mesmo nem remover o último usuário restante.
 
@@ -331,8 +349,8 @@ cair em spam). O aviso de vencimento aparece só dentro do Dashboard quando voc�
 o sistema.
 
 **Perdi a senha, e agora?**
-Se existir outro usuário administrador com acesso, ele pode entrar em **Configurações →
-Usuários administradores**, remover o seu usuário e cadastrar um novo. Se você for o único
+Se existir outro usuário administrador com acesso, ele pode entrar em **Usuários →
+Contas de acesso**, remover o seu usuário e cadastrar um novo. Se você for o único
 usuário, veja a seção [Acesso padrão](#acesso-padrão-leia-antes-de-usar) acima — apague
 `data/auth.json` no servidor para resetar para o padrão (isso remove **todos** os usuários
 cadastrados, não só o seu).
@@ -389,8 +407,8 @@ css/layout.css       Casca da aplicação: sidebar fixa, header, área de conte�
 css/screens.css      Estilos específicos de cada tela (login, dashboard, contratos,
                       atrasos, timelines, despesas, gráficos, calendário, config)
 
-api/config.php       Constantes (usuário/senha padrão, chave do cookie) e funções de
-                      leitura/gravação dos arquivos data/dados.json e data/auth.json
+api/config.php       Constantes (usuário/senha padrão, pastas) e funções de leitura/
+                      gravação: gravação atômica, trava, chave do cookie (cookieSecret())
 api/auth.php         Emissão e validação do cookie de sessão
 api/login.php        POST { username, password } -> autentica e emite cookie; bloqueia
                       o IP por 15min após 5 tentativas erradas seguidas
@@ -399,8 +417,9 @@ api/session.php      GET -> { authenticated, username }
 api/data.php         GET lê / POST grava data/dados.json (exige autenticação)
 api/account.php      POST { currentPassword, newUsername, newPassword } -> troca o
                       próprio usuário/senha em data/auth.json (exige senha atual)
-api/regenerate_secret.php  POST { currentPassword } -> gera um novo COOKIE_SECRET
-                      aleatório e reescreve api/config.php (exige senha atual)
+api/regenerate_secret.php  POST { currentPassword } -> gera uma nova chave do cookie em
+                      data/cookie_secret.php, desconectando todos os outros acessos
+                      (exige senha atual)
 api/users.php         GET lista os usuários administradores; POST { action: 'add' | 'remove',
                       currentPassword, ... } adiciona ou remove outros usuários (exige a
                       própria senha atual, além de autenticação)
@@ -412,7 +431,11 @@ data/dados.json      Imóveis, carteiras, pessoas, contratos (com dívidas e pag
                       despesas, configuração (inclusive o texto do recibo) e auditoria
                       (criado automaticamente)
 data/auth.json       Lista de usuários administradores + hash de senha de cada um
-                      (criado automaticamente, password_hash)
+                      (criado automaticamente, password_hash; fora do controle de versão)
+data/cookie_secret.php  Chave que assina o cookie de login, gerada no primeiro acesso
+                      (fora do controle de versão; um .php que só devolve o valor, para
+                      não aparecer nem se o .htaccess falhar)
+data/dados.lock      Trava das gravações (criado automaticamente)
 data/login_attempts.json  Contador de tentativas de login erradas por IP (criado
                       automaticamente, fora do controle de versão — puramente temporário)
 data/.htaccess       Bloqueia acesso direto via URL a tudo dentro de data/
@@ -426,28 +449,34 @@ contratos/.htaccess  Bloqueia acesso direto via URL a tudo dentro de contratos/
 
 O login usa um cookie de sessão assinado com HMAC-SHA256 — **não** usa `session_start()`
 do PHP. Isso significa que não há estado de sessão guardado no servidor: o próprio cookie
-carrega usuário + validade + assinatura, e a assinatura é validada comparando com a chave
-`COOKIE_SECRET` e com a lista de usuários salva em `data/auth.json` (o usuário do cookie
+carrega usuário + validade + assinatura, e a assinatura é validada com a chave da instalação
+(`cookieSecret()`) e com a lista de usuários salva em `data/auth.json` (o usuário do cookie
 precisa continuar existindo nessa lista — se for removido, a sessão é invalidada
 imediatamente). O cookie dura 30 dias e é `HttpOnly` + `SameSite=Lax`.
+
+A chave vem, nesta ordem: de `data/cookie_secret.php`; senão, do `COOKIE_SECRET` de
+`api/config.php` **se** alguém trocou o valor padrão à mão (para não desconectar quem já
+fez isso); senão, é gerada ali mesmo com `random_bytes()` e gravada em
+`data/cookie_secret.php`. O valor padrão de `config.php` está publicado no repositório e por
+isso nunca é aceito como chave.
 
 `data/auth.json` guarda uma lista de usuários (`{ users: [{ id, username, passwordHash }] }`),
 todos com o mesmo nível de acesso. Instalações antigas que tinham só `{ username,
 passwordHash }` são migradas automaticamente para o novo formato no primeiro acesso,
 sem exigir nenhuma ação manual.
 
-A chave `COOKIE_SECRET` pode ser regenerada a qualquer momento pela própria interface
-(**Configurações → Segurança**, exige senha atual) — o endpoint `api/regenerate_secret.php`
-reescreve `api/config.php` no servidor com escrita atômica (arquivo temporário + `rename()`)
-e reemite a sessão de quem gerou a chave, mas invalida a sessão de todos os outros usuários
-logados no momento (a assinatura antiga deixa de bater com a chave nova).
+A chave pode ser trocada a qualquer momento pela própria interface (**Usuários → Acessos
+abertos → Desconectar todos os outros acessos**, exige a senha atual): o endpoint
+`api/regenerate_secret.php` grava uma chave nova em `data/cookie_secret.php` com escrita
+atômica e reemite a sessão de quem pediu; todos os outros acessos deixam de valer (a
+assinatura antiga não bate com a chave nova).
 
 `api/login.php` bloqueia um IP por 15 minutos depois de 5 tentativas erradas seguidas
 (mesmo que a senha certa seja digitada durante o bloqueio), pra dificultar força bruta —
 o contador fica em `data/login_attempts.json` (protegido pelo `.htaccess` de `data/`,
 fora do controle de versão, e se limpa sozinho com o tempo). Senhas exigem no mínimo 8
-caracteres. Adicionar ou remover outro usuário administrador (**Configurações → Usuários
-administradores**) exige confirmar a própria senha atual, igual à troca de senha e à
+caracteres. Adicionar ou remover outro usuário administrador (**Usuários → Contas de
+acesso**) exige confirmar a própria senha atual, igual à troca de senha e à
 geração de nova chave — são todas ações de alto impacto.
 
 ### Arquitetura geral

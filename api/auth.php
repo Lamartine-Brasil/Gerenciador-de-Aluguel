@@ -4,7 +4,7 @@ require_once __DIR__ . '/config.php';
 function issueAuthCookie($username) {
     $expires = time() + COOKIE_DAYS * 86400;
     $payload = $username . '|' . $expires;
-    $signature = hash_hmac('sha256', $payload, COOKIE_SECRET);
+    $signature = hash_hmac('sha256', $payload, cookieSecret());
     $value = base64_encode($payload) . '.' . $signature;
     $secure = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
     setcookie(COOKIE_NAME, $value, [
@@ -35,7 +35,7 @@ function getAuthenticatedUsername() {
     list($encodedPayload, $signature) = $parts;
     $payload = base64_decode($encodedPayload, true);
     if ($payload === false) return null;
-    $expected = hash_hmac('sha256', $payload, COOKIE_SECRET);
+    $expected = hash_hmac('sha256', $payload, cookieSecret());
     if (!hash_equals($expected, $signature)) return null;
     $payloadParts = explode('|', $payload);
     if (count($payloadParts) !== 2) return null;
@@ -54,7 +54,10 @@ function requireAuth() {
     if (!isAuthenticated()) {
         http_response_code(401);
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['error' => 'Não autenticado']);
+        // `sessaoExpirada` diferencia "precisa entrar de novo" de um 401 por senha
+        // atual errada (account.php, users.php) — o navegador pede o login de
+        // novo sem recarregar a página.
+        echo json_encode(['ok' => false, 'sessaoExpirada' => true, 'error' => 'Sua sessão expirou. Entre de novo para continuar.']);
         exit;
     }
 }

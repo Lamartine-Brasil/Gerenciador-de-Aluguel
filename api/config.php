@@ -7,9 +7,16 @@
 define('DEFAULT_USERNAME', 'admin');
 define('DEFAULT_PASSWORD', '12345678');
 
-// Chave usada para assinar o cookie de login. TROQUE por um valor aleatório
-// antes de subir para o servidor (ex: gere uma string longa e aleatória).
+// Chave que assina o cookie de login. NÃO precisa mexer aqui: no primeiro
+// acesso o sistema gera uma chave aleatória só desta instalação e guarda em
+// data/cookie_secret.php (fora do Git). Ver cookieSecret(), mais abaixo.
+//
+// O valor abaixo é o antigo padrão, que está publicado no repositório — por
+// isso ele NUNCA é usado como chave. Só continua aqui para não desconectar
+// quem já tinha trocado este valor à mão num servidor: um valor diferente do
+// padrão continua valendo enquanto data/cookie_secret.php não existir.
 define('COOKIE_SECRET', 'x7K9pQ2mZ4rL8vN1sT6wA3yB5cD0eF-troque-esta-chave');
+define('COOKIE_SECRET_PUBLICO', 'x7K9pQ2mZ4rL8vN1sT6wA3yB5cD0eF-troque-esta-chave');
 
 define('COOKIE_NAME', 'aluguel_auth');
 define('COOKIE_DAYS', 30);
@@ -20,6 +27,9 @@ define('COOKIE_DAYS', 30);
 define('DATA_DIR', getenv('ALUGUEL_DATA_DIR') ?: __DIR__ . '/../data');
 define('DATA_FILE', DATA_DIR . '/dados.json');
 define('AUTH_FILE', DATA_DIR . '/auth.json');
+// Um .php que só devolve a chave: mesmo se o .htaccess de data/ falhar, abrir
+// este arquivo pelo navegador executa o PHP e não mostra nada.
+define('COOKIE_SECRET_FILE', DATA_DIR . '/cookie_secret.php');
 
 define('CONTRATOS_DIR', getenv('ALUGUEL_CONTRATOS_DIR') ?: __DIR__ . '/../contratos');
 define('ANEXO_TIPOS_PERMITIDOS', ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png']);
@@ -152,6 +162,50 @@ function ensureAuthFile() {
         ];
         gravarArquivoAtomico(AUTH_FILE, json_encode($default, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     });
+}
+
+// Chave do cookie de login, nesta ordem:
+//   1. data/cookie_secret.php, se existir (gerado aqui ou pelo botão
+//      "Desconectar todos os outros acessos");
+//   2. o COOKIE_SECRET de config.php, se alguém trocou o valor padrão à mão;
+//   3. senão, gera uma chave aleatória agora e grava em data/cookie_secret.php.
+function cookieSecret() {
+    if (isset($GLOBALS['__cookieSecret'])) return $GLOBALS['__cookieSecret'];
+    $chave = lerCookieSecretArquivo();
+    if ($chave === null && COOKIE_SECRET !== COOKIE_SECRET_PUBLICO && strlen(COOKIE_SECRET) >= 16) {
+        $chave = COOKIE_SECRET;
+    }
+    if ($chave === null) {
+        $chave = comTrava(true, function () {
+            $existente = lerCookieSecretArquivo(); // outra requisição pode ter gerado agora
+            if ($existente !== null) return $existente;
+            $nova = bin2hex(random_bytes(32));
+            if (!salvarCookieSecret($nova)) {
+                throw new RuntimeException('Não foi possível gravar ' . COOKIE_SECRET_FILE);
+            }
+            return $nova;
+        });
+    }
+    return $GLOBALS['__cookieSecret'] = $chave;
+}
+
+function lerCookieSecretArquivo() {
+    if (!is_file(COOKIE_SECRET_FILE)) return null;
+    $valor = include COOKIE_SECRET_FILE;
+    return (is_string($valor) && strlen($valor) >= 32) ? $valor : null;
+}
+
+// A chave é sempre hexadecimal (bin2hex), então não tem como quebrar a string PHP.
+function salvarCookieSecret($chave) {
+    ensureDataDir();
+    $conteudo = "<?php\n// Chave do cookie de login desta instalação. Gerada automaticamente;\n"
+        . "// não envie para o Git nem copie para outra instalação.\nreturn '" . $chave . "';\n";
+    if (!gravarArquivoAtomico(COOKIE_SECRET_FILE, $conteudo)) return false;
+    @chmod(COOKIE_SECRET_FILE, 0600);
+    // sem isso o opcache pode continuar servindo a chave antiga por alguns segundos
+    if (function_exists('opcache_invalidate')) @opcache_invalidate(COOKIE_SECRET_FILE, true);
+    $GLOBALS['__cookieSecret'] = $chave;
+    return true;
 }
 
 function generateUserId() {

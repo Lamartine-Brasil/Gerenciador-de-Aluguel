@@ -5,3 +5,9 @@ tests/node_modules/
 tests/resultados/
 tests/test-results/
 tests/playwright-report/
+
+# Criados sozinhos no servidor — nunca vão para o Git
+data/auth.json
+data/cookie_secret.php
+data/dados.lock
+data/*.tmp-*

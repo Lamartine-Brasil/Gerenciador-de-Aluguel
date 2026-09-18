@@ -127,6 +127,11 @@ dentro de Contratos, Atrasos ou Histórico.
 
 2.1 Login e conta
 - [x] Tela de login (usuário + senha), validada no servidor (`api/login.php`)
+- [x] Chave do cookie gerada no primeiro acesso, só desta instalação, em
+      `data/cookie_secret.php` (fora do Git). A chave padrão que ficava em
+      `api/config.php` estava publicada no repositório e permitia montar um login válido
+      sem senha; ela nunca é aceita. Quem trocou o valor à mão em `config.php` continua
+      com ele. `data/auth.json` também está fora do Git (é criado sozinho)
 - [x] Sessão por cookie assinado (HMAC-SHA256), 30 dias, HttpOnly + SameSite=Lax — sem
       `session_start()`, sem estado de sessão no servidor. Permanece logado ao trocar de
       aba ou reabrir o navegador; "Sair" limpa a sessão
@@ -412,7 +417,7 @@ dentro de Contratos, Atrasos ou Histórico.
       editado, excluído, reajustado, encerrado ou reaberto; caução devolvida; dívida
       editada ou excluída; pagamento registrado; despesa criada, editada ou excluída;
       imóvel editado; carteira criada, editada ou excluída; usuário adicionado ou
-      removido; `COOKIE_SECRET` regenerada
+      removido; outros acessos desconectados
 - [x] Diff campo a campo nas edições ("campo: antes → depois"), só com o que realmente
       mudou. Carteira aparece pelo nome, não pelo id interno; booleanos viram Sim/Não
 - [x] Filtros por ano, mês e usuário, montados a partir dos próprios eventos
@@ -438,11 +443,9 @@ dentro de Contratos, Atrasos ou Histórico.
 - [x] Editar uma pessoa carrega ela no mesmo formulário (vira "Editar pessoa"); renomear
       atualiza também os contratos e pagamentos que usam o nome antigo, como no cadastro
       de imóveis
-- [x] Segurança: "Gerar novo COOKIE_SECRET" (exige senha atual) gera uma chave aleatória e
-      reescreve `api/config.php` sozinho. Reemite a própria sessão na hora, mas desconecta
-      todos os outros usuários logados (a chave assina o cookie de todos). Escrita atômica
-      (temporário + `rename()`) e só se o padrão exato for encontrado — nunca deixa o
-      arquivo quebrado
+- [x] Acessos abertos: "Desconectar todos os outros acessos" (exige senha atual) grava uma
+      chave nova do cookie em `data/cookie_secret.php`. Reemite a própria sessão na hora,
+      mas desconecta todos os outros acessos (a chave assina o cookie de todos)
 
 2.15 Configurações (5 abas)
 - Financeiro
@@ -535,8 +538,8 @@ inclusive a carteira selecionada.
 3.3 Backend
 - [x] PHP puro em `api/`, sem framework, um arquivo por endpoint, comunicação por `fetch()`
       com JSON
-- [x] Testado localmente com PHP 8.5 (`php -S`): login, troca de senha, geração de
-      COOKIE_SECRET, leitura/gravação e erros (400/401) conferidos via curl
+- [x] Testado localmente com PHP 8.5 (`php -S`): login, troca de senha, troca da chave do
+      cookie, leitura/gravação e erros (400/401/409) — ver testes automatizados em `tests/`
 
 3.4 Interface e design
 - [x] HTML, CSS e JS puros — nenhum framework, nenhuma dependência de Node/npm/Composer
