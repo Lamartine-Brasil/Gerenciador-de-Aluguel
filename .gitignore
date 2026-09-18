@@ -1,14 +1,30 @@
-.DS_Store
-data/login_attempts.json
-data/dados.json
+# -----------------------------------------------------------------------------
+# Dados de cada instalação — nunca vão para o Git
+# data/ e contratos/ guardam os dados reais (contratos, pagamentos, usuários e
+# senhas, a chave do login, os contratos assinados anexados). Só os .htaccess,
+# que bloqueiam o acesso direto pela URL, fazem parte do código.
+# -----------------------------------------------------------------------------
+data/*
+!data/.htaccess
+contratos/*
+!contratos/.htaccess
+
+# Temporário que versões antigas deixavam ao gerar a chave do login
+api/config.php.tmp
+
+# -----------------------------------------------------------------------------
+# Testes (as dependências e os resultados ficam só na máquina de quem testa)
+# -----------------------------------------------------------------------------
 tests/node_modules/
 tests/resultados/
 tests/test-results/
 tests/playwright-report/
-
-# Criados sozinhos no servidor — nunca vão para o Git
-data/auth.json
-data/cookie_secret.php
-data/dados.lock
-data/*.tmp-*
 tests/diagnostico/out/
+
+# -----------------------------------------------------------------------------
+# Sistema operacional e editores
+# -----------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+*.swp
+*~
