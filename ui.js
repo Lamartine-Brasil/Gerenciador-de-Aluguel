@@ -9,11 +9,11 @@
      · recolher/expandir a sidebar (com estado persistido)
      · drawer da sidebar no celular
      · menus suspensos (notificações e usuário)
-     · busca do header delegando para a busca de Contratos já existente
      · painel de notificações espelhando os alertas já renderizados no Dashboard
-     · abas internas de Configurações
      · expandir/recolher as dívidas dentro de cada contrato
-     · busca e paginação em listas já renderizadas (Imóveis, Histórico)
+
+   A navegação entre telas (endereço de cada tela, menu, abas de
+   Configurações, busca do topo) é do roteador do index.js.
 
    Tudo que depende de dados continua vindo do index.js, que não foi alterado.
    Aqui só lemos o que ele já colocou na tela e reorganizamos a apresentação.
@@ -26,7 +26,6 @@
   const $$ = (sel, ctx) => Array.from((ctx || document).querySelectorAll(sel));
 
   const SIDEBAR_KEY = 'aluguelApp_sidebar';
-  const IMOVEIS_POR_PAGINA = 12;
 
   /* ===========================================================================
      SIDEBAR — recolher / expandir (estado persistido)
@@ -88,34 +87,14 @@
   }
 
   /* ===========================================================================
-     NAVEGAÇÃO — acessibilidade e atalhos de menu
-     O clique em si continua sendo tratado pelo index.js; aqui só refletimos o
-     estado em `aria-current` e fechamos a gaveta no celular.
+     NAVEGAÇÃO
+     A troca de tela é do roteador do index.js (cada tela tem endereço
+     próprio, #/contratos etc.); aqui só fechamos a gaveta e os menus quando a
+     tela muda.
   =========================================================================== */
-  const tabsNav = $('#tabsNav');
-
-  function syncAriaCurrent() {
-    $$('.tab-btn').forEach(btn => {
-      if (btn.classList.contains('active')) btn.setAttribute('aria-current', 'page');
-      else btn.removeAttribute('aria-current');
-    });
-  }
-
-  if (tabsNav) {
-    tabsNav.addEventListener('click', (e) => {
-      if (!e.target.closest('.tab-btn')) return;
-      syncAriaCurrent();
-      closeDrawer();
-    });
-  }
-
-  // Itens de menu que apenas levam para uma aba (ex: dropdown do usuário).
-  $$('[data-tab-link]').forEach(item => {
-    item.addEventListener('click', () => {
-      const alvo = $(`.tab-btn[data-tab="${item.dataset.tabLink}"]`);
-      if (alvo) alvo.click();
-      closeAllDropdowns();
-    });
+  document.addEventListener('rota-mudou', () => {
+    closeAllDropdowns();
+    closeDrawer();
   });
 
   /* ===========================================================================
@@ -157,32 +136,6 @@
       closeDrawer();
     }
   });
-
-  /* ===========================================================================
-     BUSCA DO HEADER
-     Delega para o campo de busca de Contratos que já existe, disparando o mesmo
-     evento `input` que o index.js já escuta — nenhuma lógica de filtro nova.
-  =========================================================================== */
-  const globalSearch = $('#globalSearch');
-  const searchContratos = $('#searchContratos');
-
-  if (globalSearch && searchContratos) {
-    globalSearch.addEventListener('input', () => {
-      const abaContratos = $('.tab-btn[data-tab="contratos"]');
-      if (abaContratos && !abaContratos.classList.contains('active')) {
-        abaContratos.click();
-        syncAriaCurrent();
-      }
-      if (searchContratos.value === globalSearch.value) return;
-      searchContratos.value = globalSearch.value;
-      searchContratos.dispatchEvent(new Event('input', { bubbles: true }));
-    });
-
-    // Mantém os dois campos com o mesmo conteúdo.
-    searchContratos.addEventListener('input', () => {
-      if (globalSearch.value !== searchContratos.value) globalSearch.value = searchContratos.value;
-    });
-  }
 
   /* ===========================================================================
      AVATAR DO USUÁRIO — inicial derivada do nome já exibido
@@ -285,26 +238,6 @@
   renderNotificacoes();
 
   /* ===========================================================================
-     CONFIGURAÇÕES — abas internas
-  =========================================================================== */
-  const configTabs = $$('[data-config-tab]');
-  const configSections = $$('[data-config-section]');
-
-  configTabs.forEach(aba => {
-    aba.addEventListener('click', () => {
-      const alvo = aba.dataset.configTab;
-      configTabs.forEach(b => {
-        const ativo = b === aba;
-        b.classList.toggle('is-active', ativo);
-        b.setAttribute('aria-selected', String(ativo));
-      });
-      configSections.forEach(sec => {
-        sec.classList.toggle('is-active', sec.dataset.configSection === alvo);
-      });
-    });
-  });
-
-  /* ===========================================================================
      CONTRATOS — expandir/recolher as dívidas sem sair da página
      Cada contrato mostra as 3 dívidas mais recentes; o restante abre no lugar.
   =========================================================================== */
@@ -357,114 +290,5 @@
     new MutationObserver(montarToggles).observe(contratosList, { childList: true });
     montarToggles();
   }
-
-  /* ===========================================================================
-     LISTAS — busca e paginação sobre o que já está renderizado
-     Não altera nenhum dado: apenas esconde/mostra linhas já criadas pelo JS.
-  =========================================================================== */
-  function criarFiltroDeLista({ listaId, buscaId, contadorId, paginacaoId, porPagina, rotuloSingular, rotuloPlural }) {
-    const lista = document.getElementById(listaId);
-    const busca = buscaId ? document.getElementById(buscaId) : null;
-    const contador = contadorId ? document.getElementById(contadorId) : null;
-    const paginacao = paginacaoId ? document.getElementById(paginacaoId) : null;
-    if (!lista) return;
-
-    let pagina = 1;
-
-    function linhas() {
-      return Array.from(lista.children).filter(el => !el.classList.contains('empty-state'));
-    }
-
-    function aplicar() {
-      const termo = busca ? busca.value.trim().toLowerCase() : '';
-      const todas = linhas();
-
-      const visiveis = todas.filter(el => {
-        const combina = !termo || (el.textContent || '').toLowerCase().includes(termo);
-        el.dataset.uiMatch = combina ? '1' : '0';
-        return combina;
-      });
-
-      const totalPaginas = porPagina ? Math.max(1, Math.ceil(visiveis.length / porPagina)) : 1;
-      pagina = Math.min(Math.max(pagina, 1), totalPaginas);
-      const inicio = porPagina ? (pagina - 1) * porPagina : 0;
-      const fim = porPagina ? inicio + porPagina : visiveis.length;
-
-      todas.forEach(el => { el.style.display = 'none'; });
-      visiveis.slice(inicio, fim).forEach(el => { el.style.display = ''; });
-
-      if (contador) {
-        const n = visiveis.length;
-        contador.textContent = n === 1
-          ? `1 ${rotuloSingular}`
-          : `${n} ${rotuloPlural}`;
-      }
-
-      // Sem resultado para a busca: mostra um estado vazio próprio, sem tocar
-      // no estado vazio que o index.js gera quando não há dados nenhum.
-      let semResultado = lista.querySelector('[data-ui-empty]');
-      if (termo && !visiveis.length && todas.length) {
-        if (!semResultado) {
-          semResultado = document.createElement('div');
-          semResultado.className = 'empty-state';
-          semResultado.setAttribute('data-ui-empty', '');
-          semResultado.textContent = 'Nenhum resultado para esta busca.';
-          lista.appendChild(semResultado);
-        }
-      } else if (semResultado) {
-        semResultado.remove();
-      }
-
-      if (paginacao) renderPaginacao(totalPaginas, visiveis.length);
-    }
-
-    function renderPaginacao(totalPaginas, totalItens) {
-      paginacao.innerHTML = '';
-      if (totalPaginas <= 1) return;
-
-      const anterior = document.createElement('button');
-      anterior.type = 'button';
-      anterior.className = 'btn btn-ghost btn-sm';
-      anterior.textContent = '‹ Anterior';
-      anterior.disabled = pagina <= 1;
-      anterior.addEventListener('click', () => { pagina--; aplicar(); });
-
-      const info = document.createElement('span');
-      info.className = 'pagination-info';
-      info.textContent = `Página ${pagina} de ${totalPaginas} (${totalItens} ${totalItens === 1 ? rotuloSingular : rotuloPlural})`;
-
-      const proxima = document.createElement('button');
-      proxima.type = 'button';
-      proxima.className = 'btn btn-ghost btn-sm';
-      proxima.textContent = 'Próxima ›';
-      proxima.disabled = pagina >= totalPaginas;
-      proxima.addEventListener('click', () => { pagina++; aplicar(); });
-
-      paginacao.appendChild(anterior);
-      paginacao.appendChild(info);
-      paginacao.appendChild(proxima);
-    }
-
-    if (busca) {
-      busca.addEventListener('input', () => { pagina = 1; aplicar(); });
-    }
-
-    new MutationObserver(() => { aplicar(); }).observe(lista, { childList: true });
-    aplicar();
-  }
-
-  // Só a lista de Imóveis usa este filtro de apresentação. O Histórico filtra de
-  // verdade no index.js (contrato, ano e busca), porque lá o resultado também
-  // alimenta a exportação em CSV — filtrar só escondendo linhas faria o arquivo
-  // exportado sair diferente do que está na tela.
-  criarFiltroDeLista({
-    listaId: 'imoveisList',
-    buscaId: 'uiImoveisSearch',
-    contadorId: 'uiImoveisCount',
-    paginacaoId: 'uiImoveisPagination',
-    porPagina: IMOVEIS_POR_PAGINA,
-    rotuloSingular: 'imóvel',
-    rotuloPlural: 'imóveis',
-  });
 
 })();

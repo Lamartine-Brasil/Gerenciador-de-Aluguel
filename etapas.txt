@@ -238,7 +238,7 @@ dentro de Contratos, Atrasos ou Histórico.
 - [x] Busca por inquilino, imóvel, número do contrato ou carteira; filtros de ano, mês e
       status (o contrato aparece se pelo menos uma dívida bater)
 - [x] Lista paginada (20 contratos por página); a página volta para 1 ao mudar filtro ou
-      busca. Dentro de cada contrato, as dívidas além das 3 mais recentes ficam recolhidas
+      busca. Busca, filtros e página vão para o endereço (`#/contratos?...`). Dentro de cada contrato, as dívidas além das 3 mais recentes ficam recolhidas
       atrás de "Mostrar mais N dívida(s)"
 
 2.5 Pagamento (modal)
@@ -568,9 +568,27 @@ inclusive a carteira selecionada.
 - [x] Sidebar em blocos rotulados, recolhível (estado salvo em `aluguelApp_sidebar`),
       gaveta no celular. Header com busca global, seletor de carteira, "Atualizar dívidas",
       notificações (espelham os alertas do Dashboard), tema e menu do usuário
+- [x] Cada tela tem o próprio endereço, por hash (`#/contratos?busca=%2312&pagina=2`,
+      `#/configuracoes/recibo`...): F5 mantém tela, filtros, página e sub-aba; Voltar e
+      Avançar funcionam; o menu é feito de links de verdade (Ctrl+clique, botão do meio e
+      "copiar endereço do link" funcionam); `aria-current="page"` no item da tela atual;
+      o título da aba acompanha a tela ("Contratos — Gestão de Aluguéis"). Um ponto só de
+      navegação (`navegar()`) e um só que mostra a tela a partir do endereço
+      (`mostrarRota()`), com a tabela `ROTAS` (parâmetros e desenho de cada tela). Trocar
+      de tela empilha histórico; filtro, busca e página só substituem o endereço atual.
+      Parâmetro inválido é ignorado e some do endereço. Endereço desconhecido mostra
+      "Página não encontrada" com link para o Dashboard. Link aberto sem login leva ao
+      login e depois à tela pedida. A busca do topo leva a `#/contratos?busca=...` sem
+      empilhar histórico
+- [x] Cada tela tem um único `<h1>` (mesma aparência do antigo `<h2>`); ao trocar de tela a
+      página volta ao topo e o foco vai para o título. No primeiro carregamento o foco não
+      é mexido
+- [x] Voltar do navegador com um modal aberto fecha o modal (e fica na tela); trocar de
+      tela nunca deixa um modal por cima da tela nova. Formulário alterado e não salvo
+      pede confirmação antes de fechar o modal (Esc, ×, clique fora), trocar de tela ou
+      recarregar a página
 - [x] `ui.js` separado do `index.js`: só comportamento visual (sidebar, gaveta, menus,
-      busca do header, notificações, abas de Configurações, expandir dívidas, busca e
-      paginação em listas já renderizadas). Nenhuma regra de negócio, cálculo ou API
+      notificações, expandir dívidas). Nenhuma regra de negócio, cálculo ou API
 - [x] CSS por responsabilidade: `tokens.css` (variáveis + temas), `components.css`
       (Button, Card, Input, Table, Badge, Alert, Extrato, Dropdown, Modal, Tabs, Tooltip,
       Pagination, Toast, Skeleton, Empty state), `layout.css` (casca e responsividade) e
@@ -595,8 +613,12 @@ inclusive a carteira selecionada.
 - [x] Tema claro/escuro com preferência salva; na primeira visita segue o sistema
       operacional e acompanha mudanças em tempo real enquanto não houver escolha manual
 - [x] Responsivo de 360px a telas grandes
-- [x] Atalhos: `N` novo contrato, `/` foca a busca, `Esc` fecha modais — inativos enquanto
-      o foco está num campo
+- [x] Atalhos: `N` (ou `n`) novo contrato, `/` busca do topo, `?` lista de atalhos, `Esc`
+      fecha modais — inativos enquanto o foco está num campo. Os de uma tecla podem ser
+      desligados em Configurações › Financeiro (preferência do navegador,
+      `aluguelApp_atalhos`)
+- [x] Os arquivos CSS e JS são carregados com `?v=` no `index.html`: ao lançar uma versão,
+      troque o número, senão o navegador pode juntar o HTML novo com um JS antigo em cache
 - [x] Crédito de autoria no rodapé da sidebar e no login, linkando para
       github.com/Lamartine-Brasil (`rel="noopener noreferrer"`), mais `<meta name="author">`
 

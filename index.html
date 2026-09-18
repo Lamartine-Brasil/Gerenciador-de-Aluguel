@@ -12,10 +12,12 @@
   Software desenvolvido por Lamartine Barbosa — https://github.com/Lamartine-Brasil
 -->
 
-<link rel="stylesheet" href="css/tokens.css">
-<link rel="stylesheet" href="css/components.css">
-<link rel="stylesheet" href="css/layout.css">
-<link rel="stylesheet" href="css/screens.css">
+<!-- O ?v= muda a cada versão: sem ele o navegador pode juntar o HTML novo
+     com um index.js antigo guardado em cache, e o sistema quebra. -->
+<link rel="stylesheet" href="css/tokens.css?v=3.0">
+<link rel="stylesheet" href="css/components.css?v=3.0">
+<link rel="stylesheet" href="css/layout.css?v=3.0">
+<link rel="stylesheet" href="css/screens.css?v=3.0">
 </head>
 <body>
 
@@ -138,6 +140,9 @@
 <!-- ===================== APP ===================== -->
 <div id="app" class="app hidden">
 
+  <!-- Primeiro item do Tab em qualquer tela: pula o menu e o cabeçalho. -->
+  <a class="pular-conteudo" href="#conteudo" id="linkPularConteudo">Pular para o conteúdo</a>
+
   <!-- ---------- SIDEBAR ---------- -->
   <aside class="sidebar" id="uiSidebar">
     <div class="sidebar-head">
@@ -149,34 +154,34 @@
 
     <nav class="tabs" id="tabsNav" aria-label="Navegação principal">
       <div class="nav-group">
-        <button class="tab-btn active" data-tab="dashboard" data-tooltip="Dashboard" aria-current="page"><span class="tab-icon"><svg class="icon"><use href="#icon-grid"></use></svg></span><span class="tab-label">Dashboard</span></button>
+        <a class="tab-btn" href="#/" data-tab="dashboard" data-tooltip="Dashboard" aria-label="Dashboard"><span class="tab-icon"><svg class="icon"><use href="#icon-grid"></use></svg></span><span class="tab-label">Dashboard</span></a>
       </div>
 
       <div class="nav-group">
         <p class="nav-group-label">Gestão</p>
-        <button class="tab-btn" data-tab="imoveis" data-tooltip="Imóveis"><span class="tab-icon"><svg class="icon"><use href="#icon-home"></use></svg></span><span class="tab-label">Imóveis</span></button>
-        <button class="tab-btn" data-tab="contratos" data-tooltip="Contratos"><span class="tab-icon"><svg class="icon"><use href="#icon-file-text"></use></svg></span><span class="tab-label">Contratos</span></button>
-        <button class="tab-btn" data-tab="atrasos" data-tooltip="Atrasos"><span class="tab-icon"><svg class="icon"><use href="#icon-clock"></use></svg></span><span class="tab-label">Atrasos</span></button>
-        <button class="tab-btn" data-tab="historico" data-tooltip="Histórico"><span class="tab-icon"><svg class="icon"><use href="#icon-receipt"></use></svg></span><span class="tab-label">Histórico</span></button>
+        <a class="tab-btn" href="#/imoveis" data-tab="imoveis" data-tooltip="Imóveis" aria-label="Imóveis"><span class="tab-icon"><svg class="icon"><use href="#icon-home"></use></svg></span><span class="tab-label">Imóveis</span></a>
+        <a class="tab-btn" href="#/contratos" data-tab="contratos" data-tooltip="Contratos" aria-label="Contratos"><span class="tab-icon"><svg class="icon"><use href="#icon-file-text"></use></svg></span><span class="tab-label">Contratos</span></a>
+        <a class="tab-btn" href="#/atrasos" data-tab="atrasos" data-tooltip="Atrasos" aria-label="Atrasos"><span class="tab-icon"><svg class="icon"><use href="#icon-clock"></use></svg></span><span class="tab-label">Atrasos</span></a>
+        <a class="tab-btn" href="#/historico" data-tab="historico" data-tooltip="Histórico" aria-label="Histórico"><span class="tab-icon"><svg class="icon"><use href="#icon-receipt"></use></svg></span><span class="tab-label">Histórico</span></a>
       </div>
 
       <div class="nav-group">
         <p class="nav-group-label">Financeiro</p>
-        <button class="tab-btn" data-tab="despesas" data-tooltip="Despesas"><span class="tab-icon"><svg class="icon"><use href="#icon-wallet"></use></svg></span><span class="tab-label">Despesas</span></button>
-        <button class="tab-btn" data-tab="graficos" data-tooltip="Gráficos"><span class="tab-icon"><svg class="icon"><use href="#icon-bar-chart"></use></svg></span><span class="tab-label">Gráficos</span></button>
-        <button class="tab-btn" data-tab="relatorios" data-tooltip="Relatórios"><span class="tab-icon"><svg class="icon"><use href="#icon-clipboard-list"></use></svg></span><span class="tab-label">Relatórios</span></button>
+        <a class="tab-btn" href="#/despesas" data-tab="despesas" data-tooltip="Despesas" aria-label="Despesas"><span class="tab-icon"><svg class="icon"><use href="#icon-wallet"></use></svg></span><span class="tab-label">Despesas</span></a>
+        <a class="tab-btn" href="#/graficos" data-tab="graficos" data-tooltip="Gráficos" aria-label="Gráficos"><span class="tab-icon"><svg class="icon"><use href="#icon-bar-chart"></use></svg></span><span class="tab-label">Gráficos</span></a>
+        <a class="tab-btn" href="#/relatorios" data-tab="relatorios" data-tooltip="Relatórios" aria-label="Relatórios"><span class="tab-icon"><svg class="icon"><use href="#icon-clipboard-list"></use></svg></span><span class="tab-label">Relatórios</span></a>
       </div>
 
       <div class="nav-group">
         <p class="nav-group-label">Agenda</p>
-        <button class="tab-btn" data-tab="calendario" data-tooltip="Calendário"><span class="tab-icon"><svg class="icon"><use href="#icon-calendar"></use></svg></span><span class="tab-label">Calendário</span></button>
+        <a class="tab-btn" href="#/calendario" data-tab="calendario" data-tooltip="Calendário" aria-label="Calendário"><span class="tab-icon"><svg class="icon"><use href="#icon-calendar"></use></svg></span><span class="tab-label">Calendário</span></a>
       </div>
 
       <div class="nav-group">
         <p class="nav-group-label">Sistema</p>
-        <button class="tab-btn" data-tab="auditoria" data-tooltip="Auditoria"><span class="tab-icon"><svg class="icon"><use href="#icon-shield-check"></use></svg></span><span class="tab-label">Auditoria</span></button>
-        <button class="tab-btn" data-tab="usuarios" data-tooltip="Usuários"><span class="tab-icon"><svg class="icon"><use href="#icon-users"></use></svg></span><span class="tab-label">Usuários</span></button>
-        <button class="tab-btn" data-tab="config" data-tooltip="Configurações"><span class="tab-icon"><svg class="icon"><use href="#icon-gear"></use></svg></span><span class="tab-label">Configurações</span></button>
+        <a class="tab-btn" href="#/auditoria" data-tab="auditoria" data-tooltip="Auditoria" aria-label="Auditoria"><span class="tab-icon"><svg class="icon"><use href="#icon-shield-check"></use></svg></span><span class="tab-label">Auditoria</span></a>
+        <a class="tab-btn" href="#/usuarios" data-tab="usuarios" data-tooltip="Usuários" aria-label="Usuários"><span class="tab-icon"><svg class="icon"><use href="#icon-users"></use></svg></span><span class="tab-label">Usuários</span></a>
+        <a class="tab-btn" href="#/configuracoes" data-tab="config" data-tooltip="Configurações" aria-label="Configurações"><span class="tab-icon"><svg class="icon"><use href="#icon-gear"></use></svg></span><span class="tab-label">Configurações</span></a>
       </div>
     </nav>
 
@@ -248,17 +253,20 @@
           </button>
           <div class="dropdown-menu hidden" id="uiUserDropdown" role="menu">
             <div class="dropdown-header">Conta</div>
-            <button type="button" class="dropdown-item" data-tab-link="config">
-              <svg class="icon"><use href="#icon-gear"></use></svg> Configurações
-            </button>
-            <button type="button" class="dropdown-item" data-tab-link="usuarios">
-              <svg class="icon"><use href="#icon-users"></use></svg> Usuários
-            </button>
-            <button type="button" class="dropdown-item" data-tab-link="auditoria">
-              <svg class="icon"><use href="#icon-shield-check"></use></svg> Auditoria
+            <a class="dropdown-item" href="#/configuracoes">
+              <svg class="icon" aria-hidden="true"><use href="#icon-gear"></use></svg> Configurações
+            </a>
+            <a class="dropdown-item" href="#/usuarios">
+              <svg class="icon" aria-hidden="true"><use href="#icon-users"></use></svg> Usuários
+            </a>
+            <a class="dropdown-item" href="#/auditoria">
+              <svg class="icon" aria-hidden="true"><use href="#icon-shield-check"></use></svg> Auditoria
+            </a>
+            <button type="button" class="dropdown-item" id="btnAtalhosMenu">
+              <svg class="icon" aria-hidden="true"><use href="#icon-code"></use></svg> Atalhos de teclado
             </button>
             <hr class="dropdown-sep">
-            <button id="btnLogout" class="dropdown-item dropdown-item-danger">
+            <button type="button" id="btnLogout" class="dropdown-item dropdown-item-danger">
               <svg class="icon"><use href="#icon-log-out"></use></svg> Sair
             </button>
           </div>
@@ -266,13 +274,13 @@
       </div>
     </header>
 
-    <main class="content">
+    <main class="content" id="conteudo">
 
       <!-- ---------- DASHBOARD ---------- -->
-      <section id="tab-dashboard" class="tab-panel active">
+      <section id="tab-dashboard" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Painel principal</h2>
+            <h1 tabindex="-1">Painel principal</h1>
             <span class="panel-desc">Visão geral da sua carteira de aluguéis hoje.</span>
           </div>
         </div>
@@ -335,7 +343,7 @@
       <section id="tab-imoveis" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Imóveis</h2>
+            <h1 tabindex="-1">Imóveis</h1>
             <span class="panel-desc">Cadastro reutilizável — escolha o imóvel pela lista ao criar um contrato.</span>
           </div>
         </div>
@@ -354,7 +362,7 @@
               <span class="col-acoes">Ações</span>
             </div>
             <div id="imoveisList" class="cards-list"></div>
-            <div class="pagination" id="uiImoveisPagination"></div>
+            <nav class="pagination" id="uiImoveisPagination" aria-label="Páginas da lista de imóveis"></nav>
           </div>
 
           <aside class="split-aside">
@@ -385,7 +393,7 @@
       <section id="tab-contratos" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Contratos</h2>
+            <h1 tabindex="-1">Contratos</h1>
             <span class="panel-desc">Cada contrato reúne todas as dívidas mensais do mesmo imóvel e inquilino.</span>
           </div>
           <div class="panel-actions">
@@ -429,14 +437,14 @@
         </div>
 
         <div id="contratosList" class="cards-list"></div>
-        <div id="contratosPagination" class="pagination"></div>
+        <nav id="contratosPagination" class="pagination" aria-label="Páginas da lista de contratos"></nav>
       </section>
 
       <!-- ---------- ATRASOS ---------- -->
       <section id="tab-atrasos" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Contratos em atraso</h2>
+            <h1 tabindex="-1">Contratos em atraso</h1>
             <span class="panel-desc">Dívidas vencidas e não pagas, da mais antiga para a mais recente.</span>
           </div>
         </div>
@@ -458,7 +466,7 @@
       <section id="tab-historico" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Histórico de pagamentos</h2>
+            <h1 tabindex="-1">Histórico de pagamentos</h1>
             <span class="panel-desc">Todos os pagamentos registrados, do mais recente para o mais antigo.</span>
           </div>
         </div>
@@ -481,14 +489,14 @@
         </div>
 
         <div id="historicoList" class="cards-list"></div>
-        <div id="historicoPagination" class="pagination"></div>
+        <nav id="historicoPagination" class="pagination" aria-label="Páginas da lista de pagamentos"></nav>
       </section>
 
       <!-- ---------- DESPESAS ---------- -->
       <section id="tab-despesas" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Despesas</h2>
+            <h1 tabindex="-1">Despesas</h1>
             <span class="panel-desc">Lançamentos avulsos ou ligados a um contrato específico. Não entram no cálculo de nenhuma dívida — são um controle à parte, que aparece no lucro líquido dos Relatórios.</span>
           </div>
           <div class="panel-actions">
@@ -603,7 +611,7 @@
 
           <div>
             <div id="despesasList"></div>
-            <div id="despesasPagination" class="pagination"></div>
+            <nav id="despesasPagination" class="pagination" aria-label="Páginas da lista de despesas"></nav>
           </div>
         </div>
       </section>
@@ -612,7 +620,7 @@
       <section id="tab-graficos" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Gráficos</h2>
+            <h1 tabindex="-1">Gráficos</h1>
             <span class="panel-desc">Todos os gráficos abaixo mostram o ano selecionado. Valores recebidos são líquidos: já descontam a comissão do corretor (quando houver) e o condomínio, mesma convenção usada em Relatórios.</span>
           </div>
           <div class="panel-actions">
@@ -661,7 +669,7 @@
       <section id="tab-relatorios" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Relatórios</h2>
+            <h1 tabindex="-1">Relatórios</h1>
             <span class="panel-desc">Valores recebidos são líquidos: já descontam a comissão do corretor (quando houver) e o condomínio, já que nenhum dos dois fica com o proprietário.</span>
           </div>
           <div class="panel-actions">
@@ -796,7 +804,7 @@
       <section id="tab-calendario" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Calendário</h2>
+            <h1 tabindex="-1">Calendário</h1>
             <span class="panel-desc">Vencimentos e pagamentos recebidos, dia a dia.</span>
           </div>
           <div class="panel-actions">
@@ -861,7 +869,7 @@
       <section id="tab-auditoria" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Auditoria</h2>
+            <h1 tabindex="-1">Auditoria</h1>
             <span class="panel-desc">Últimos eventos importantes: contratos criados/editados/excluídos, pagamentos registrados e usuários adicionados/removidos.</span>
           </div>
         </div>
@@ -897,7 +905,7 @@
       <section id="tab-usuarios" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Usuários</h2>
+            <h1 tabindex="-1">Usuários</h1>
             <span class="panel-desc">Duas coisas diferentes, no mesmo lugar: as <strong>contas de acesso</strong> (quem entra no sistema, com senha) e as <strong>pessoas</strong> que aparecem nos cadastros como recebedor ou corretor, sem login.</span>
           </div>
         </div>
@@ -997,31 +1005,31 @@
       <section id="tab-config" class="tab-panel">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2>Configurações</h2>
+            <h1 tabindex="-1">Configurações</h1>
             <span class="panel-desc">Taxas, carteiras, texto do recibo e manutenção dos dados. Contas de acesso e o cadastro de pessoas ficam em <strong>Usuários</strong>.</span>
           </div>
         </div>
 
-        <div class="seg-tabs" id="uiConfigTabs" role="tablist">
-          <button type="button" class="seg-tab is-active" data-config-tab="financeiro" role="tab" aria-selected="true">
-            <svg class="icon"><use href="#icon-percent"></use></svg> Financeiro
-          </button>
-          <button type="button" class="seg-tab" data-config-tab="carteiras" role="tab" aria-selected="false">
-            <svg class="icon"><use href="#icon-tag"></use></svg> Carteiras
-          </button>
-          <button type="button" class="seg-tab" data-config-tab="recibo" role="tab" aria-selected="false">
-            <svg class="icon"><use href="#icon-receipt"></use></svg> Recibo
-          </button>
-          <button type="button" class="seg-tab" data-config-tab="dados" role="tab" aria-selected="false">
-            <svg class="icon"><use href="#icon-database"></use></svg> Dados
-          </button>
-          <button type="button" class="seg-tab" data-config-tab="perigo" role="tab" aria-selected="false">
-            <svg class="icon"><use href="#icon-alert-triangle"></use></svg> Zona de perigo
-          </button>
-        </div>
+        <nav class="seg-tabs" id="uiConfigTabs" aria-label="Seções de Configurações">
+          <a class="seg-tab" href="#/configuracoes/financeiro" data-config-tab="financeiro">
+            <svg class="icon" aria-hidden="true"><use href="#icon-percent"></use></svg> Financeiro
+          </a>
+          <a class="seg-tab" href="#/configuracoes/carteiras" data-config-tab="carteiras">
+            <svg class="icon" aria-hidden="true"><use href="#icon-tag"></use></svg> Carteiras
+          </a>
+          <a class="seg-tab" href="#/configuracoes/recibo" data-config-tab="recibo">
+            <svg class="icon" aria-hidden="true"><use href="#icon-receipt"></use></svg> Recibo
+          </a>
+          <a class="seg-tab" href="#/configuracoes/dados" data-config-tab="dados">
+            <svg class="icon" aria-hidden="true"><use href="#icon-database"></use></svg> Dados
+          </a>
+          <a class="seg-tab" href="#/configuracoes/perigo" data-config-tab="perigo">
+            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle"></use></svg> Zona de perigo
+          </a>
+        </nav>
 
         <!-- Financeiro -->
-        <div data-config-section="financeiro" class="is-active" role="tabpanel" aria-label="Financeiro">
+        <div data-config-section="financeiro">
           <div class="config-grid">
             <div class="card">
               <h3><svg class="icon"><use href="#icon-percent"></use></svg> Taxa de juros por atraso</h3>
@@ -1053,7 +1061,19 @@
               </form>
             </div>
 
-            <div class="card config-span">
+            <div class="card">
+              <h3><svg class="icon"><use href="#icon-code"></use></svg> Atalhos de teclado</h3>
+              <p class="modal-subtitle">Atalhos de uma tecla só: <kbd>N</kbd> abre um novo contrato, <kbd>/</kbd> vai para a busca e <kbd>?</kbd> mostra a lista. Desligue se você usa comando de voz ou costuma digitar sem olhar para a tela e acaba disparando algum sem querer. A escolha vale para este navegador.</p>
+              <div class="config-form">
+                <label class="checkbox-field">
+                  <input type="checkbox" id="configAtalhos" checked>
+                  <span>Usar atalhos de uma tecla</span>
+                </label>
+                <button type="button" class="btn btn-ghost" id="btnVerAtalhos">Ver todos os atalhos</button>
+              </div>
+            </div>
+
+            <div class="card">
               <h3><svg class="icon"><use href="#icon-trending-up"></use></svg> Reajuste sugerido</h3>
               <p class="modal-subtitle">Um contrato "vence" para reajuste 1 ano depois do último reajuste (ou do início, se nunca foi reajustado). O Dashboard avisa quando isso acontece, sugerindo um novo valor com base no percentual abaixo — o sistema não consulta nenhum índice externo real (IGP-M/IPCA) automaticamente, já que não tem acesso à internet; ajuste esse percentual manualmente conforme o índice vigente.</p>
               <form id="configReajusteForm" class="config-form">
@@ -1070,7 +1090,7 @@
         </div>
 
         <!-- Carteiras -->
-        <div data-config-section="carteiras" role="tabpanel" aria-label="Carteiras">
+        <div data-config-section="carteiras">
           <div class="config-grid">
             <div class="card config-span">
               <h3><svg class="icon"><use href="#icon-tag"></use></svg> Carteiras (proprietários)</h3>
@@ -1103,7 +1123,7 @@
         </div>
 
         <!-- Recibo -->
-        <div data-config-section="recibo" role="tabpanel" aria-label="Recibo">
+        <div data-config-section="recibo">
           <div class="config-grid">
             <div class="card config-span">
               <h3><svg class="icon"><use href="#icon-receipt"></use></svg> Texto do recibo</h3>
@@ -1144,7 +1164,7 @@
         </div>
 
         <!-- Dados -->
-        <div data-config-section="dados" role="tabpanel" aria-label="Dados">
+        <div data-config-section="dados">
           <div class="card">
             <h3><svg class="icon"><use href="#icon-database"></use></svg> Backup do banco de dados</h3>
             <p class="modal-subtitle">Baixe um arquivo com todos os contratos, pagamentos e configurações, ou restaure a partir de um backup salvo anteriormente. Restaurar substitui todos os dados atuais.</p>
@@ -1157,7 +1177,7 @@
         </div>
 
         <!-- Zona de perigo -->
-        <div data-config-section="perigo" role="tabpanel" aria-label="Zona de perigo">
+        <div data-config-section="perigo">
           <div class="card danger-zone">
             <h3><svg class="icon"><use href="#icon-alert-triangle"></use></svg> Zona de perigo</h3>
             <p class="modal-subtitle">Apaga permanentemente todos os contratos, pagamentos e configurações salvos no servidor. Esta ação não pode ser desfeita — exporte um backup antes, se quiser manter os dados.</p>
@@ -1166,6 +1186,17 @@
             </div>
           </div>
         </div>
+      </section>
+
+      <!-- ---------- ENDEREÇO DESCONHECIDO ---------- -->
+      <section id="tab-nao-encontrada" class="tab-panel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h1 tabindex="-1">Página não encontrada</h1>
+            <span class="panel-desc">O endereço <code id="enderecoNaoEncontrado"></code> não corresponde a nenhuma tela do sistema. Confira o link ou comece pelo Dashboard.</span>
+          </div>
+        </div>
+        <p><a class="btn btn-primary" href="#/"><svg class="icon" aria-hidden="true"><use href="#icon-grid"></use></svg> Ir para o Dashboard</a></p>
       </section>
 
     </main>
@@ -1526,6 +1557,31 @@
   </div>
 </div>
 
+<!-- ===================== ATALHOS DE TECLADO ===================== -->
+<div id="modalAtalhos" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="atalhosTitulo" data-foco-inicial="#atalhosTitulo">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 id="atalhosTitulo" tabindex="-1">Atalhos de teclado</h2>
+      <button type="button" class="modal-close" data-close aria-label="Fechar">&times;</button>
+    </div>
+    <div class="modal-body">
+      <table class="report-table tabela-atalhos">
+        <caption class="sr-only">Atalhos de teclado</caption>
+        <thead><tr><th scope="col">Tecla</th><th scope="col">O que faz</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>N</kbd></td><td>Abre um novo contrato</td></tr>
+          <tr><td><kbd>/</kbd></td><td>Vai para a busca do topo</td></tr>
+          <tr><td><kbd>?</kbd></td><td>Mostra esta lista</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Fecha a janela ou o menu aberto</td></tr>
+          <tr><td><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd></td><td>Passa para o próximo / volta para o anterior</td></tr>
+          <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Num gráfico mensal com foco, passa de um mês para o outro</td></tr>
+        </tbody>
+      </table>
+      <p class="modal-subtitle">N, / e ? não funcionam enquanto você digita num campo, e podem ser desligados em <a href="#/configuracoes/financeiro">Configurações › Financeiro</a>.</p>
+    </div>
+  </div>
+</div>
+
 <!-- ===================== DIÁLOGO DE CONFIRMAÇÃO (substitui confirm() e prompt()) ===================== -->
 <div id="modalConfirmacao" class="modal-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="confTitulo" aria-describedby="confMensagem">
   <div class="modal modal-sm">
@@ -1603,10 +1659,12 @@
     <button type="button" class="toast-fechar" id="toastErroFechar" aria-label="Fechar aviso">&times;</button>
   </span>
 </div>
+<!-- Anúncios só para leitor de tela (página da lista, valor do mês no gráfico...) -->
+<div id="anuncio" class="sr-only" role="status" aria-live="polite"></div>
 <!-- vem depois do de erro no HTML para subir quando os dois aparecem juntos -->
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="index.js"></script>
-<script src="ui.js"></script>
+<script src="index.js?v=3.0"></script>
+<script src="ui.js?v=3.0"></script>
 </body>
 </html>

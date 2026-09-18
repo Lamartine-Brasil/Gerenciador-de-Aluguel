@@ -958,7 +958,7 @@ async function recarregarDoServidor() {
   reciboFormSujo = false;
   renderAll();
   renderUsuarios();
-  if (typeof mostrarRota === 'function') mostrarRota({ manterFoco: true });
+  mostrarRota({ manterFoco: true });
 }
 
 /* ---- Ao voltar para a aba ----
@@ -1249,7 +1249,11 @@ function definirCarteiraAtiva(id, silencioso) {
   } catch (e) { /* navegador sem localStorage: filtro vale só nesta sessão */ }
   if (!silencioso) {
     contratosPaginaAtual = 1;
+    historicoPaginaAtual = 1;
+    despesasPaginaAtual = 1;
+    imoveisPaginaAtual = 1;
     renderAll();
+    atualizarEndereco();
     showToast(carteiraAtiva ? `Mostrando só a carteira "${carteiraNome(carteiraAtiva)}".` : 'Mostrando todas as carteiras.', 'success');
   }
 }
@@ -1334,7 +1338,7 @@ async function checkSession() {
 // Abre o sistema depois do login (ou de uma sessão já aberta). Se os dados não
 // carregarem, mostra a tela de erro e NÃO abre o sistema: com o estado vazio em
 // memória, a primeira gravação apagaria tudo no servidor.
-async function showApp() {
+async function showApp(opcoes = {}) {
   loginScreen.classList.add('hidden');
   document.getElementById('telaErroCarga').classList.add('hidden');
   document.getElementById('telaCarregando').classList.remove('hidden');
@@ -1353,7 +1357,7 @@ async function showApp() {
   appEl.classList.remove('hidden');
   renderAll();
   renderUsuarios();
-  if (typeof mostrarRota === 'function') mostrarRota({ primeiraVez: true });
+  mostrarRota({ primeiraVez: opcoes.primeiraVez });
 }
 
 function showLogin() {
@@ -1422,27 +1426,422 @@ document.getElementById('btnLogout').addEventListener('click', () => sair());
 
 document.getElementById('btnAtualizarTodasDividas').addEventListener('click', () => atualizarTodasDividas());
 
-/* ===================== TABS ===================== */
-document.getElementById('tabsNav').addEventListener('click', (e) => {
-  const btn = e.target.closest('.tab-btn');
-  if (!btn) return;
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-  if (btn.dataset.tab === 'graficos') renderCharts();
-  if (btn.dataset.tab === 'relatorios') renderRelatorios();
-  if (btn.dataset.tab === 'auditoria') renderAuditoria();
-  if (btn.dataset.tab === 'calendario') renderCalendario();
-  if (btn.dataset.tab === 'despesas') renderDespesas();
-  if (btn.dataset.tab === 'imoveis') renderImoveis();
-  if (btn.dataset.tab === 'usuarios') renderUsuarios();
-  // uma tabela desenhada com a aba escondida foi medida com largura zero
-  ajustarTabelasVisiveis();
+/* ===================== ROTAS: cada tela com o próprio endereço =====================
+ * Roteamento por hash dentro do próprio index.html (index.html#/contratos):
+ * funciona igual no `php -S` e no Apache, em qualquer pasta, sem .htaccess e
+ * sem reescrita de URL. Para quem usa, cada tela vira uma página com endereço
+ * próprio: F5 fica na mesma tela, Voltar/Avançar funcionam e dá para favoritar
+ * ou abrir numa aba nova.
+ *
+ * Um ponto só para navegar — navegar() — e um ponto só que mostra a tela a
+ * partir do endereço — mostrarRota(). O que a pessoa escolheu na tela (busca,
+ * filtros, página...) também vai para o endereço, como parâmetros; mudar um
+ * filtro só substitui o endereço atual (replaceState), para o Voltar não passar
+ * por cada letra digitada. Parâmetro inválido ou desconhecido é ignorado.
+ */
+const TITULO_SISTEMA = 'Gestão de Aluguéis';
+
+const SUBTELAS_CONFIG = {
+  financeiro: 'Financeiro', carteiras: 'Carteiras', recibo: 'Recibo', dados: 'Dados', perigo: 'Zona de perigo',
+};
+
+// Parâmetros comuns: mês é 1–12 no endereço (0–11 nos seletores), página ≥ 1.
+function paramMes(params, select) {
+  const n = Number(params.get('mes'));
+  select.value = Number.isInteger(n) && n >= 1 && n <= 12 ? String(n - 1) : '';
+}
+function lerMes(select) {
+  return select.value === '' ? '' : Number(select.value) + 1;
+}
+function paramOpcao(params, nome, select, padrao = '') {
+  const v = params.get(nome);
+  select.value = v !== null && Array.from(select.options).some(o => o.value === v) ? v : padrao;
+}
+function paramPagina(params) {
+  const n = Number(params.get('pagina'));
+  return Number.isInteger(n) && n >= 1 ? n : 1;
+}
+const anoAtual = () => String(new Date().getFullYear());
+const el = (id) => document.getElementById(id);
+
+const ROTAS = {
+  '': { tela: 'dashboard', titulo: 'Dashboard', desenhar: () => renderDashboard() },
+  imoveis: {
+    tela: 'imoveis', titulo: 'Imóveis',
+    aplicar(p) { el('uiImoveisSearch').value = p.get('busca') || ''; imoveisPaginaAtual = paramPagina(p); },
+    ler: () => ({ busca: el('uiImoveisSearch').value.trim(), pagina: imoveisPaginaAtual > 1 ? imoveisPaginaAtual : '' }),
+    desenhar: () => renderImoveis(),
+  },
+  contratos: {
+    tela: 'contratos', titulo: 'Contratos',
+    aplicar(p) {
+      populateAnoFilter();
+      el('searchContratos').value = p.get('busca') || '';
+      el('globalSearch').value = el('searchContratos').value;
+      paramOpcao(p, 'ano', el('filterAno'));
+      paramMes(p, el('filterMes'));
+      paramOpcao(p, 'status', el('filterStatus'));
+      contratosPaginaAtual = paramPagina(p);
+    },
+    ler: () => ({
+      busca: el('searchContratos').value.trim(), ano: el('filterAno').value, mes: lerMes(el('filterMes')),
+      status: el('filterStatus').value, pagina: contratosPaginaAtual > 1 ? contratosPaginaAtual : '',
+    }),
+    desenhar: () => renderContratos(),
+  },
+  atrasos: { tela: 'atrasos', titulo: 'Atrasos', desenhar: () => renderAtrasos() },
+  historico: {
+    tela: 'historico', titulo: 'Histórico',
+    aplicar(p) {
+      populateHistoricoFilter();
+      el('historicoSearch').value = p.get('busca') || '';
+      // o contrato vai no endereço pelo número (#12), não pelo id interno
+      const c = contratosVisiveis().find(x => String(x.numero) === p.get('contrato'));
+      el('historicoFiltroContrato').value = c ? c.id : '';
+      paramOpcao(p, 'ano', el('historicoFiltroAno'));
+      historicoPaginaAtual = paramPagina(p);
+    },
+    ler() {
+      const c = state.contratos.find(x => x.id === el('historicoFiltroContrato').value);
+      return {
+        busca: el('historicoSearch').value.trim(), contrato: c ? c.numero : '', ano: el('historicoFiltroAno').value,
+        pagina: historicoPaginaAtual > 1 ? historicoPaginaAtual : '',
+      };
+    },
+    desenhar: () => renderHistorico(),
+  },
+  despesas: {
+    tela: 'despesas', titulo: 'Despesas',
+    aplicar(p) {
+      populateDespesaAnoFilter();
+      el('despesaBusca').value = p.get('busca') || '';
+      paramOpcao(p, 'ano', el('despesaFiltroAno'), anoAtual());
+      paramMes(p, el('despesaFiltroMes'));
+      despesasPaginaAtual = paramPagina(p);
+    },
+    ler: () => ({
+      busca: el('despesaBusca').value.trim(),
+      ano: el('despesaFiltroAno').value === anoAtual() ? '' : el('despesaFiltroAno').value,
+      mes: lerMes(el('despesaFiltroMes')), pagina: despesasPaginaAtual > 1 ? despesasPaginaAtual : '',
+    }),
+    desenhar: () => renderDespesas(),
+  },
+  graficos: {
+    tela: 'graficos', titulo: 'Gráficos',
+    aplicar(p) {
+      populateGraficoAnoFilter();
+      paramOpcao(p, 'ano', el('graficoAno'), anoAtual());
+      paramOpcao(p, 'agrupar', el('inadimplenciaAgrupador'), 'inquilino');
+    },
+    ler: () => ({
+      ano: el('graficoAno').value === anoAtual() ? '' : el('graficoAno').value,
+      agrupar: el('inadimplenciaAgrupador').value === 'inquilino' ? '' : el('inadimplenciaAgrupador').value,
+    }),
+    desenhar: () => renderCharts(),
+  },
+  relatorios: {
+    tela: 'relatorios', titulo: 'Relatórios',
+    aplicar(p) {
+      populateRelatorioAnoFilter();
+      paramOpcao(p, 'ano', el('relatorioAno'), anoAtual());
+      paramMes(p, el('relatorioMes'));
+    },
+    ler: () => ({
+      ano: el('relatorioAno').value === anoAtual() ? '' : el('relatorioAno').value,
+      mes: lerMes(el('relatorioMes')),
+    }),
+    desenhar: () => renderRelatorios(),
+  },
+  calendario: {
+    tela: 'calendario', titulo: 'Calendário',
+    aplicar(p) {
+      const hoje = new Date();
+      const m = /^(\d{4})-(\d{2})$/.exec(p.get('mes') || '');
+      const ano = m ? Number(m[1]) : 0;
+      const mes = m ? Number(m[2]) : 0;
+      calendarioAtual = (ano >= 1900 && ano <= 9999 && mes >= 1 && mes <= 12)
+        ? new Date(ano, mes - 1, 1)
+        : new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+      // o dia só vale se for um dia de verdade do mês que está na tela
+      const dia = p.get('dia') || '';
+      const d = parseDate(dia);
+      const valido = /^\d{4}-\d{2}-\d{2}$/.test(dia) && !isNaN(d)
+        && d.getFullYear() === calendarioAtual.getFullYear() && d.getMonth() === calendarioAtual.getMonth()
+        && dateStrLocal(d.getFullYear(), d.getMonth(), d.getDate()) === dia;
+      calendarioDiaSelecionado = valido ? dia : null;
+    },
+    ler() {
+      const hoje = new Date();
+      const noMesAtual = calendarioAtual.getFullYear() === hoje.getFullYear() && calendarioAtual.getMonth() === hoje.getMonth();
+      return {
+        mes: noMesAtual ? '' : dateStrLocal(calendarioAtual.getFullYear(), calendarioAtual.getMonth(), 1).slice(0, 7),
+        dia: calendarioDiaSelecionado && !(noMesAtual && calendarioDiaSelecionado === todayStr()) ? calendarioDiaSelecionado : '',
+      };
+    },
+    desenhar: () => renderCalendarioCompleto(),
+  },
+  auditoria: {
+    tela: 'auditoria', titulo: 'Auditoria',
+    aplicar(p) {
+      populateAuditoriaFiltros();
+      paramOpcao(p, 'ano', el('auditoriaFiltroAno'));
+      paramMes(p, el('auditoriaFiltroMes'));
+      paramOpcao(p, 'usuario', el('auditoriaFiltroUsuario'));
+    },
+    ler: () => ({
+      ano: el('auditoriaFiltroAno').value, mes: lerMes(el('auditoriaFiltroMes')), usuario: el('auditoriaFiltroUsuario').value,
+    }),
+    desenhar: () => renderAuditoria(),
+  },
+  usuarios: { tela: 'usuarios', titulo: 'Usuários', desenhar: () => renderUsuarios() },
+  configuracoes: { tela: 'config', titulo: 'Configurações', subtelas: SUBTELAS_CONFIG, desenhar: () => renderConfig() },
+};
+
+// '#/contratos?busca=%2312' → { caminho: 'contratos', sub: '', params }
+function lerEndereco(hash) {
+  const h = (hash === undefined ? location.hash : hash) || '#/';
+  if (!h.startsWith('#/')) return { caminho: null, sub: '', params: new URLSearchParams(), extra: true };
+  const [caminhoBruto, query = ''] = h.slice(2).split('?');
+  let partes;
+  try { partes = caminhoBruto.split('/').filter(Boolean).map(decodeURIComponent); } catch (e) { partes = [null]; }
+  return { caminho: partes[0] || '', sub: partes[1] || '', extra: partes.length > 2, params: new URLSearchParams(query) };
+}
+
+function montarEndereco(caminho, params, sub) {
+  const q = new URLSearchParams();
+  Object.entries(params || {}).forEach(([k, v]) => { if (v !== '' && v !== null && v !== undefined) q.set(k, String(v)); });
+  const texto = q.toString();
+  return '#/' + (caminho || '') + (sub ? '/' + sub : '') + (texto ? '?' + texto : '');
+}
+
+// Qual rota (e subtela) o endereço pede; null quando não existe.
+function resolverRota(end) {
+  const def = end.caminho === null ? null : ROTAS[end.caminho];
+  if (!def || end.extra) return null;
+  if (def.subtelas) {
+    if (end.sub && !def.subtelas[end.sub]) return null;
+    return { def, sub: end.sub || 'financeiro' };
+  }
+  if (end.sub) return null;
+  return { def, sub: '' };
+}
+
+let rotaAtual = null;          // { caminho, sub, tela }
+let enderecoMostrado = null;   // o hash que está na tela agora
+
+function painelAtual() {
+  return document.querySelector('.tab-panel.active');
+}
+
+// Formulários com algo digitado na tela atual (ou na seção de Configurações
+// que está aberta), e o jeito de "descartar" cada um.
+const DESCARTAR_FORMULARIO = {
+  formImovel: () => cancelarEdicaoImovel(),
+  formDespesa: () => cancelarEdicaoDespesa(),
+  addPessoaForm: () => cancelarEdicaoPessoa(),
+  formCarteira: () => cancelarEdicaoCarteira(),
+  formRecibo: () => { reciboFormSujo = false; renderReciboConfig(); },
+};
+
+// Tela (ou seção de Configurações) diferente da que está aberta?
+function trocaDeTela(atual, end) {
+  const rota = resolverRota(end);
+  const tela = rota ? rota.def.tela : 'nao-encontrada';
+  return !atual || tela !== atual.tela || (rota ? rota.sub : '') !== atual.sub;
+}
+
+// Só conta o que está visível: na tela de Configurações, a seção aberta.
+async function podeSairDaTela() {
+  const modal = modalAberto();
+  if (modal && !(await pedirFechamento(modal.id))) return false;
+  const raiz = painelAtual();
+  const sujos = raiz ? formulariosSujos(raiz).filter(elementoVisivel) : [];
+  if (!sujos.length) return true;
+  const descartar = await confirmar({
+    titulo: 'Sair sem salvar?',
+    mensagem: 'Há um formulário nesta tela com alterações que ainda não foram salvas. Se sair agora, elas se perdem.',
+    acao: 'Sair sem salvar',
+    cancelar: 'Continuar editando',
+    perigo: true,
+  });
+  if (!descartar) return false;
+  sujos.forEach(f => {
+    if (DESCARTAR_FORMULARIO[f.id]) DESCARTAR_FORMULARIO[f.id]();
+    else f.reset();
+    marcarLimpo(f);
+  });
+  return true;
+}
+
+// O único ponto de navegação. `substituir` troca o endereço atual em vez de
+// criar uma entrada nova no histórico do navegador; `manterFoco` não leva o foco
+// para o título da tela nova (a busca do topo, por exemplo, continua digitando).
+async function navegar(caminho, params = {}, opcoes = {}) {
+  const destino = montarEndereco(caminho, params, opcoes.sub);
+  if (trocaDeTela(rotaAtual, lerEndereco(destino)) && !(await podeSairDaTela())) return false;
+  if (destino !== location.hash) {
+    if (opcoes.substituir) history.replaceState(null, '', destino);
+    else history.pushState(null, '', destino);
+  }
+  mostrarRota({ manterFoco: opcoes.manterFoco });
+  return true;
+}
+
+// Substitui o endereço atual pelos filtros que estão na tela (sem criar
+// entrada no histórico). Chamado depois de toda mudança de filtro/página.
+function atualizarEndereco() {
+  if (!rotaAtual || !rotaAtual.def) return;
+  const params = rotaAtual.def.ler ? rotaAtual.def.ler() : {};
+  const sub = rotaAtual.def.subtelas && lerEndereco(enderecoMostrado).sub ? rotaAtual.sub : '';
+  const novo = montarEndereco(rotaAtual.caminho, params, sub);
+  if (novo !== location.hash) history.replaceState(null, '', novo);
+  enderecoMostrado = location.hash || '#/';
+}
+
+// O único ponto que mostra uma tela a partir do endereço.
+function mostrarRota(opcoes = {}) {
+  if (!sessaoAtiva) return;
+  const end = lerEndereco();
+  const rota = resolverRota(end);
+  const tela = rota ? rota.def.tela : 'nao-encontrada';
+  const mudouDeTela = !rotaAtual || rotaAtual.tela !== tela;
+
+  // trocar de tela nunca deixa um modal aberto por cima da tela nova
+  while (modalAberto()) {
+    const id = modalAberto().id;
+    if (cancelamentoDosModais[id]) cancelamentoDosModais[id](); // diálogo esperando resposta: "cancelar"
+    else closeModal(id);
+  }
+
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tela));
+  document.querySelectorAll('#tabsNav .tab-btn').forEach(a => {
+    const atual = a.dataset.tab === tela;
+    a.classList.toggle('active', atual);
+    if (atual) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  });
+  if (tela === 'config') {
+    document.querySelectorAll('[data-config-tab]').forEach(a => {
+      const atual = a.dataset.configTab === rota.sub;
+      a.classList.toggle('is-active', atual);
+      if (atual) a.setAttribute('aria-current', 'page');
+      else a.removeAttribute('aria-current');
+    });
+    document.querySelectorAll('[data-config-section]').forEach(sec => {
+      sec.classList.toggle('is-active', sec.dataset.configSection === rota.sub);
+    });
+  }
+
+  if (!rota) {
+    document.getElementById('enderecoNaoEncontrado').textContent = location.hash || '#/';
+    document.title = `Página não encontrada — ${TITULO_SISTEMA}`;
+    rotaAtual = { caminho: end.caminho, sub: '', tela, def: null };
+    enderecoMostrado = location.hash;
+  } else {
+    const nomeSub = rota.def.subtelas ? rota.def.subtelas[rota.sub] : '';
+    document.title = `${nomeSub ? nomeSub + ' · ' : ''}${rota.def.titulo} — ${TITULO_SISTEMA}`;
+    rotaAtual = { caminho: end.caminho, sub: rota.sub, tela, def: rota.def };
+    // o painel já está visível: gráficos e tabelas medidos agora saem com a
+    // largura certa (escondidos, saíam com largura zero)
+    if (rota.def.aplicar) rota.def.aplicar(end.params);
+    if (rota.def.desenhar) preservandoFoco(rota.def.desenhar);
+    ajustarTabelasVisiveis();
+    enderecoMostrado = location.hash || '#/';
+    atualizarEndereco(); // normaliza parâmetros inválidos
+  }
+
+  document.dispatchEvent(new CustomEvent('rota-mudou', { detail: { tela } }));
+  if (mudouDeTela && !opcoes.primeiraVez) {
+    window.scrollTo(0, 0);
+    if (!opcoes.manterFoco) focarTituloDaTela();
+  }
+}
+
+// Voltar/Avançar, endereço digitado à mão, link aberto no mesmo documento.
+let tratandoMudancaDeEndereco = false;
+
+async function aoMudarEndereco() {
+  const novo = location.hash || '#/';
+  if (!sessaoAtiva || novo === enderecoMostrado || tratandoMudancaDeEndereco) return;
+  tratandoMudancaDeEndereco = true;
+  try {
+    const anterior = enderecoMostrado;
+    const modal = modalAberto();
+    if (modal) {
+      // Voltar com um modal aberto fecha o modal e fica na mesma tela (é o que
+      // se espera no celular): o endereço anterior volta para o lugar.
+      history.pushState(null, '', anterior);
+      await pedirFechamento(modal.id);
+      return;
+    }
+    if (trocaDeTela(rotaAtual, lerEndereco(novo)) && !(await podeSairDaTela())) {
+      history.pushState(null, '', anterior);
+      return;
+    }
+    mostrarRota();
+  } finally {
+    tratandoMudancaDeEndereco = false;
+  }
+}
+
+window.addEventListener('popstate', aoMudarEndereco);
+window.addEventListener('hashchange', aoMudarEndereco);
+
+// Links internos (menu, menu do usuário, abas de Configurações, "Ir para o
+// Dashboard"...) passam por navegar(), que pergunta antes de descartar o que foi
+// digitado. Ctrl/⌘+clique, Shift+clique e botão do meio ficam com o navegador —
+// abrem a tela numa aba nova, como qualquer link.
+document.addEventListener('click', (e) => {
+  const a = e.target.closest && e.target.closest('a[href^="#/"]');
+  if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  const end = lerEndereco(a.getAttribute('href'));
+  navegar(end.caminho, Object.fromEntries(end.params), { sub: end.sub });
 });
 
-/* ===================== ATALHOS DE TECLADO ===================== */
-document.addEventListener('keydown', (e) => {
+document.getElementById('linkPularConteudo').addEventListener('click', (e) => {
+  e.preventDefault();
+  focarTituloDaTela();
+});
+
+// Busca do topo: leva a Contratos com a busca no endereço, sem empilhar
+// histórico, e o cursor continua no campo.
+document.getElementById('globalSearch').addEventListener('input', () => {
+  const busca = document.getElementById('globalSearch').value;
+  const params = rotaAtual && rotaAtual.tela === 'contratos' ? rotaAtual.def.ler() : {};
+  navegar('contratos', { ...params, busca: busca.trim(), pagina: '' }, { substituir: true, manterFoco: true });
+});
+document.getElementById('searchContratos').addEventListener('input', () => {
+  document.getElementById('globalSearch').value = document.getElementById('searchContratos').value;
+});
+
+/* ===================== ATALHOS DE TECLADO =====================
+ * N novo contrato, / busca, ? lista de atalhos, Esc fecha. Os de uma tecla só
+ * (N, / e ?) podem ser desligados em Configurações › Financeiro — quem usa
+ * comando de voz ou digita às cegas dispara atalho sem querer. A escolha fica
+ * no navegador (é preferência de quem usa, não dado do sistema).
+ */
+const ATALHOS_KEY = 'aluguelApp_atalhos';
+
+function atalhosLigados() {
+  try { return localStorage.getItem(ATALHOS_KEY) !== 'desligados'; } catch (e) { return true; }
+}
+
+function definirAtalhosLigados(ligados) {
+  try { localStorage.setItem(ATALHOS_KEY, ligados ? 'ligados' : 'desligados'); } catch (e) { /* vale só nesta sessão */ }
+  document.getElementById('configAtalhos').checked = ligados;
+  document.getElementById('btnNovoContrato').title = ligados ? 'Atalho: N' : '';
+}
+
+document.getElementById('configAtalhos').addEventListener('change', (e) => {
+  definirAtalhosLigados(e.target.checked);
+  showToast(e.target.checked ? 'Atalhos de uma tecla ligados.' : 'Atalhos de uma tecla desligados.', 'success');
+});
+document.getElementById('btnVerAtalhos').addEventListener('click', () => openModal('modalAtalhos'));
+document.getElementById('btnAtalhosMenu').addEventListener('click', () => openModal('modalAtalhos'));
+definirAtalhosLigados(atalhosLigados());
+
+document.addEventListener('keydown', async (e) => {
   if (appEl.classList.contains('hidden')) return; // não logado ainda
 
   if (e.key === 'Escape') {
@@ -1456,16 +1855,19 @@ document.addEventListener('keydown', (e) => {
 
   const alvo = document.activeElement;
   const editando = alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.tagName === 'SELECT' || alvo.isContentEditable);
-  if (editando || modalAberto() || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (editando || modalAberto() || e.metaKey || e.ctrlKey || e.altKey || !atalhosLigados()) return;
 
-  if (e.key === 'n') {
+  if (e.key === 'n' || e.key === 'N') {
     e.preventDefault();
-    document.querySelector('.tab-btn[data-tab="contratos"]').click();
-    document.getElementById('btnNovoContrato').click();
+    if (await navegar('contratos', rotaAtual && rotaAtual.tela === 'contratos' ? rotaAtual.def.ler() : {})) {
+      document.getElementById('btnNovoContrato').click();
+    }
   } else if (e.key === '/') {
     e.preventDefault();
-    document.querySelector('.tab-btn[data-tab="contratos"]').click();
-    document.getElementById('searchContratos').focus();
+    document.getElementById('globalSearch').focus();
+  } else if (e.key === '?') {
+    e.preventDefault();
+    openModal('modalAtalhos');
   }
 });
 
@@ -2418,6 +2820,7 @@ function getFilteredDividasFlat() {
   document.getElementById(id).addEventListener('input', () => {
     contratosPaginaAtual = 1;
     renderContratos();
+    atualizarEndereco();
   });
 });
 
@@ -2837,6 +3240,40 @@ function bindDividaCardActions(container) {
   });
 }
 
+/* ===================== PAGINAÇÃO (todas as listas) =====================
+ * Os botões são redesenhados a cada troca de página; o foco volta para o botão
+ * equivalente (ou para o outro, quando este ficou desabilitado na última
+ * página), a página nova é anunciada para o leitor de tela e vai para o
+ * endereço.
+ */
+function renderPaginacao(containerId, { pagina, totalPaginas, total, singular, plural, aoMudar }) {
+  const nav = document.getElementById(containerId);
+  if (totalPaginas <= 1) {
+    nav.innerHTML = '';
+    return;
+  }
+  const texto = `Página ${pagina} de ${totalPaginas} (${total} ${total === 1 ? singular : plural})`;
+  nav.innerHTML = `
+    <button type="button" class="btn btn-ghost btn-sm" data-pagina="anterior" ${pagina <= 1 ? 'disabled' : ''}>‹ Anterior<span class="sr-only"> (página ${pagina - 1})</span></button>
+    <span class="pagination-info">${texto}</span>
+    <button type="button" class="btn btn-ghost btn-sm" data-pagina="proxima" ${pagina >= totalPaginas ? 'disabled' : ''}>Próxima ›<span class="sr-only"> (página ${pagina + 1})</span></button>
+  `;
+  const mudar = (n) => {
+    preservandoFoco(() => aoMudar(n));
+    atualizarEndereco();
+    anunciar(`Página ${n} de ${totalPaginas}`);
+  };
+  nav.querySelector('[data-pagina="anterior"]').addEventListener('click', () => mudar(pagina - 1));
+  nav.querySelector('[data-pagina="proxima"]').addEventListener('click', () => mudar(pagina + 1));
+}
+
+// Frase para o leitor de tela, sem nada visível.
+function anunciar(texto) {
+  const regiao = document.getElementById('anuncio');
+  regiao.textContent = '';
+  setTimeout(() => { regiao.textContent = texto; }, 60);
+}
+
 /* ===================== RENDER: CONTRATOS TAB ===================== */
 const CONTRATOS_POR_PAGINA = 20;
 let contratosPaginaAtual = 1;
@@ -2864,23 +3301,9 @@ function renderContratos() {
 }
 
 function renderContratosPagination(totalPaginas, totalContratos) {
-  const pagination = document.getElementById('contratosPagination');
-  if (totalPaginas <= 1) {
-    pagination.innerHTML = '';
-    return;
-  }
-  pagination.innerHTML = `
-    <button type="button" class="btn btn-ghost btn-sm" id="btnPaginaAnterior" ${contratosPaginaAtual <= 1 ? 'disabled' : ''}>‹ Anterior</button>
-    <span class="pagination-info">Página ${contratosPaginaAtual} de ${totalPaginas} (${totalContratos} contratos)</span>
-    <button type="button" class="btn btn-ghost btn-sm" id="btnPaginaProxima" ${contratosPaginaAtual >= totalPaginas ? 'disabled' : ''}>Próxima ›</button>
-  `;
-  document.getElementById('btnPaginaAnterior').addEventListener('click', () => {
-    contratosPaginaAtual--;
-    renderContratos();
-  });
-  document.getElementById('btnPaginaProxima').addEventListener('click', () => {
-    contratosPaginaAtual++;
-    renderContratos();
+  renderPaginacao('contratosPagination', {
+    pagina: contratosPaginaAtual, totalPaginas, total: totalContratos, singular: 'contrato', plural: 'contratos',
+    aoMudar: (n) => { contratosPaginaAtual = n; renderContratos(); },
   });
 }
 
@@ -2926,12 +3349,7 @@ function renderDashboard() {
 // como "link" clicável nos alertas do Dashboard, para não deixar quem vê o
 // aviso sem um jeito direto de chegar no contrato correspondente.
 function irParaContrato(numero) {
-  const btnContratos = document.querySelector('.tab-btn[data-tab="contratos"]');
-  if (btnContratos) btnContratos.click();
-  const searchInput = document.getElementById('searchContratos');
-  searchInput.value = '#' + numero;
-  contratosPaginaAtual = 1;
-  renderContratos();
+  navegar('contratos', { busca: '#' + numero });
 }
 
 function renderAlertaVencimento(ativos) {
@@ -3102,23 +3520,9 @@ function renderHistorico() {
 }
 
 function renderHistoricoPagination(totalPaginas, totalPagamentos) {
-  const paginacao = document.getElementById('historicoPagination');
-  if (totalPaginas <= 1) {
-    paginacao.innerHTML = '';
-    return;
-  }
-  paginacao.innerHTML = `
-    <button type="button" class="btn btn-ghost btn-sm" id="btnHistoricoAnterior" ${historicoPaginaAtual <= 1 ? 'disabled' : ''}>‹ Anterior</button>
-    <span class="pagination-info">Página ${historicoPaginaAtual} de ${totalPaginas} (${totalPagamentos} pagamentos)</span>
-    <button type="button" class="btn btn-ghost btn-sm" id="btnHistoricoProxima" ${historicoPaginaAtual >= totalPaginas ? 'disabled' : ''}>Próxima ›</button>
-  `;
-  document.getElementById('btnHistoricoAnterior').addEventListener('click', () => {
-    historicoPaginaAtual--;
-    renderHistorico();
-  });
-  document.getElementById('btnHistoricoProxima').addEventListener('click', () => {
-    historicoPaginaAtual++;
-    renderHistorico();
+  renderPaginacao('historicoPagination', {
+    pagina: historicoPaginaAtual, totalPaginas, total: totalPagamentos, singular: 'pagamento', plural: 'pagamentos',
+    aoMudar: (n) => { historicoPaginaAtual = n; renderHistorico(); },
   });
 }
 
@@ -3133,11 +3537,13 @@ function bindReciboButtons(container) {
   document.getElementById(id).addEventListener('change', () => {
     historicoPaginaAtual = 1;
     renderHistorico();
+    atualizarEndereco();
   });
 });
 document.getElementById('historicoSearch').addEventListener('input', () => {
   historicoPaginaAtual = 1;
   renderHistorico();
+  atualizarEndereco();
 });
 
 document.getElementById('btnExportHistorico').addEventListener('click', () => {
@@ -3347,23 +3753,9 @@ function renderDespesas() {
 }
 
 function renderDespesasPagination(totalPaginas, totalDespesas) {
-  const paginacao = document.getElementById('despesasPagination');
-  if (totalPaginas <= 1) {
-    paginacao.innerHTML = '';
-    return;
-  }
-  paginacao.innerHTML = `
-    <button type="button" class="btn btn-ghost btn-sm" id="btnDespesaAnterior" ${despesasPaginaAtual <= 1 ? 'disabled' : ''}>‹ Anterior</button>
-    <span class="pagination-info">Página ${despesasPaginaAtual} de ${totalPaginas} (${totalDespesas} despesas)</span>
-    <button type="button" class="btn btn-ghost btn-sm" id="btnDespesaProxima" ${despesasPaginaAtual >= totalPaginas ? 'disabled' : ''}>Próxima ›</button>
-  `;
-  document.getElementById('btnDespesaAnterior').addEventListener('click', () => {
-    despesasPaginaAtual--;
-    renderDespesas();
-  });
-  document.getElementById('btnDespesaProxima').addEventListener('click', () => {
-    despesasPaginaAtual++;
-    renderDespesas();
+  renderPaginacao('despesasPagination', {
+    pagina: despesasPaginaAtual, totalPaginas, total: totalDespesas, singular: 'despesa', plural: 'despesas',
+    aoMudar: (n) => { despesasPaginaAtual = n; renderDespesas(); },
   });
 }
 
@@ -3459,11 +3851,13 @@ aoEnviar(formDespesa, async () => {
   document.getElementById(id).addEventListener('change', () => {
     despesasPaginaAtual = 1;
     renderDespesas();
+    atualizarEndereco();
   });
 });
 document.getElementById('despesaBusca').addEventListener('input', () => {
   despesasPaginaAtual = 1;
   renderDespesas();
+  atualizarEndereco();
 });
 
 // O botão do topo leva ao formulário: em tela larga ele fica na coluna da
@@ -3853,19 +4247,39 @@ function populateImovelSelect(selectEl, valorAtual) {
   selectEl.value = atual;
 }
 
+const IMOVEIS_POR_PAGINA = 12;
+let imoveisPaginaAtual = 1;
+
 function renderImoveis() {
   const list = document.getElementById('imoveisList');
-  const lista = imoveisVisiveis();
+  const todos = imoveisVisiveis();
+  const busca = document.getElementById('uiImoveisSearch').value.trim().toLowerCase();
   const selectCarteira = document.getElementById('newImovelCarteira');
   // com uma edição em andamento, não mexe no que já está escolhido no formulário
   populateCarteiraSelect(selectCarteira, document.getElementById('imovelId').value ? selectCarteira.value : carteiraAtiva);
   atualizarVisibilidadeCamposCarteira();
 
-  if (!lista.length) {
-    list.innerHTML = '<div class="empty-state">Nenhum imóvel cadastrado ainda.</div>';
+  const lista = busca
+    ? todos.filter(i => (i.nome + ' ' + carteiraNome(i.carteiraId)).toLowerCase().includes(busca))
+    : todos;
+  document.getElementById('uiImoveisCount').textContent = plural(lista.length, 'imóvel', 'imóveis');
+
+  if (!todos.length) {
+    list.innerHTML = '<div class="empty-state">Nenhum imóvel cadastrado ainda. Cadastre o primeiro no formulário ao lado — depois ele aparece na lista ao criar um contrato.</div>';
+    document.getElementById('uiImoveisPagination').innerHTML = '';
     return;
   }
-  list.innerHTML = lista.map(i => `
+  if (!lista.length) {
+    list.innerHTML = '<div class="empty-state">Nenhum imóvel encontrado para esta busca.</div>';
+    document.getElementById('uiImoveisPagination').innerHTML = '';
+    return;
+  }
+
+  const totalPaginas = Math.max(1, Math.ceil(lista.length / IMOVEIS_POR_PAGINA));
+  imoveisPaginaAtual = Math.min(Math.max(imoveisPaginaAtual, 1), totalPaginas);
+  const inicio = (imoveisPaginaAtual - 1) * IMOVEIS_POR_PAGINA;
+
+  list.innerHTML = lista.slice(inicio, inicio + IMOVEIS_POR_PAGINA).map(i => `
     <div class="card">
       <div class="contrato-top">
         <div>
@@ -3873,8 +4287,8 @@ function renderImoveis() {
           ${i.carteiraId && carteiraNome(i.carteiraId) ? `<div class="contrato-sub">${icon('tag')} ${escapeHtml(carteiraNome(i.carteiraId))}</div>` : ''}
         </div>
         <div class="contrato-actions">
-          <button type="button" class="btn btn-ghost btn-sm" data-edit-imovel="${i.id}">${icon('pencil')} Editar</button>
-          <button type="button" class="btn btn-danger btn-sm" data-remove-imovel="${i.id}">${icon('trash')} Remover</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-edit-imovel="${i.id}" aria-label="Editar imóvel ${escapeHtml(i.nome)}">${icon('pencil')} Editar</button>
+          <button type="button" class="btn btn-danger btn-sm" data-remove-imovel="${i.id}" aria-label="Remover imóvel ${escapeHtml(i.nome)}">${icon('trash')} Remover</button>
         </div>
       </div>
     </div>
@@ -3885,7 +4299,17 @@ function renderImoveis() {
   list.querySelectorAll('[data-edit-imovel]').forEach(btn => {
     btn.addEventListener('click', () => editarImovel(btn.dataset.editImovel));
   });
+  renderPaginacao('uiImoveisPagination', {
+    pagina: imoveisPaginaAtual, totalPaginas, total: lista.length, singular: 'imóvel', plural: 'imóveis',
+    aoMudar: (n) => { imoveisPaginaAtual = n; renderImoveis(); },
+  });
 }
+
+document.getElementById('uiImoveisSearch').addEventListener('input', () => {
+  imoveisPaginaAtual = 1;
+  renderImoveis();
+  atualizarEndereco();
+});
 
 async function removeImovel(id) {
   const i = state.imoveis.find(x => x.id === id);
@@ -5324,8 +5748,8 @@ function renderColumnChart(canvasId, labels, values, colorVarName, vazioTexto) {
   desenhar(null);
 }
 
-document.getElementById('inadimplenciaAgrupador').addEventListener('change', () => renderInadimplenciaChart());
-document.getElementById('graficoAno').addEventListener('change', renderCharts);
+document.getElementById('inadimplenciaAgrupador').addEventListener('change', () => { renderInadimplenciaChart(); atualizarEndereco(); });
+document.getElementById('graficoAno').addEventListener('change', () => { renderCharts(); atualizarEndereco(); });
 
 window.addEventListener('resize', () => {
   if (document.getElementById('tab-graficos').classList.contains('active')) renderCharts();
@@ -5880,11 +6304,11 @@ function renderAuditoria() {
   `).join('');
 }
 
-document.getElementById('relatorioAno').addEventListener('change', renderRelatorios);
-document.getElementById('relatorioMes').addEventListener('change', renderRelatorios);
+document.getElementById('relatorioAno').addEventListener('change', () => { renderRelatorios(); atualizarEndereco(); });
+document.getElementById('relatorioMes').addEventListener('change', () => { renderRelatorios(); atualizarEndereco(); });
 
 ['auditoriaFiltroAno', 'auditoriaFiltroMes', 'auditoriaFiltroUsuario'].forEach(id => {
-  document.getElementById(id).addEventListener('change', renderAuditoria);
+  document.getElementById(id).addEventListener('change', () => { renderAuditoria(); atualizarEndereco(); });
 });
 
 /* ===================== CALENDÁRIO ===================== */
@@ -6025,8 +6449,9 @@ function renderCalendario() {
   grid.querySelectorAll('.calendar-day[data-data]').forEach(el => {
     el.addEventListener('click', () => {
       calendarioDiaSelecionado = el.dataset.data;
-      renderCalendario();
-      renderCalendarioDetalhe(el.dataset.data);
+      // a grade é redesenhada: o foco volta para o mesmo dia
+      preservandoFoco(renderCalendarioCompleto);
+      atualizarEndereco();
     });
   });
 
@@ -6040,6 +6465,13 @@ function renderCalendario() {
       renderCalendarioDetalhe(hojeStr);
     }
   }
+}
+
+// Grade + detalhe do dia escolhido (o que vem no endereço, ou hoje).
+function renderCalendarioCompleto() {
+  renderCalendario();
+  if (calendarioDiaSelecionado) renderCalendarioDetalhe(calendarioDiaSelecionado);
+  else document.getElementById('calendarioDetalheCard').classList.add('hidden');
 }
 
 const DIAS_SEMANA_PT = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira',
@@ -6128,8 +6560,9 @@ function renderCalendarioDetalhe(dataStr) {
 function mudarMesCalendario(delta) {
   calendarioAtual.setMonth(calendarioAtual.getMonth() + delta);
   calendarioDiaSelecionado = null;
-  document.getElementById('calendarioDetalheCard').classList.add('hidden');
-  renderCalendario();
+  renderCalendarioCompleto();
+  atualizarEndereco();
+  anunciar(document.getElementById('calendarioMesAno').textContent);
 }
 
 document.getElementById('btnCalendarioAnterior').addEventListener('click', () => mudarMesCalendario(-1));
@@ -6138,8 +6571,9 @@ document.getElementById('btnCalendarioHoje').addEventListener('click', () => {
   calendarioAtual = new Date();
   calendarioAtual.setDate(1);
   calendarioDiaSelecionado = null;
-  document.getElementById('calendarioDetalheCard').classList.add('hidden');
-  renderCalendario();
+  renderCalendarioCompleto();
+  atualizarEndereco();
+  anunciar(document.getElementById('calendarioMesAno').textContent);
 });
 
 /* ===================== DOWNLOAD / EXPORT CSV ===================== */
@@ -6672,7 +7106,7 @@ function renderTudo() {
   const auditoriaTab = document.getElementById('tab-auditoria');
   if (auditoriaTab.classList.contains('active')) renderAuditoria();
   const calendarioTab = document.getElementById('tab-calendario');
-  if (calendarioTab.classList.contains('active')) renderCalendario();
+  if (calendarioTab.classList.contains('active')) renderCalendarioCompleto();
   const despesasTab = document.getElementById('tab-despesas');
   if (despesasTab.classList.contains('active')) renderDespesas();
   ajustarTabelasVisiveis();
@@ -6683,7 +7117,7 @@ function renderTudo() {
   const session = await checkSession();
   if (session) {
     setCurrentUsername(session.username);
-    await showApp();
+    await showApp({ primeiraVez: true });
   } else {
     showLogin();
   }

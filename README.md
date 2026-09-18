@@ -132,7 +132,12 @@ que ficam os seus dados, os usuários e senhas (`data/auth.json`) e a chave de l
 ## O que o sistema faz
 
 A navegação fica numa **sidebar vertical fixa** (recolhível, e que vira gaveta no celular),
-com as 12 telas agrupadas em 5 blocos. No topo há um **header** com busca global, seletor de
+com as 12 telas agrupadas em 5 blocos. **Cada tela tem o próprio endereço**
+(`…/index.html#/contratos`, `#/relatorios?ano=2025&mes=7`, `#/configuracoes/recibo`): o F5
+fica na mesma tela, com os mesmos filtros e a mesma página; Voltar e Avançar do navegador
+funcionam; dá para favoritar uma tela ou abri-la numa aba nova (Ctrl+clique ou botão do
+meio no menu); e um link aberto sem estar logado leva ao login e, depois de entrar, à tela
+pedida. No topo há um **header** com busca global, seletor de
 carteira (só aparece se você administra imóveis de mais de um proprietário — veja abaixo),
 botão de atualizar dívidas, notificações (que espelham os alertas do Dashboard), alternância
 de tema claro/escuro e o menu do usuário.
@@ -330,8 +335,11 @@ existindo, só voltam a ficar sem carteira.
   gaveta no celular; funciona de 360px até telas grandes
 - **Login protegido** — sessão de 30 dias, não desloga ao fechar o navegador. Suporta
   múltiplos usuários administradores, todos com o mesmo nível de acesso
-- **Atalhos de teclado** — `N` abre um novo contrato, `/` foca a busca, `Esc` fecha
-  modais e menus
+- **Atalhos de teclado** — `N` abre um novo contrato, `/` vai para a busca do topo, `?`
+  mostra a lista de atalhos, `Esc` fecha modais e menus. Os de uma tecla só podem ser
+  desligados em **Configurações → Financeiro** (a escolha fica no navegador)
+- **Nada se perde sem aviso** — fechar um formulário alterado, trocar de tela ou recarregar
+  a página com algo digitado e não salvo pede confirmação antes
 
 ## Perguntas frequentes
 
@@ -486,7 +494,20 @@ geração de nova chave — são todas ações de alto impacto.
 - **Front-end**: `index.html` + `css/` + `index.js` + `ui.js`. Aplicação de página única
   (SPA): as 12 telas (Dashboard, Imóveis, Contratos, Atrasos, Histórico, Despesas,
   Gráficos, Relatórios, Calendário, Auditoria, Usuários, Configurações) são seções que aparecem/somem
-  no mesmo HTML, sem recarregar a página. A navegação fica numa **sidebar vertical fixa**
+  no mesmo HTML, sem recarregar a página.
+- **Endereço de cada tela (roteamento por hash)**: `#/`, `#/imoveis`, `#/contratos`,
+  `#/atrasos`, `#/historico`, `#/despesas`, `#/graficos`, `#/relatorios`, `#/calendario`,
+  `#/auditoria`, `#/usuarios` e `#/configuracoes/financeiro|carteiras|recibo|dados|perigo`
+  (`#/configuracoes` sozinho abre Financeiro). Hash porque funciona igual no `php -S` e no
+  Apache, em qualquer pasta, sem `.htaccess` nem reescrita de URL. Os filtros vão como
+  parâmetros (`busca`, `ano`, `mes` de 1 a 12, `status`, `contrato` pelo número, `usuario`,
+  `pagina`, `agrupar`, e no calendário `mes=AAAA-MM` e `dia=AAAA-MM-DD`); parâmetro inválido
+  é ignorado. A carteira ativa não vai no endereço (continua como preferência do navegador).
+  Em `index.js`, `navegar()` é o único ponto de navegação e `mostrarRota()` o único que
+  mostra uma tela a partir do endereço; `ROTAS` diz, para cada tela, como aplicar e ler os
+  parâmetros e como desenhá-la. Trocar de tela cria entrada no histórico; mudar filtro,
+  busca ou página só substitui a atual (`replaceState`). Cada tela é desenhada ao ser aberta,
+  depois de visível (tabelas e gráficos medidos escondidos saíam com largura zero). A navegação fica numa **sidebar vertical fixa**
   (280px, recolhível para 76px com o estado salvo no navegador; vira gaveta no celular),
   agrupada em 5 blocos: Dashboard, Gestão, Financeiro, Agenda e Sistema. O header traz
   busca global, seletor de carteira (quando há carteiras cadastradas), atualização de
