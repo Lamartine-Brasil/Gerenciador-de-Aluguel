@@ -110,6 +110,89 @@ function uuid() {
 
 const AUDITORIA_MAX = 300;
 
+/* ---- Normalização dos dados lidos (servidor, backup, CSV) ----
+ * O dados.json é gravado inteiro pelo navegador, e um backup restaurado vem de
+ * um arquivo qualquer: nada garante que um "número" seja número ou que um id
+ * seja só letras. Antes de qualquer coisa ir para a tela, cada campo conhecido
+ * volta ao tipo certo — números viram números, ids ficam só com letras,
+ * dígitos, "_" e "-", datas fora do formato AAAA-MM-DD ficam vazias. Assim um
+ * valor malicioso nunca chega ao HTML como código. Campos que não existem não
+ * são criados (a ausência de alguns, como condominioRecebido, tem significado).
+ */
+const CAMPOS_NUMERICOS = new Set([
+  'aluguel', 'desconto', 'juros', 'multa', 'condominio', 'corretorPercentual', 'caucao',
+  'valorCaucaoDevolvida', 'total', 'valorAtrasoBase', 'valor', 'criadoEm', 'timestamp',
+  'taxaJurosMensal', 'taxaMultaPercent', 'corretorPercentualPadrao', 'percentualReajusteSugerido',
+]);
+const CAMPOS_NUMERICOS_OPCIONAIS = new Set(['valorCaucaoDevolvida']); // null tem significado
+const CAMPOS_DATA = new Set([
+  'vencimento', 'dataInicio', 'data', 'dataPagamento', 'dataUltimoReajuste',
+  'dataEncerramento', 'dataCaucaoDevolvida', 'ultimoVencimentoGerado',
+]);
+const CAMPOS_BOOLEANOS = new Set(['pago', 'encerrado', 'condominioDireto', 'caucaoDevolvida', 'condominioRecebido']);
+const CAMPOS_LISTA = new Set(['contratos', 'dividas', 'pagamentos', 'pessoas', 'despesas', 'imoveis', 'carteiras', 'auditoria', 'corretores']);
+
+function idSeguro(v) {
+  if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+  if (typeof v !== 'string') return '';
+  return v.replace(/[^\w-]/g, '_').slice(0, 80);
+}
+
+function normalizarValor(chave, v) {
+  if (chave === 'id' || /Id$/.test(chave)) return v === null || v === undefined ? v : idSeguro(v);
+  if (chave === 'numero') {
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) && n > 0 ? n : undefined; // sem número: a migração dá um
+  }
+  if (chave === 'diaPagamento') {
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? Math.min(31, Math.max(1, n)) : 1;
+  }
+  if (CAMPOS_NUMERICOS.has(chave)) {
+    if ((v === null || v === undefined) && CAMPOS_NUMERICOS_OPCIONAIS.has(chave)) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+  if (CAMPOS_DATA.has(chave)) {
+    if (v === null || v === undefined) return v;
+    return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+  }
+  if (CAMPOS_BOOLEANOS.has(chave)) return !!v;
+  if (chave === 'anexoContrato') {
+    return typeof v === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(v) ? v : null;
+  }
+  if (CAMPOS_LISTA.has(chave)) {
+    return Array.isArray(v) ? v.filter(x => x && typeof x === 'object' && !Array.isArray(x)).map(x => normalizarObjeto(x)) : [];
+  }
+  if (chave === 'alteracoes') return Array.isArray(v) ? v.filter(x => x && typeof x === 'object') : [];
+  if (v && typeof v === 'object' && !Array.isArray(v)) return normalizarObjeto(v);
+  return v;
+}
+
+function normalizarObjeto(obj) {
+  const saida = {};
+  Object.keys(obj).forEach(chave => {
+    if (chave === '__proto__' || chave === 'constructor' || chave === 'prototype') return;
+    const v = normalizarValor(chave, obj[chave]);
+    if (v !== undefined) saida[chave] = v;
+  });
+  return saida;
+}
+
+function normalizarDados(dados) {
+  const d = normalizarObjeto(dados && typeof dados === 'object' ? dados : {});
+  ['contratos', 'auditoria', 'pessoas', 'despesas', 'imoveis', 'carteiras'].forEach(k => {
+    if (!Array.isArray(d[k])) delete d[k];
+  });
+  if (!d.config || typeof d.config !== 'object' || Array.isArray(d.config)) d.config = {};
+  return d;
+}
+
+// Arredonda para centavos — todo valor em R$ é gravado com 2 casas.
+function arredondar(v) {
+  return Math.round((Number(v) || 0) * 100 + Number.EPSILON) / 100;
+}
+
 // `alteracoes` (opcional) é uma lista de { campo, de, para } — o diff campo a
 // campo de uma edição, exibido em detalhe na aba Auditoria. Chamadas que não
 // passam esse argumento continuam funcionando normalmente (viram []).
@@ -178,8 +261,12 @@ function primeiroVencimento(dataInicioStr, diaPagamento) {
 
 // Soma N meses a uma data "AAAA-MM-DD", mantendo o mesmo dia do mês sempre que
 // possível (ex: 31 de janeiro + 1 mês vira 28/29 de fevereiro, não 2/3 de março).
-function addMonthsClamped(dateStr, n) {
-  const [y, m, d] = dateStr.split('-').map(Number);
+// `diaDesejado` (opcional) é o dia que se quer no mês de destino: sem ele, um
+// vencimento já "cortado" (28/02 de um contrato de dia 31) passaria o corte
+// adiante e todos os meses seguintes cairiam no dia 28.
+function addMonthsClamped(dateStr, n, diaDesejado) {
+  const [y, m, dOriginal] = dateStr.split('-').map(Number);
+  const d = Number(diaDesejado) || dOriginal;
   const totalMonths = (m - 1) + n;
   const targetYear = y + Math.floor(totalMonths / 12);
   const targetMonth = ((totalMonths % 12) + 12) % 12;
@@ -228,16 +315,16 @@ function precisaReajuste(c) {
 
 function valorReajusteSugerido(c) {
   const percentual = state.config.percentualReajusteSugerido || 0;
-  return c.aluguel * (1 + percentual / 100);
+  return arredondar(c.aluguel * (1 + percentual / 100));
 }
 
 // A partir de um vencimento inicial, gera a lista de vencimentos mensais
 // (mesmo dia do mês) até o mês mais recente que já venceu (sem passar de hoje).
-function gerarVencimentosAtePresente(vencimentoInicial) {
+function gerarVencimentosAtePresente(vencimentoInicial, diaPagamento) {
   const hoje = todayStr();
   const lista = [vencimentoInicial];
   for (let i = 1; i <= 360; i++) {
-    const proximo = addMonthsClamped(vencimentoInicial, i);
+    const proximo = addMonthsClamped(vencimentoInicial, i, diaPagamento);
     if (proximo > hoje) break;
     lista.push(proximo);
   }
@@ -280,7 +367,8 @@ function lerNumero(texto) {
     t = partes[0] + '.' + partes[1];
   } else if (temPonto) {
     const partes = t.split('.');
-    const ehMilhar = partes.length > 2 || partes[1].length === 3;
+    // "0.125" e ".125" são decimais (não existe milhar começando em zero)
+    const ehMilhar = partes.length > 2 || (partes[1].length === 3 && partes[0] !== '' && partes[0] !== '0');
     if (ehMilhar) {
       if (!gruposDeMilhar(partes)) return NaN;
       t = partes.join('');
@@ -321,7 +409,7 @@ document.addEventListener('change', (e) => {
 }, true);
 
 function formatCurrency(value) {
-  return (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  return (Number(value) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 function icon(nome) {
@@ -358,13 +446,20 @@ function diasAtraso(d) {
   return diff > 0 ? diff : 0;
 }
 
+// Base dos juros e da multa por atraso: o total a cobrar SEM os juros e a multa
+// já lançados na parcela — senão a multa incidia sobre a própria multa.
+function baseDoAtraso(d) {
+  return (Number(d.total) || 0) - (Number(d.juros) || 0) - (Number(d.multa) || 0);
+}
+
 function calcAtrasoAtual(d) {
   if (d.pago) return 0;
   const dias = diasAtraso(d);
   if (dias <= 0) return Number(d.valorAtrasoBase) || 0;
   const meses = dias / 30;
-  const jurosCalc = d.total * (state.config.taxaJurosMensal / 100) * meses;
-  const multaCalc = d.total * (state.config.taxaMultaPercent / 100);
+  const base = baseDoAtraso(d);
+  const jurosCalc = base * ((Number(state.config.taxaJurosMensal) || 0) / 100) * meses;
+  const multaCalc = base * ((Number(state.config.taxaMultaPercent) || 0) / 100);
   return (Number(d.valorAtrasoBase) || 0) + jurosCalc + multaCalc;
 }
 
@@ -916,8 +1011,11 @@ let sessaoAtiva = false; // true depois que os dados foram carregados
 
 async function apiFetch(path, options = {}) {
   const opcoes = { credentials: 'same-origin', cache: 'no-store', ...options };
+  // X-Requested-With: o servidor só aceita gravações com ele (ou com JSON) —
+  // é a proteção contra outro site enviar formulários para cá (CSRF)
+  opcoes.headers = { 'X-Requested-With': 'aluguel', ...(options.headers || {}) };
   if (!(options.body instanceof FormData)) {
-    opcoes.headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+    opcoes.headers['Content-Type'] = opcoes.headers['Content-Type'] || 'application/json';
   }
   let res = await fetch(API_BASE + path, opcoes);
   if (res.status === 401 && sessaoAtiva) {
@@ -937,8 +1035,9 @@ async function fetchState() {
     const corpo = await res.json().catch(() => ({}));
     throw new Error(corpo.error || `O servidor respondeu com erro (${res.status}).`);
   }
-  const data = await res.json();
-  const versao = Number(data.versao) || 0;
+  const bruto = await res.json();
+  const versao = Number(bruto.versao) || 0;
+  const data = normalizarDados(bruto);
   delete data.versao;
   data.contratos = data.contratos || [];
   data.config = Object.assign({}, CONFIG_PADRAO, data.config || {});
@@ -1214,7 +1313,7 @@ aoEnviar(document.getElementById('formSessao'), async () => {
     const res = await fetch(API_BASE + 'login.php', {
       method: 'POST',
       credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'aluguel' },
       body: JSON.stringify({ username: document.getElementById('sessaoUsuario').value.trim(), password: senha.value }),
     });
     const data = await res.json();
@@ -1372,7 +1471,8 @@ function contratosVisiveis() {
 function carteiraDaDespesa(d) {
   if (d.contratoId) {
     const c = state.contratos.find(x => x.id === d.contratoId);
-    return c ? (c.carteiraId || '') : '';
+    // contrato excluído: vale a carteira guardada na despesa
+    return c ? (c.carteiraId || '') : (d.carteiraId || '');
   }
   return d.carteiraId || '';
 }
@@ -1579,7 +1679,7 @@ async function sair() {
     });
     if (!sairMesmo) return;
   }
-  try { await fetch(API_BASE + 'logout.php', { method: 'POST', credentials: 'same-origin' }); } catch (e) { /* segue para o login mesmo assim */ }
+  try { await fetch(API_BASE + 'logout.php', { method: 'POST', credentials: 'same-origin', headers: { 'X-Requested-With': 'aluguel' } }); } catch (e) { /* segue para o login mesmo assim */ }
   saindoDeProposito = true;
   sessaoAtiva = false;
   history.replaceState(null, '', location.pathname + location.search + '#/');
@@ -1608,6 +1708,7 @@ formLogin.addEventListener('submit', async (e) => {
       errorEl.classList.add('hidden');
       setCurrentUsername(data.username);
       await showApp();
+      avisarSenhaPadrao(data.senhaPadrao);
     } else {
       errorEl.textContent = data.error || 'Usuário ou senha incorretos.';
       errorEl.classList.remove('hidden');
@@ -2145,8 +2246,13 @@ document.getElementById('btnNovoContrato').addEventListener('click', () => {
   document.getElementById('modalContratoTitle').textContent = 'Novo contrato';
   document.getElementById('fDataInicio').value = todayStr();
   document.getElementById('fDiaPagamento').value = new Date().getDate();
-  escreverValor('fJurosPercentual', state.config.taxaJurosMensal || '');
-  escreverValor('fMultaPercentual', state.config.taxaMultaPercent || '');
+  // Juros e multa do contrato começam vazios: são um acréscimo FIXO em todas as
+  // parcelas, inclusive as pagas em dia. Os juros e a multa por atraso são
+  // calculados sozinhos (calcAtrasoAtual) com as taxas de Configurações —
+  // pré-preencher aqui com essas taxas cobrava 3% a mais de quem paga em dia e
+  // a multa duas vezes de quem atrasa.
+  escreverValor('fJurosPercentual', '');
+  escreverValor('fMultaPercentual', '');
   document.getElementById('fCampoDataInicio').classList.remove('hidden');
   document.getElementById('fCampoDiaPagamento').classList.remove('hidden');
   document.getElementById('fCampoImovel').classList.remove('hidden');
@@ -2239,8 +2345,8 @@ aoEnviar(formContrato, async () => {
   } else {
     const jurosPct = valorCampo('fJurosPercentual');
     const multaPct = valorCampo('fMultaPercentual');
-    jurosValue = aluguelValue * jurosPct / 100;
-    multaValue = aluguelValue * multaPct / 100;
+    jurosValue = arredondar(aluguelValue * jurosPct / 100);
+    multaValue = arredondar(aluguelValue * multaPct / 100);
   }
 
   const camposDivida = {
@@ -2253,7 +2359,7 @@ aoEnviar(formContrato, async () => {
     valorAtrasoBase: valorCampo('fValorAtraso'),
     observacao: document.getElementById('fObservacao').value.trim(),
   };
-  camposDivida.total = calcTotal(camposDivida);
+  camposDivida.total = arredondar(calcTotal(camposDivida));
   let mensagemSucesso = '';
 
   if (dividaId) {
@@ -2282,7 +2388,7 @@ aoEnviar(formContrato, async () => {
     const caucao = valorCampo('fCaucao');
 
     const primeiroVenc = primeiroVencimento(dataInicio, diaPagamento);
-    const vencimentos = gerarVencimentosAtePresente(primeiroVenc);
+    const vencimentos = gerarVencimentosAtePresente(primeiroVenc, diaPagamento);
 
     if (vencimentos.length > 1) {
       const ok = await confirmar({
@@ -2343,6 +2449,7 @@ aoEnviar(formContrato, async () => {
       valorCaucaoDevolvida: null,
       encerrado: false,
       dataEncerramento: null,
+      ultimoVencimentoGerado: vencimentos[vencimentos.length - 1],
       criadoEm: Date.now(),
       dividas,
     });
@@ -2372,10 +2479,21 @@ async function excluirContrato(contratoId) {
     perigo: true,
   }))) return;
   state.contratos = state.contratos.filter(x => x.id !== contratoId);
+  // As despesas ligadas ao contrato continuam existindo; guardam a carteira
+  // dele, senão sumiriam dos relatórios daquela carteira.
+  state.despesas.forEach(d => {
+    if (d.contratoId === contratoId) {
+      d.carteiraId = c.carteiraId || '';
+    }
+  });
   registrarAuditoria('contrato_excluido', `Contrato excluído: ${c.imovel} - ${c.inquilino} (${c.dividas.length} dívida(s))`);
   const ok = await saveState();
   renderAll();
-  if (ok) showToast('Contrato excluído.', 'success');
+  if (ok) {
+    // o contrato assinado tem dados pessoais: sai do servidor junto com o contrato
+    if (c.anexoContrato) removerArquivoAnexo(c.anexoContrato);
+    showToast('Contrato excluído.', 'success');
+  }
 }
 
 // Encerrar é diferente de excluir: não apaga nenhum dado (as dívidas e o
@@ -2403,6 +2521,13 @@ async function reabrirContrato(contratoId) {
   if (!c) return;
   c.encerrado = false;
   c.dataEncerramento = null;
+  // Retoma a cobrança a partir de agora: o período em que o contrato ficou
+  // encerrado não vira dívida. O marcador fica no último vencimento antes de
+  // hoje, então a próxima dívida é a primeira com vencimento de hoje em diante.
+  const hoje = todayStr();
+  const vencNoMes = addMonthsClamped(hoje.slice(0, 8) + '01', 0, c.diaPagamento);
+  const anteriorAHoje = vencNoMes < hoje ? vencNoMes : addMonthsClamped(vencNoMes, -1, c.diaPagamento);
+  if (anteriorAHoje > ultimoVencimentoDoContrato(c)) c.ultimoVencimentoGerado = anteriorAHoje;
   registrarAuditoria('contrato_reaberto', `Contrato reaberto: ${c.imovel} - ${c.inquilino}`);
   const ok = await saveState();
   renderAll();
@@ -2419,6 +2544,8 @@ async function excluirDivida(dividaId) {
     acao: 'Excluir dívida',
     perigo: true,
   }))) return;
+  // guarda até onde já se gerou, para a dívida excluída não ser recriada
+  c.ultimoVencimentoGerado = ultimoVencimentoDoContrato(c);
   c.dividas = c.dividas.filter(x => x.id !== dividaId);
   registrarAuditoria('divida_excluida', `Dívida excluída: ${c.imovel} - ${c.inquilino} (${formatDate(d.vencimento)})`);
   const ok = await saveState();
@@ -2433,18 +2560,33 @@ async function excluirDivida(dividaId) {
 // mostra toast — para poder ser reaproveitada tanto pelo botão de um
 // contrato só quanto pela atualização em lote de todos os contratos.
 // Retorna quantas dívidas novas foram geradas.
+// Último vencimento que este contrato já teve: o maior entre as dívidas que
+// existem e o marcador `ultimoVencimentoGerado`. O marcador é o que impede que
+// dívidas excluídas de propósito voltem na próxima abertura do sistema.
+function ultimoVencimentoDoContrato(c) {
+  let ultimo = c.ultimoVencimentoGerado || '';
+  c.dividas.forEach(d => { if (d.vencimento && d.vencimento > ultimo) ultimo = d.vencimento; });
+  return ultimo;
+}
+
 function gerarDividasFaltantes(c) {
   if (c.encerrado) return 0;
   let vencimentos;
-  if (!c.dividas.length) {
-    vencimentos = gerarVencimentosAtePresente(primeiroVencimento(c.dataInicio, c.diaPagamento));
+  const ultimo = ultimoVencimentoDoContrato(c);
+  if (!ultimo) {
+    vencimentos = gerarVencimentosAtePresente(primeiroVencimento(c.dataInicio, c.diaPagamento), c.diaPagamento);
   } else {
-    const ultima = c.dividas.slice().sort((a, b) => a.vencimento < b.vencimento ? -1 : 1).pop();
-    const proximoVenc = addMonthsClamped(ultima.vencimento, 1);
-    vencimentos = proximoVenc > todayStr() ? [] : gerarVencimentosAtePresente(proximoVenc);
+    // o próximo vencimento sai sempre do dia de pagamento do contrato, não do
+    // dia da dívida anterior (que pode ter sido cortado em fevereiro)
+    const proximoVenc = addMonthsClamped(ultimo, 1, c.diaPagamento);
+    vencimentos = proximoVenc > todayStr() ? [] : gerarVencimentosAtePresente(proximoVenc, c.diaPagamento);
   }
 
-  if (!vencimentos.length) return 0;
+  if (!vencimentos.length) {
+    if (ultimo && c.ultimoVencimentoGerado !== ultimo) c.ultimoVencimentoGerado = ultimo;
+    return 0;
+  }
+  c.ultimoVencimentoGerado = vencimentos[vencimentos.length - 1];
 
   vencimentos.forEach((venc, idx) => {
     c.dividas.push({
@@ -2456,7 +2598,7 @@ function gerarDividasFaltantes(c) {
       multa: c.multa,
       condominio: c.condominio,
       condominioDireto: !!c.condominioDireto,
-      total: calcTotal(c),
+      total: arredondar(calcTotal(c)),
       valorAtrasoBase: 0,
       observacao: '',
       pago: false,
@@ -2527,6 +2669,12 @@ function openContratoInfo(contratoId) {
   atualizarVisibilidadeCamposCarteira();
   document.getElementById('infoInquilino').value = c.inquilino;
   escreverValor('infoCaucao', c.caucao || '');
+  document.getElementById('infoDiaPagamento').value = c.diaPagamento || '';
+  escreverValor('infoDesconto', c.desconto || '');
+  escreverValor('infoJuros', c.juros || '');
+  escreverValor('infoMulta', c.multa || '');
+  escreverValor('infoCondominio', c.condominio || '');
+  document.getElementById('infoCondominioDireto').value = c.condominioDireto ? '1' : '0';
   populatePessoaSelect(document.getElementById('infoQuemRecebeu'), c.quemRecebeu || '', 'Nenhum / outro');
   document.getElementById('infoContratoSubtitle').textContent = (c.dataInicio
     ? `Contrato #${c.numero} — Início: ${formatDate(c.dataInicio)}, todo dia ${c.diaPagamento}`
@@ -2555,14 +2703,22 @@ document.getElementById('infoCorretorPercentual').addEventListener('input', atua
 const LABELS_CONTRATO_INFO = {
   imovel: 'Imóvel', inquilino: 'Inquilino', quemRecebeu: 'Quem recebe',
   corretorNome: 'Corretor', corretorPercentual: 'Percentual do corretor (%)',
-  caucao: 'Caução (R$)',
+  caucao: 'Caução (R$)', diaPagamento: 'Dia de pagamento', desconto: 'Desconto (R$)',
+  juros: 'Juros fixos (R$)', multa: 'Multa fixa (R$)', condominio: 'Condomínio (R$)',
+  condominioDireto: 'Condomínio pago direto pelo inquilino',
 };
 
 aoEnviar(formContratoInfo, async () => {
   const id = document.getElementById('infoContratoId').value;
   const c = state.contratos.find(x => x.id === id);
   if (!c) return;
-  const antes = Object.assign({}, c);
+  // campos ausentes em contratos antigos contam como 0/false (senão a Auditoria
+  // registraria "undefined → 0" em toda edição)
+  const antes = Object.assign({}, c, {
+    condominioDireto: !!c.condominioDireto,
+    desconto: Number(c.desconto) || 0, juros: Number(c.juros) || 0,
+    multa: Number(c.multa) || 0, condominio: Number(c.condominio) || 0,
+  });
 
   c.imovel = document.getElementById('infoImovel').value.trim();
   c.inquilino = document.getElementById('infoInquilino').value.trim();
@@ -2570,6 +2726,41 @@ aoEnviar(formContratoInfo, async () => {
   c.corretorNome = document.getElementById('infoCorretorNome').value;
   c.corretorPercentual = valorCampo('infoCorretorPercentual');
   c.caucao = valorCampo('infoCaucao');
+
+  // Valores padrão das próximas dívidas: valem para as que serão geradas e para
+  // as em aberto que ainda não venceram (as vencidas e as pagas ficam como estão)
+  const dia = parseInt(document.getElementById('infoDiaPagamento').value, 10);
+  if (!(dia >= 1 && dia <= 31)) {
+    showToast('Informe um dia de pagamento válido (1 a 31).', 'error');
+    return false;
+  }
+  c.diaPagamento = dia;
+  c.desconto = arredondar(valorCampo('infoDesconto'));
+  c.juros = arredondar(valorCampo('infoJuros'));
+  c.multa = arredondar(valorCampo('infoMulta'));
+  c.condominio = arredondar(valorCampo('infoCondominio'));
+  c.condominioDireto = document.getElementById('infoCondominioDireto').value === '1';
+  const mudouValores = ['diaPagamento', 'desconto', 'juros', 'multa', 'condominio', 'condominioDireto']
+    .some(k => (antes[k] || 0) !== (c[k] || 0));
+  if (mudouValores) {
+    const hoje = todayStr();
+    c.dividas.forEach(d => {
+      if (d.pago || d.vencimento < hoje) return;
+      d.desconto = c.desconto;
+      d.juros = c.juros;
+      d.multa = c.multa;
+      d.condominio = c.condominio;
+      d.condominioDireto = c.condominioDireto;
+      d.total = arredondar(calcTotal(d));
+      if (antes.diaPagamento !== c.diaPagamento) {
+        const novoVenc = addMonthsClamped(d.vencimento.slice(0, 8) + '01', 0, c.diaPagamento);
+        if (novoVenc >= hoje) d.vencimento = novoVenc;
+      }
+    });
+    if (antes.diaPagamento !== c.diaPagamento && c.ultimoVencimentoGerado) {
+      c.ultimoVencimentoGerado = addMonthsClamped(c.ultimoVencimentoGerado.slice(0, 8) + '01', 0, c.diaPagamento);
+    }
+  }
 
   const carteiraAntiga = antes.carteiraId || '';
   c.carteiraId = document.getElementById('infoCarteira').value || '';
@@ -2591,6 +2782,14 @@ aoEnviar(formContratoInfo, async () => {
 });
 
 /* ===================== ANEXO DO CONTRATO ===================== */
+// Apaga o arquivo no servidor — só quando nenhum outro contrato aponta para ele.
+async function removerArquivoAnexo(arquivo) {
+  if (!arquivo || state.contratos.some(x => x.anexoContrato === arquivo)) return;
+  try {
+    await apiFetch('anexo.php', { method: 'POST', body: JSON.stringify({ action: 'remove', file: arquivo }) });
+  } catch (err) { /* o contrato já não aponta para o arquivo; sobra só um arquivo solto */ }
+}
+
 function renderAnexoAtual(c) {
   const bloco = document.getElementById('fAnexoAtual');
   const input = document.getElementById('fAnexoInput');
@@ -2624,9 +2823,12 @@ document.getElementById('fAnexoInput').addEventListener('change', async () => {
     const res = await apiFetch('anexo.php', { method: 'POST', body: formData });
     const data = await res.json();
     if (res.ok && data.ok) {
+      const anterior = c.anexoContrato;
       c.anexoContrato = data.filename;
       registrarAuditoria('contrato_editado', `Contrato anexado: ${c.imovel} - ${c.inquilino}`);
       const ok = await saveState();
+      // trocar um PDF por um JPG gera outro nome: o arquivo antigo não fica solto
+      if (ok && anterior && anterior !== data.filename) removerArquivoAnexo(anterior);
       renderAnexoAtual(c);
       renderAll();
       if (ok) showToast('Contrato anexado com sucesso.', 'success');
@@ -2662,9 +2864,7 @@ document.getElementById('btnRemoverAnexo').addEventListener('click', async () =>
     renderAll();
     return;
   }
-  try {
-    await apiFetch('anexo.php', { method: 'POST', body: JSON.stringify({ action: 'remove', file: arquivo }) });
-  } catch (err) { /* o contrato já não aponta para o arquivo; sobra só um arquivo solto */ }
+  await removerArquivoAnexo(arquivo);
   renderAnexoAtual(c);
   renderAll();
   showToast('Anexo removido.', 'success');
@@ -2689,6 +2889,9 @@ function openReajuste(contratoId) {
   } else {
     escreverValor('reajusteNovoValor', '');
   }
+  // no aniversário, o reajuste vale desde a data do aniversário (aplicar com
+  // atraso não empurra os aniversários seguintes); fora dele, a partir de hoje
+  document.getElementById('reajusteVigencia').value = sugerido ? dataAniversarioReajuste(c) : todayStr();
   openModal('modalReajuste');
 }
 
@@ -2697,16 +2900,18 @@ aoEnviar(formReajuste, async () => {
   const c = state.contratos.find(x => x.id === id);
   if (!c) return;
   const valorAntigo = c.aluguel;
-  const novoValor = valorCampo('reajusteNovoValor');
+  const novoValor = arredondar(valorCampo('reajusteNovoValor'));
   if (novoValor <= 0) return false;
+  const vigencia = document.getElementById('reajusteVigencia').value || todayStr();
 
   c.aluguel = novoValor;
-  c.dataUltimoReajuste = todayStr();
+  c.dataUltimoReajuste = vigencia;
   let dividasAtualizadas = 0;
   c.dividas.forEach(d => {
-    if (!d.pago) {
+    // um aluguel que venceu antes do reajuste continua com o valor da época
+    if (!d.pago && d.vencimento >= vigencia) {
       d.aluguel = novoValor;
-      d.total = calcTotal(d);
+      d.total = arredondar(calcTotal(d));
       dividasAtualizadas++;
     }
   });
@@ -2934,20 +3139,28 @@ function openHistoricoContrato(contratoId) {
   openModal('modalHistoricoContrato');
 }
 
+// Escapa também as aspas: o resultado é usado tanto no meio do texto quanto
+// dentro de atributos (title="...", aria-label="...", value="...").
+const ESCAPES_HTML = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 function escapeHtml(str) {
-  if (!str) return '';
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/[&<>"']/g, c => ESCAPES_HTML[c]);
 }
 
 /* ===================== FILTERS ===================== */
+// Busca por texto. "#12" sozinho procura o contrato nº 12 exato — sem isso,
+// "#1" trazia também o 10, o 11, ..., o 19 (inclusive pelos links dos alertas).
+function buscaCorresponde(busca, numero, textos) {
+  const soNumero = /^#(\d+)$/.exec(busca);
+  if (soNumero) return Number(soNumero[1]) === Number(numero);
+  return (textos.join(' ') + ' #' + (numero || '')).toLowerCase().includes(busca);
+}
+
 // Um contrato "passa" no filtro se pelo menos uma das suas dívidas bater com
 // os critérios (ano/mês/status); a busca por texto olha o imóvel/inquilino.
 function contratoPassaFiltro(c, { search, ano, mes, status }) {
   if (search) {
-    const haystack = (c.inquilino + ' ' + c.imovel + ' #' + (c.numero || '') + ' ' + carteiraNome(c.carteiraId)).toLowerCase();
-    if (!haystack.includes(search)) return false;
+    if (!buscaCorresponde(search, c.numero, [c.inquilino, c.imovel, carteiraNome(c.carteiraId)])) return false;
   }
   if (!ano && mes === '' && !status) return true;
   return c.dividas.some(d => {
@@ -3004,8 +3217,7 @@ function getFilteredDividasFlat() {
     // mesma busca da tela (inquilino, imóvel, #número e carteira): o arquivo
     // precisa sair com o que a tela mostra
     if (filtros.search) {
-      const haystack = (d.inquilino + ' ' + d.imovel + ' #' + (d.numero || '') + ' ' + carteiraNome(d.carteiraId)).toLowerCase();
-      if (!haystack.includes(filtros.search)) return false;
+      if (!buscaCorresponde(filtros.search, d.numero, [d.inquilino, d.imovel, carteiraNome(d.carteiraId)])) return false;
     }
     const venc = parseDate(d.vencimento);
     if (filtros.ano && venc.getFullYear() !== Number(filtros.ano)) return false;
@@ -3679,9 +3891,7 @@ function historicoFiltrado() {
     c.dividas.forEach(d => d.pagamentos.forEach((p, indice) => {
       if (filtroAno && parseDate(p.data).getFullYear() !== Number(filtroAno)) return;
       if (busca) {
-        const alvo = [c.imovel, c.inquilino, p.forma, p.quemRecebeu, p.observacao, p.motivoDesconto, '#' + (c.numero || '')]
-          .join(' ').toLowerCase();
-        if (!alvo.includes(busca)) return;
+        if (!buscaCorresponde(busca, c.numero, [c.imovel, c.inquilino, p.forma, p.quemRecebeu, p.observacao, p.motivoDesconto])) return;
       }
       entries.push({ ...p, contrato: c, divida: d, indicePagamento: indice });
     }));
@@ -4741,6 +4951,7 @@ aoEnviar(accountForm, async () => {
     const data = await res.json();
     if (res.ok && data.ok) {
       setCurrentUsername(data.username);
+      avisarSenhaPadrao(!!data.senhaPadrao);
       document.getElementById('accUsername').value = data.username;
       document.getElementById('accCurrentPassword').value = '';
       document.getElementById('accNewPassword').value = '';
@@ -4926,7 +5137,11 @@ document.getElementById('inputImportBackup').addEventListener('change', (e) => {
       perigo: true,
     }))) return;
 
-    state = parsed;
+    // a auditoria não vem do backup: o histórico do que aconteceu aqui continua
+    // (o servidor também não aceita apagar nem reescrever registros antigos)
+    const auditoriaAtual = state.auditoria || [];
+    state = normalizarDados(parsed);
+    state.auditoria = auditoriaAtual;
     delete state.versao; // quem manda na versão é o servidor
     if (precisaMigrarContratos(state.contratos)) {
       state.contratos = migrarContratos(state.contratos);
@@ -4956,20 +5171,28 @@ document.getElementById('inputImportBackup').addEventListener('change', (e) => {
 document.getElementById('btnDeleteDatabase').addEventListener('click', async () => {
   const digitado = await pedirTexto({
     titulo: 'Excluir todos os dados?',
-    mensagem: 'Isso apaga para sempre todos os contratos, pagamentos, despesas e configurações salvos no servidor. Os usuários e senhas de acesso continuam. Não dá para desfazer: exporte um backup antes, se quiser guardar os dados.',
+    mensagem: 'Isso apaga para sempre todos os contratos, pagamentos, despesas e configurações salvos no servidor. Os usuários e senhas de acesso e o histórico da Auditoria continuam. Não dá para desfazer: exporte um backup antes, se quiser guardar os dados.',
     rotulo: 'Para confirmar, digite EXCLUIR',
     acao: 'Excluir todos os dados',
     perigo: true,
     validar: (v) => v === 'EXCLUIR' ? null : 'Digite EXCLUIR, em letras maiúsculas, para confirmar.',
   });
   if (digitado === null) return;
+  const anexos = state.contratos.map(c => c.anexoContrato).filter(Boolean);
+  // a Auditoria não é apagada (o servidor também não aceita apagar registros)
+  const auditoria = state.auditoria || [];
   state = estadoVazio();
+  state.auditoria = auditoria;
   registrarAuditoria('dados_excluidos', 'Todos os dados foram excluídos (Zona de perigo)');
   definirCarteiraAtiva('', true);
   reciboFormSujo = false;
   const ok = await saveState();
   renderAll();
-  if (ok) showToast('Todos os dados foram excluídos.', 'success');
+  if (ok) {
+    // os contratos assinados anexados também saem do servidor
+    for (const arquivo of anexos) await removerArquivoAnexo(arquivo);
+    showToast('Todos os dados foram excluídos.', 'success');
+  }
 });
 
 /* ===================== RECIBO DE PAGAMENTO =====================
@@ -5232,8 +5455,12 @@ function abrirJanelaImpressao(titulo, estilo, corpo) {
   janela.document.write(`<!DOCTYPE html>
 <html lang="pt-BR"><head><meta charset="UTF-8"><title>${escapeHtml(titulo)}</title>
 <style>${estilo}</style></head>
-<body onload="window.print()">${corpo}</body></html>`);
+<body>${corpo}</body></html>`);
   janela.document.close();
+  // sem onload="..." no HTML: a política de segurança (CSP) da página, herdada
+  // pela janela, não deixa rodar código escrito dentro do HTML
+  if (janela.document.readyState === 'complete') janela.print();
+  else janela.addEventListener('load', () => janela.print());
   return true;
 }
 
@@ -5729,7 +5956,7 @@ function renderStatusChart(ano) {
 }
 
 function renderFormaPagamentoChart(ano) {
-  const totais = {};
+  const totais = Object.create(null); // chaves vêm do texto digitado (ex: "__proto__")
   todasDividas().forEach(d => d.pagamentos.forEach(p => {
     if (parseDate(p.data).getFullYear() !== ano) return;
     const forma = p.forma || 'Não informado';
@@ -6041,7 +6268,7 @@ function renderInadimplenciaChart(ano) {
   const anoAlvo = ano != null ? ano : anoGraficoSelecionado();
   const atrasadas = todasDividas().filter(d =>
     getStatus(d) === 'atrasado' && parseDate(d.vencimento).getFullYear() === anoAlvo);
-  const totais = {};
+  const totais = Object.create(null); // chaves vêm do texto digitado (ex: "__proto__")
   atrasadas.forEach(d => {
     const chave = agrupador === 'imovel' ? d.imovel : d.inquilino;
     totais[chave] = (totais[chave] || 0) + d.total + calcAtrasoAtual(d);
@@ -6266,7 +6493,7 @@ function calcularRelatorio(ano, mes) {
 
   const recebidoAno = somarPagamentos(noPeriodo);
 
-  const porForma = {};
+  const porForma = Object.create(null); // chaves vêm do texto digitado (ex: "__proto__")
   dividas.forEach(d => (d.pagamentos || []).forEach(p => {
     if (!noPeriodo(p)) return;
     const forma = p.forma || 'Não informado';
@@ -7009,9 +7236,20 @@ function baixarArquivo(nome, conteudo, tipo) {
 // Recebe as linhas já prontas (inclusive linhas em branco, usadas para separar
 // seções num relatório) e gera o arquivo. O BOM no início é o que faz o Excel
 // abrir os acentos corretamente.
+// Um texto que começa com =, +, -, @ (ou tab/CR) vira fórmula no Excel e no
+// LibreOffice — um nome de inquilino "=HYPERLINK(...)" executaria ao abrir a
+// planilha. Esses textos ganham um apóstrofo na frente, que a planilha mostra
+// como texto comum. Números negativos ("-12,50") continuam números.
+function celulaCsvSegura(field) {
+  const texto = field === null || field === undefined ? '' : String(field);
+  if (typeof field === 'number') return texto;
+  const perigoso = /^[=+@\t\r]/.test(texto) || (/^-/.test(texto) && !/^-[\d.,]+$/.test(texto));
+  return perigoso ? "'" + texto : texto;
+}
+
 function downloadCsvRows(filename, rows) {
   const csvContent = rows
-    .map(row => row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(';'))
+    .map(row => row.map(field => `"${celulaCsvSegura(field).replace(/"/g, '""')}"`).join(';'))
     .join('\r\n');
 
   baixarArquivo(filename, '\ufeff' + csvContent, 'text/csv;charset=utf-8;');
@@ -7136,43 +7374,69 @@ document.getElementById('btnExportHistoricoContrato').addEventListener('click', 
   showToast('CSV do contrato exportado com sucesso.', 'success');
 });
 
-/* ===================== IMPORT CSV (contratos) ===================== */
-function parseCsvLine(line, delimiter) {
-  const result = [];
+/* ===================== IMPORT CSV (contratos) =====================
+ * Lê o CSV exportado pelo botão "Exportar CSV" (uma linha por dívida) e
+ * remonta os contratos: as linhas do mesmo contrato viram as dívidas de UM
+ * contrato, e as dívidas pagas voltam pagas. Valores aceitam 1250.50 (como o
+ * sistema exporta) e 1.250,50 (como o Excel em português grava).
+ */
+
+// Lê o arquivo inteiro respeitando as aspas: uma observação com quebra de
+// linha fica dentro de uma célula só, em vez de partir a linha em duas.
+function parseCsv(text, delimiter = ';') {
+  const t = String(text).replace(/^﻿/, '');
+  const linhas = [];
+  let linha = [];
   let cur = '';
   let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
     if (inQuotes) {
       if (ch === '"') {
-        if (line[i + 1] === '"') { cur += '"'; i++; } else { inQuotes = false; }
+        if (t[i + 1] === '"') { cur += '"'; i++; } else { inQuotes = false; }
       } else {
         cur += ch;
       }
     } else if (ch === '"') {
       inQuotes = true;
     } else if (ch === delimiter) {
-      result.push(cur);
+      linha.push(cur);
+      cur = '';
+    } else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && t[i + 1] === '\n') i++;
+      linha.push(cur);
+      if (linha.length > 1 || linha[0] !== '') linhas.push(linha);
+      linha = [];
       cur = '';
     } else {
       cur += ch;
     }
   }
-  result.push(cur);
-  return result;
+  linha.push(cur);
+  if (linha.length > 1 || linha[0] !== '') linhas.push(linha);
+  return linhas;
 }
 
-function parseCsv(text) {
-  const clean = text.replace(/^﻿/, '');
-  return clean.split(/\r\n|\n/).filter(l => l.length > 0).map(l => parseCsvLine(l, ';'));
-}
-
+// "DD-MM-AAAA" (ou com "/") → "AAAA-MM-DD"; null se não for uma data que existe.
 function parseDateBR(str) {
-  const partes = (str || '').split('-');
-  if (partes.length !== 3) return null;
-  const [d, m, y] = partes;
-  if (!d || !m || !y) return null;
-  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  const m = String(str || '').trim().match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (!m) return null;
+  const [, d, mes, y] = m.map(Number);
+  const data = new Date(y, mes - 1, d);
+  if (data.getFullYear() !== y || data.getMonth() !== mes - 1 || data.getDate() !== d) return null;
+  return `${y}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+// Valor de uma célula do CSV: 0 quando vazio ou inválido; tira o apóstrofo que
+// a exportação põe na frente de textos que pareceriam fórmula.
+function numeroDoCsv(celula) {
+  const n = lerNumero(String(celula == null ? '' : celula).replace(/^'/, ''));
+  return Number.isFinite(n) ? arredondar(n) : 0;
+}
+
+function textoDoCsv(celula) {
+  const t = String(celula == null ? '' : celula).trim();
+  return /^'[=+\-@\t\r]/.test(t) ? t.slice(1) : t;
 }
 
 document.getElementById('btnImportCSV').addEventListener('click', () => {
@@ -7187,42 +7451,92 @@ document.getElementById('inputImportCSV').addEventListener('change', (e) => {
   reader.onload = async () => {
     const linhas = parseCsv(String(reader.result));
     const linhasDados = linhas.slice(1); // pula o cabeçalho
-    let importados = 0;
+    // Arquivo exportado por este sistema (todas as colunas): "Valor em Atraso"
+    // é o juros/multa calculado no dia da exportação — recalculado sozinho
+    // aqui, então não entra de novo como atraso herdado.
+    const exportadoPeloSistema = (linhas[0] || []).length >= 26;
     let ignorados = 0;
 
+    // Colunas na mesma ordem do CSV exportado (ver btnExportCSV): 0 Nº Contrato,
+    // 1 Vencimento, 2 Imóvel, 3 Inquilino, 4 Aluguel, 5 Desconto, 6 Juros,
+    // 7 Multa, 8 Condomínio, 9 Total, 10 Valor em Atraso, 11 Status, 12 Quem
+    // Recebe, 13 Observação, 14 Carteira, 16 Corretor, 17 % Corretor,
+    // 21 Já Recebido, 22 Pago em, 23 Situação, 24 Início, 25 Dia de Pagamento,
+    // 26 Caução, 27 Condomínio Pago Direto. As colunas do fim são opcionais.
+    const grupos = new Map();
     linhasDados.forEach(row => {
-      // Colunas seguem a mesma ordem do CSV exportado (ver btnExportCSV):
-      // Nº Contrato (ignorado — é sempre gerado de novo), Vencimento, Imóvel,
-      // Inquilino, Aluguel, Desconto, Juros, Multa, Condomínio, Total, Valor
-      // em Atraso, Status, Quem Recebe, Observação, Carteira (opcional: só
-      // existe em arquivos exportados depois das carteiras, e vale só se uma
-      // carteira com esse nome já estiver cadastrada aqui)
       const vencimento = parseDateBR(row[1]);
-      const imovel = (row[2] || '').trim();
-      const inquilino = (row[3] || '').trim();
+      const imovel = textoDoCsv(row[2]);
+      const inquilino = textoDoCsv(row[3]);
       if (!vencimento || !imovel || !inquilino) { ignorados++; return; }
+      const numero = String(row[0] || '').trim();
+      const inicio = parseDateBR(row[24]) || '';
+      const dia = String(row[25] || '').trim();
+      const chave = [numero, imovel.toLowerCase(), inquilino.toLowerCase(), numero ? '' : inicio, numero ? '' : dia].join('\u0001');
+      if (!grupos.has(chave)) grupos.set(chave, []);
+      grupos.get(chave).push({ row, vencimento, imovel, inquilino });
+    });
 
-      const aluguel = parseFloat(row[4]) || 0;
-      const desconto = parseFloat(row[5]) || 0;
-      const juros = parseFloat(row[6]) || 0;
-      const multa = parseFloat(row[7]) || 0;
-      const condominio = parseFloat(row[8]) || 0;
-      const quemRecebeu = (row[12] || '').trim();
-      const nomeCarteira = (row[14] || '').trim().toLowerCase();
+    let importados = 0;
+    let dividasImportadas = 0;
+    let jaExistiam = 0;
+    grupos.forEach(itens => {
+      itens.sort((a, b) => a.vencimento < b.vencimento ? -1 : 1);
+      const primeiro = itens[0];
+      const ultimo = itens[itens.length - 1].row;
+      const { imovel, inquilino } = primeiro;
+      const dataInicio = parseDateBR(primeiro.row[24]) || primeiro.vencimento;
+      const diaLido = parseInt(primeiro.row[25], 10);
+      const diaPagamento = diaLido >= 1 && diaLido <= 31 ? diaLido : parseDate(primeiro.vencimento).getDate();
+
+      // importar o mesmo arquivo duas vezes não duplica o contrato
+      if (state.contratos.some(c => c.imovel.toLowerCase() === imovel.toLowerCase()
+        && c.inquilino.toLowerCase() === inquilino.toLowerCase() && c.dataInicio === dataInicio)) {
+        jaExistiam++;
+        return;
+      }
+
+      const nomeCarteira = textoDoCsv(ultimo[14]).toLowerCase();
       const carteira = nomeCarteira ? state.carteiras.find(x => x.nome.toLowerCase() === nomeCarteira) : null;
+      const condominioDireto = textoDoCsv(ultimo[27]).toLowerCase() === 'sim';
+      const corretorNome = textoDoCsv(ultimo[16]);
 
-      const divida = {
-        id: uuid(),
-        vencimento,
-        aluguel, desconto, juros, multa, condominio,
-        valorAtrasoBase: parseFloat(row[10]) || 0,
-        observacao: (row[13] || '').trim(),
-        pago: false,
-        dataPagamento: null,
-        pagamentos: [],
-        criadoEm: Date.now(),
-      };
-      divida.total = calcTotal(divida);
+      const dividas = itens.map(({ row, vencimento }, idx) => {
+        const divida = {
+          id: uuid(),
+          vencimento,
+          aluguel: numeroDoCsv(row[4]),
+          desconto: numeroDoCsv(row[5]),
+          juros: numeroDoCsv(row[6]),
+          multa: numeroDoCsv(row[7]),
+          condominio: numeroDoCsv(row[8]),
+          condominioDireto,
+          valorAtrasoBase: exportadoPeloSistema ? 0 : numeroDoCsv(row[10]),
+          observacao: textoDoCsv(row[13]),
+          pago: false,
+          dataPagamento: null,
+          pagamentos: [],
+          criadoEm: Date.now() + idx,
+        };
+        divida.total = arredondar(calcTotal(divida));
+        if (textoDoCsv(row[11]).toLowerCase() === 'pago') {
+          const dataPagamento = parseDateBR(row[22]) || vencimento;
+          const recebido = numeroDoCsv(row[21]);
+          divida.pago = true;
+          divida.dataPagamento = dataPagamento;
+          divida.pagamentos.push({
+            data: dataPagamento,
+            desconto: 0,
+            motivoDesconto: '',
+            valor: recebido || divida.total,
+            forma: '',
+            quemRecebeu: textoDoCsv(row[12]),
+            observacao: 'Importado de CSV',
+          });
+        }
+        return divida;
+      });
+      const base = dividas[dividas.length - 1];
 
       state.contratos.push({
         id: uuid(),
@@ -7230,28 +7544,42 @@ document.getElementById('inputImportCSV').addEventListener('change', (e) => {
         imovel,
         carteiraId: carteira ? carteira.id : '',
         inquilino,
-        quemRecebeu,
-        dataInicio: vencimento,
-        diaPagamento: parseDate(vencimento).getDate(),
-        aluguel, desconto, juros, multa, condominio,
+        quemRecebeu: textoDoCsv(ultimo[12]),
+        dataInicio,
+        diaPagamento,
+        aluguel: base.aluguel, desconto: base.desconto, juros: base.juros, multa: base.multa,
+        condominio: base.condominio,
+        condominioDireto,
         anexoContrato: null,
-        dataUltimoReajuste: vencimento,
-        encerrado: false,
+        corretorNome,
+        corretorPercentual: corretorNome ? numeroDoCsv(ultimo[17]) : 0,
+        caucao: numeroDoCsv(ultimo[26]),
+        caucaoDevolvida: false,
+        dataCaucaoDevolvida: null,
+        valorCaucaoDevolvida: null,
+        dataUltimoReajuste: dataInicio,
+        encerrado: textoDoCsv(ultimo[23]).toLowerCase() === 'encerrado',
         dataEncerramento: null,
+        ultimoVencimentoGerado: base.vencimento,
         criadoEm: Date.now(),
-        dividas: [divida],
+        dividas,
       });
       importados++;
+      dividasImportadas += dividas.length;
     });
 
+    const extras = [
+      ignorados ? `${ignorados} linha(s) sem vencimento, imóvel ou inquilino ignorada(s)` : '',
+      jaExistiam ? `${jaExistiam} contrato(s) que já existiam ignorado(s)` : '',
+    ].filter(Boolean).join(', ');
     if (!importados) {
-      showToast(`Nenhum contrato importado${ignorados ? `: ${ignorados} linha(s) sem vencimento, imóvel ou inquilino` : ''}. Confira se o arquivo é um CSV exportado por este sistema.`, 'error');
+      showToast(`Nenhum contrato importado${extras ? `: ${extras}` : ''}. Confira se o arquivo é um CSV exportado por este sistema.`, 'error');
       return;
     }
-    registrarAuditoria('contrato_criado', `Importação de CSV: ${importados} contrato(s) criado(s)${ignorados ? `, ${ignorados} linha(s) ignorada(s)` : ''}`);
+    registrarAuditoria('contrato_criado', `Importação de CSV: ${importados} contrato(s) criado(s) com ${dividasImportadas} dívida(s)${extras ? `; ${extras}` : ''}`);
     const ok = await saveState();
     renderAll();
-    if (ok) showToast(`${importados} contrato(s) importado(s)${ignorados ? `, ${ignorados} linha(s) ignorada(s)` : ''}.`, 'success');
+    if (ok) showToast(`${importados} contrato(s) importado(s), com ${dividasImportadas} dívida(s)${extras ? `; ${extras}` : ''}.`, 'success');
   };
   reader.readAsText(file, 'UTF-8');
   e.target.value = '';
@@ -7529,12 +7857,20 @@ function renderTudo() {
   ajustarTabelasVisiveis();
 }
 
+// A senha padrão (12345678) está publicada no README: enquanto ela não for
+// trocada, qualquer um entra. Uma faixa fica no topo de todas as telas até a
+// troca, com um link para o formulário da conta (Usuários).
+function avisarSenhaPadrao(senhaPadrao) {
+  document.getElementById('avisoSenhaPadrao').classList.toggle('hidden', !senhaPadrao);
+}
+
 /* ===================== INIT ===================== */
 (async function init() {
   const session = await checkSession();
   if (session) {
     setCurrentUsername(session.username);
     await showApp({ primeiraVez: true });
+    avisarSenhaPadrao(session.senhaPadrao);
   } else {
     showLogin();
   }

@@ -80,7 +80,10 @@ test.describe('Proteção dos dados', () => {
     const antes = servidor.lerDados().contratos.reduce((s, c) => s + c.dividas.length, 0);
     const login = await context.request.post(servidor.url + 'api/login.php', { data: { username: 'admin', password: '12345678' } });
     expect(login.ok()).toBeTruthy();
-    const abrir = async (atraso) => {
+    // O relógio é configurado uma aba de cada vez: duas chamadas de
+    // clock.setFixedTime ao mesmo tempo no mesmo contexto às vezes quebram dentro
+    // do próprio Playwright. Só a abertura das páginas é que acontece junto.
+    const preparar = async (atraso) => {
       const p = await context.newPage();
       // um mês depois: todos os contratos em andamento ganham dívida nova
       await p.clock.setFixedTime(new Date('2026-10-21T09:00:00'));
@@ -88,11 +91,12 @@ test.describe('Proteção dos dados', () => {
         if (r.request().method() === 'POST') await new Promise(x => setTimeout(x, atraso));
         return r.continue();
       });
-      await p.goto(servidor.url);
       return p;
     };
+    const a = await preparar(900);
+    const b = await preparar(0);
     // a primeira aba demora para gravar: a segunda carrega e grava no meio
-    const [a, b] = await Promise.all([abrir(900), abrir(0)]);
+    await Promise.all([a.goto(servidor.url), b.goto(servidor.url)]);
     await expect(a.locator('#app')).toBeVisible();
     await expect(b.locator('#app')).toBeVisible();
     await expect.poll(() => servidor.lerDados().versao, { timeout: 10000 }).toBeGreaterThanOrEqual(1);
@@ -228,7 +232,7 @@ test.describe('Servidor', () => {
     try {
       const url = `http://127.0.0.1:${porta}/api/`;
       for (let i = 0; i < 50; i++) { try { await fetch(url + 'session.php'); break; } catch { await new Promise(r => setTimeout(r, 100)); } }
-      const login = await fetch(url + 'login.php', { method: 'POST', body: JSON.stringify({ username: 'admin', password: '12345678' }) });
+      const login = await fetch(url + 'login.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'admin', password: '12345678' }) });
       const cookie = login.headers.get('set-cookie').split(';')[0];
       const h = { Cookie: cookie, 'Content-Type': 'application/json' };
       let versao = 0;
@@ -261,13 +265,13 @@ test.describe('Servidor', () => {
 
   test('F · desconectar os outros acessos mantém quem pediu e derruba os demais', async ({ servidor }) => {
     const entrar = async () => {
-      const r = await fetch(servidor.url + 'api/login.php', { method: 'POST', body: JSON.stringify({ username: 'admin', password: '12345678' }) });
+      const r = await fetch(servidor.url + 'api/login.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'admin', password: '12345678' }) });
       return r.headers.get('set-cookie').split(';')[0];
     };
     const eu = await entrar();
     const outro = await entrar();
     const r = await fetch(servidor.url + 'api/regenerate_secret.php', {
-      method: 'POST', headers: { Cookie: eu }, body: JSON.stringify({ currentPassword: '12345678' }),
+      method: 'POST', headers: { Cookie: eu, 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword: '12345678' }),
     });
     expect(r.status).toBe(200);
     const novo = r.headers.get('set-cookie').split(';')[0];

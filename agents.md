@@ -124,7 +124,7 @@ Resumo técnico do que existe agora:
 - **`index.html`**: menu com `<a href="#/...">`, `h1` em cada tela, abas de
   Configurações como links, tela "Página não encontrada", modais novos
   (`modalConfirmacao`, `modalConflito`, `modalSessao`, `modalAtalhos`), telas
-  `telaCarregando` e `telaErroCarga`, CSS/JS com `?v=3.0` (trocar o número a
+  `telaCarregando` e `telaErroCarga`, CSS/JS com `?v=3.1` (trocar o número a
   cada versão).
 
 ## 4. Commits depois da primeira versão deste arquivo
@@ -161,11 +161,28 @@ a item está em `docs/revisao-funcional.md` ("Status na entrega").
   `node tests/diagnostico/<script>.js`); os testes de verdade são os de
   `tests/specs/`.
 
+## 5a. Revisão de segurança e funcionamento (outubro/2026)
+
+Branch `claude/rental-manager-code-review-epks1d`, um commit só. O que mudou está em
+`etapas.txt` 3.5 e nas seções do README ("Como o login funciona", "As contas do
+dinheiro", "Auditoria"). Resumo: escape de aspas + `normalizarDados()` (XSS), CSP,
+CSRF (`protegerContraCsrf()`), cookie preso ao hash da senha, validação do nome de
+usuário, faixa de senha padrão, auditoria decidida pelo servidor, fórmulas no CSV,
+vencimentos 29-31, juros/multa fixos começam vazios e o atraso não incide sobre eles,
+importação de CSV remonta os contratos, busca "#N" exata, reajuste com vigência, edição
+dos valores das próximas dívidas, `ultimoVencimentoGerado`, anexos órfãos,
+`roteador-dev.php`. Por pedido explícito do dono ("corrija tudo"), mexeu em regras
+financeiras (juros/multa) — o U20 continua sem mexer. Testes novos em
+`tests/specs/correcoes.spec.js`; 107 testes passando no Chromium.
+
+Ambiente sem o Chromium da versão do Playwright: rode com
+`launchOptions.executablePath` apontando para o Chromium instalado.
+
 ## 5b. Se for continuar
 
 - Rodar os testes antes e depois de qualquer mudança:
   `cd tests && npm install && npx playwright install chromium && npm run test:chromium`.
-- Ao lançar versão, trocar o `?v=3.0` dos CSS/JS no `index.html`.
+- Ao lançar versão, trocar o `?v=3.1` dos CSS/JS no `index.html`.
 
 ## 6. Armadilhas já encontradas
 

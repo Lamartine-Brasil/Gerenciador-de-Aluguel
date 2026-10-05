@@ -96,6 +96,9 @@ test.describe('Só com teclado', () => {
     await tabAte(page, page.locator('#pagQuemRecebeu'));
     await page.keyboard.type('A');
     await expect(page.locator('#pagQuemRecebeu')).toHaveValue('Ana Recebedora');
+    // Enter num <select> abre a lista no Chrome para Linux/Windows (no macOS
+    // envia o formulário): vai com Tab até o botão e confirma nele
+    await tabAte(page, page.locator('#formPagamento button[type="submit"]'));
     await page.keyboard.press('Enter');
     await expect(page.locator('#toast')).toContainText('Pagamento registrado');
     // o foco não se perde: volta para a linha (o botão "pagar" sumiu; fica no recibo ou no título)

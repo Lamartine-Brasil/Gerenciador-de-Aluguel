@@ -55,7 +55,7 @@ Organização deste documento:
 - Corretor é opcional por contrato: nome escolhido da lista de Pessoas + percentual
   (padrão configurável, 5% de fábrica). Com "Nenhum" selecionado a comissão não existe.
 - Quanto pagar a cada corretor aparece em dois lugares: card "Corretor a pagar no mês" no
-  Dashboard (com a quebra por corretor) e tabela "Comissão de corretores no ano" em
+  Dashboard (com a quebra por corretor) e tabela "Comissão prevista de corretores no ano" em
   Relatórios (também no CSV do relatório).
 
 1.4 Condomínio: cobrado junto ou pago direto
@@ -220,9 +220,16 @@ dentro de Contratos, Atrasos ou Histórico.
 - [x] Lançamento retroativo: se a data de início já passou, gera uma dívida por mês até o
       mês atual, todas no MESMO contrato, pedindo confirmação com a contagem. O "valor em
       atraso já existente" só entra na dívida mais recente
-- [x] Juros e Multa são digitados em **percentual** do aluguel na criação (pré-preenchidos
-      com as taxas de Configurações) e convertidos para R$ ao salvar; na edição de uma
-      dívida existente são digitados direto em R$ (valor fixo daquele mês)
+- [x] Juros e Multa fixos são digitados em **percentual** do aluguel na criação (começam
+      vazios: entram em TODA parcela, e o atraso já é calculado sozinho) e convertidos para
+      R$ ao salvar; na edição de uma dívida existente são digitados direto em R$ (valor fixo
+      daquele mês). "Editar contrato" muda dia de pagamento, desconto, juros/multa fixos e
+      condomínio das próximas dívidas e das em aberto ainda não vencidas
+- [x] Vencimentos nos dias 29/30/31 voltam ao dia certo depois de um mês curto (antes
+      ficavam presos no dia 28 depois do primeiro fevereiro)
+- [x] Dívida excluída não volta na próxima abertura, e reabrir um contrato encerrado não
+      cobra o período em que ficou encerrado (`ultimoVencimentoGerado`)
+- [x] Reajuste com data de vigência: só muda dívidas em aberto que vencem dali em diante
 - [x] "Atualizar dívidas" por contrato gera os meses que faltam com os valores padrão
       atuais; o botão global do topo faz isso para todos, e a mesma checagem roda sozinha
       a cada login — as dívidas ficam em dia sem cron no servidor e sem depender de clique
@@ -464,7 +471,7 @@ dentro de Contratos, Atrasos ou Histórico.
 2.15 Configurações (5 abas)
 - Financeiro
   - [x] Taxa de juros mensal (%) e multa fixa por atraso (%) — usadas no cálculo do atraso
-        e como percentual padrão de Juros/Multa em contratos novos
+        (base: a parcela sem os juros/multa fixos; juros proporcionais aos dias)
   - [x] Percentual padrão do corretor (%) e percentual de reajuste sugerido (%)
 - Carteiras
   - [x] Cadastro das carteiras/proprietários, com a contagem de contratos e imóveis de
@@ -510,9 +517,12 @@ inclusive a carteira selecionada.
       dia de pagamento, caução e se o condomínio é pago direto.
       As 14 primeiras colunas nunca mudam de posição: a importação lê por posição, e mexer
       nelas quebraria arquivos antigos. Tudo que é novo entra sempre no fim da linha
-- [x] **Importação de contratos por CSV** (mesmo formato): cada linha vira um contrato com
-      uma dívida. Reconhece a coluna "Carteira" quando existe e a carteira já está
-      cadastrada; ignora colunas que não conhece
+- [x] **Importação de contratos por CSV** (mesmo formato): as linhas do mesmo contrato
+      (nº, imóvel, inquilino) viram UM contrato com todas as dívidas; as pagas voltam pagas;
+      lê início, dia de pagamento, corretor, caução e condomínio direto quando existem;
+      valores em `1250.50` ou `1.250,50`; observação com várias linhas; não duplica um
+      contrato que já existe. Reconhece a coluna "Carteira" quando existe e a carteira já
+      está cadastrada; ignora colunas que não conhece
 - [x] **PDF de contratos**: relatório impresso pelo navegador em A4 deitado, agrupado por
       contrato — cabeçalho com data, filtros ativos e contagens; uma tabela de dívidas por
       contrato com todas as colunas de dinheiro; subtotal por contrato; total geral em
@@ -672,6 +682,25 @@ inclusive a carteira selecionada.
       caracteres e adicionar/remover administrador sem reconfirmar senha
 - [x] Texto vindo do usuário sempre escapado antes de virar HTML, inclusive no recibo e no
       PDF (que são janelas novas montadas por string)
+- [x] Revisão de outubro/2026 (testes em `tests/specs/correcoes.spec.js`):
+      - `escapeHtml()` não escapava aspas: um nome de imóvel/pessoa/observação com `"`
+        injetava atributos (XSS armazenado, executava sozinho). Corrigido, e os dados são
+        normalizados ao carregar/restaurar (`normalizarDados()`): números, ids e datas
+        voltam ao tipo certo
+      - CSP no `index.html` e no `.htaccess` (só roda JS dos próprios arquivos),
+        `nosniff`, `X-Frame-Options`, `Referrer-Policy`
+      - CSRF: POST só com JSON ou `X-Requested-With: aluguel`, e `Origin` do próprio site;
+        logout só por POST
+      - Cookie assinado também com o id e o hash da senha do usuário: trocar a senha
+        derruba os outros acessos; usuário recriado não herda cookies antigos
+      - Nome de usuário sem `|`, sem quebra de linha, até 60 caracteres
+      - Faixa de aviso enquanto a senha for a padrão
+      - Auditoria decidida pelo servidor (não dá para apagar/forjar registros)
+      - CSV exportado neutraliza fórmulas (`= + - @`); objetos de agrupamento sem
+        protótipo (`"__proto__"` como forma de pagamento poluía tudo)
+      - Anexo: apagado do servidor ao excluir o contrato ou ao trocar por outro tipo;
+        download sem cache
+      - `roteador-dev.php` para o `php -S` (que ignora os .htaccess)
 
 3.6 Testes automatizados
 - [x] `tests/` com Playwright e axe, isolado do sistema (npm só lá dentro; resultados e
@@ -698,7 +727,10 @@ inclusive a carteira selecionada.
 - [ ] Testar em hospedagem real com Apache: confirmar que o `.htaccess` bloqueia `data/`
       pela URL (o servidor embutido do PHP usado nos testes locais não valida isso; o
       funcionamento numa subpasta é coberto pelos testes)
-- [ ] Trocar a senha padrão (`admin`/`12345678`) logo depois do primeiro deploy
+- [ ] Trocar a senha padrão (`admin`/`12345678`) logo depois do primeiro deploy (o sistema
+      mostra uma faixa de aviso até isso ser feito)
+- [ ] Em Nginx (sem .htaccess), bloquear `data/` e `contratos/` na configuração do site
+      (ver README); atrás de Cloudflare/proxy, ligar `CONFIAR_X_FORWARDED_FOR`
 - [ ] O rate limiting do login é só por IP, sem CAPTCHA e sem 2FA: pode falso-positivar
       várias pessoas atrás do mesmo IP/NAT (um escritório, por exemplo) e não impede um
       atacante com muitos IPs. Suficiente para o uso interno deste sistema, mas não é

@@ -43,6 +43,64 @@ define('LOCK_FILE', DATA_DIR . '/dados.lock');
 define('LOGIN_MAX_TENTATIVAS', 5);
 define('LOGIN_BLOQUEIO_SEGUNDOS', 15 * 60); // 15 minutos de bloqueio após esgotar as tentativas
 
+// Atrás de um proxy reverso ou CDN (Cloudflare, por exemplo), REMOTE_ADDR é o
+// endereço do proxy — todo mundo dividiria o mesmo contador de tentativas de
+// login. Só ligue isto se o site estiver MESMO atrás de um proxy: sem proxy,
+// qualquer um forja o cabeçalho X-Forwarded-For e escapa do bloqueio.
+define('CONFIAR_X_FORWARDED_FOR', false);
+
+// Tamanho máximo de um nome de usuário (caracteres).
+define('USUARIO_TAMANHO_MAXIMO', 60);
+
+// Cabeçalhos de proteção enviados em toda resposta da API.
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: SAMEORIGIN');
+header('Referrer-Policy: same-origin');
+
+// Proteção contra CSRF: uma página de outro site consegue fazer o navegador
+// enviar um formulário para cá (text/plain, urlencoded ou multipart), mas não
+// consegue mandar Content-Type: application/json nem um cabeçalho próprio sem
+// a permissão do servidor (CORS). Então toda gravação (POST) precisa de um dos
+// dois — o sistema manda `X-Requested-With: aluguel` em toda chamada — e, se o
+// navegador informou a origem, ela tem de ser este mesmo site.
+function protegerContraCsrf() {
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') return;
+    $origem = (string)($_SERVER['HTTP_ORIGIN'] ?? '');
+    if ($origem !== '' && $origem !== 'null') {
+        $hostOrigem = parse_url($origem, PHP_URL_HOST);
+        $portaOrigem = parse_url($origem, PHP_URL_PORT);
+        if ($portaOrigem) $hostOrigem .= ':' . $portaOrigem;
+        $host = (string)($_SERVER['HTTP_HOST'] ?? '');
+        if (strcasecmp((string)$hostOrigem, $host) !== 0) recusarCsrf();
+    } elseif ($origem === 'null') {
+        recusarCsrf();
+    }
+    $tipo = strtolower((string)($_SERVER['CONTENT_TYPE'] ?? ''));
+    $ehJson = strpos($tipo, 'application/json') === 0;
+    $cabecalhoProprio = ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'aluguel';
+    if (!$ehJson && !$cabecalhoProprio) recusarCsrf();
+}
+
+function recusarCsrf() {
+    http_response_code(403);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['ok' => false, 'error' => 'Requisição recusada: ela não veio do próprio sistema. Recarregue a página e tente de novo.']);
+    exit;
+}
+
+protegerContraCsrf();
+
+// Nome de usuário aceitável: não vazio, sem caracteres de controle e sem "|"
+// (o "|" separa o nome da validade dentro do cookie de login). Devolve a
+// mensagem de erro, ou null quando está tudo certo.
+function erroNomeUsuario($nome) {
+    if ($nome === '') return 'Informe um nome de usuário.';
+    if (!preg_match('//u', $nome)) return 'O nome de usuário tem caracteres inválidos.';
+    if (preg_match('/[\x00-\x1F\x7F|]/', $nome)) return 'O nome de usuário não pode ter o caractere "|" nem quebras de linha.';
+    if (preg_match_all('/./us', $nome) > USUARIO_TAMANHO_MAXIMO) return 'O nome de usuário pode ter no máximo ' . USUARIO_TAMANHO_MAXIMO . ' caracteres.';
+    return null;
+}
+
 function ensureContratosDir() {
     if (!is_dir(CONTRATOS_DIR)) {
         mkdir(CONTRATOS_DIR, 0755, true);
@@ -262,8 +320,9 @@ function atualizarAuth($fn) {
 }
 
 function findUserByUsername($auth, $username) {
+    if (!is_string($username)) return null;
     foreach ($auth['users'] as $user) {
-        if (hash_equals($user['username'], $username)) return $user;
+        if (is_string($user['username'] ?? null) && hash_equals($user['username'], $username)) return $user;
     }
     return null;
 }
@@ -281,6 +340,11 @@ function findUserById($auth, $id) {
 // sensíveis, em data/login_attempts.json (protegido pelo mesmo .htaccess de
 // data/dados.json).
 function clienteIp() {
+    if (CONFIAR_X_FORWARDED_FOR && !empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        // o primeiro endereço da lista é o do visitante; os seguintes são proxies
+        $primeiro = trim(explode(',', (string)$_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
+        if (filter_var($primeiro, FILTER_VALIDATE_IP)) return $primeiro;
+    }
     return (string)($_SERVER['REMOTE_ADDR'] ?? 'desconhecido');
 }
 

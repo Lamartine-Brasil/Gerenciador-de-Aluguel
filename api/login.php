@@ -28,8 +28,8 @@ $user = findUserByUsername($auth, $username);
 
 if ($user !== null && password_verify($password, $user['passwordHash'])) {
     limparTentativasLogin($ip);
-    issueAuthCookie($user['username']);
-    echo json_encode(['ok' => true, 'username' => $user['username']]);
+    issueAuthCookie($user);
+    echo json_encode(['ok' => true, 'username' => $user['username'], 'senhaPadrao' => usaSenhaPadrao($user)]);
 } else {
     registrarTentativaLoginFalha($ip);
     http_response_code(401);

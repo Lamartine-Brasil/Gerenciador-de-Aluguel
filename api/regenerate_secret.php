@@ -36,6 +36,6 @@ if (!salvarCookieSecret($novaChave)) {
 
 // Reemite o cookie de quem pediu, já assinado com a chave nova — sem isso o
 // próprio administrador que desconectou os outros seria desconectado também.
-issueAuthCookie($currentUsername);
+issueAuthCookie($user);
 
 echo json_encode(['ok' => true]);

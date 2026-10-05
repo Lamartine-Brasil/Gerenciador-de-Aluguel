@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Só roda o JavaScript dos próprios arquivos do sistema: mesmo que algum texto
+     malicioso chegue à tela, um onerror="..." ou <script> injetado não executa. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="referrer" content="same-origin">
 <meta name="theme-color" content="#0a0c11">
 <meta name="author" content="Lamartine Barbosa">
 <meta name="description" content="Sistema de gestão de contratos de aluguel: contratos, vencimentos, pagamentos, despesas e relatórios.">
@@ -14,10 +18,10 @@
 
 <!-- O ?v= muda a cada versão: sem ele o navegador pode juntar o HTML novo
      com um index.js antigo guardado em cache, e o sistema quebra. -->
-<link rel="stylesheet" href="css/tokens.css?v=3.0">
-<link rel="stylesheet" href="css/components.css?v=3.0">
-<link rel="stylesheet" href="css/layout.css?v=3.0">
-<link rel="stylesheet" href="css/screens.css?v=3.0">
+<link rel="stylesheet" href="css/tokens.css?v=3.1">
+<link rel="stylesheet" href="css/components.css?v=3.1">
+<link rel="stylesheet" href="css/layout.css?v=3.1">
+<link rel="stylesheet" href="css/screens.css?v=3.1">
 </head>
 <body>
 
@@ -276,6 +280,11 @@
     </header>
 
     <main class="content" id="conteudo">
+      <!-- Aparece enquanto a senha da conta for a padrão (12345678), que está no README -->
+      <div id="avisoSenhaPadrao" class="alert-banner alert-banner-inline hidden">
+        <span><strong>Você ainda usa a senha padrão.</strong> Qualquer pessoa que leia o manual do sistema consegue entrar. Troque a senha da sua conta agora.</span>
+        <a class="btn btn-primary btn-sm" href="#/usuarios">Trocar a senha</a>
+      </div>
 
       <!-- ---------- DASHBOARD ---------- -->
       <section id="tab-dashboard" class="tab-panel">
@@ -323,7 +332,7 @@
             <div class="stat-icon"><svg class="icon"><use href="#icon-user"></use></svg></div>
             <div class="stat-info">
               <span class="stat-value" id="statCorretorMes">R$ 0,00</span>
-              <span class="stat-label">Corretor a pagar no mês</span>
+              <span class="stat-label">Comissão prevista no mês</span>
               <span class="stat-hint" id="statCorretorHint"></span>
             </div>
           </div>
@@ -769,11 +778,11 @@
         </div>
 
         <div class="card table-card hidden" id="relatorioCorretorCard" tabindex="0" role="region" aria-labelledby="tituloTabelaCorretor">
-          <h2 id="tituloTabelaCorretor">Comissão de corretores <span data-periodo>no ano</span></h2>
-          <p class="modal-subtitle">Quanto precisa ser pago a cada corretor, somando as dívidas que vencem no período selecionado. A base de cálculo é <strong>só o valor do aluguel</strong> de cada dívida — condomínio, juros, multa e valores em atraso não entram.</p>
+          <h2 id="tituloTabelaCorretor">Comissão prevista de corretores <span data-periodo>no ano</span></h2>
+          <p class="modal-subtitle">Quanto precisa ser pago a cada corretor, somando <strong>todas</strong> as dívidas que vencem no período selecionado, recebidas ou não. Por isso pode ser maior que a "Comissão do corretor" do resumo acima, que desconta só o que já foi recebido. A base de cálculo é <strong>só o valor do aluguel</strong> de cada dívida — condomínio, juros, multa e valores em atraso não entram.</p>
           <table class="report-table">
             <thead>
-              <tr><th scope="col">Corretor</th><th scope="col">Contratos</th><th scope="col">Dívidas</th><th scope="col">Comissão <span data-periodo>no ano</span></th></tr>
+              <tr><th scope="col">Corretor</th><th scope="col">Contratos</th><th scope="col">Dívidas</th><th scope="col">Comissão prevista <span data-periodo>no ano</span></th></tr>
             </thead>
             <tbody id="relatorioCorretorBody"></tbody>
           </table>
@@ -1269,12 +1278,13 @@
           <input type="text" inputmode="decimal" autocomplete="off" id="fDesconto" data-numero="dinheiro" data-min="0" placeholder="0,00">
         </label>
         <label class="field" id="fCampoJurosPercentual">
-          <span>Juros (%)</span>
-          <input type="text" inputmode="decimal" autocomplete="off" id="fJurosPercentual" data-numero="percentual" data-min="0" placeholder="Ex: 1">
+          <span>Juros fixos em toda parcela (%)</span>
+          <input type="text" inputmode="decimal" autocomplete="off" id="fJurosPercentual" data-numero="percentual" data-min="0" placeholder="Normalmente 0" aria-describedby="fDicaAcrescimos">
         </label>
         <label class="field" id="fCampoMultaPercentual">
-          <span>Multa (%)</span>
-          <input type="text" inputmode="decimal" autocomplete="off" id="fMultaPercentual" data-numero="percentual" data-min="0" placeholder="Ex: 2">
+          <span>Multa fixa em toda parcela (%)</span>
+          <input type="text" inputmode="decimal" autocomplete="off" id="fMultaPercentual" data-numero="percentual" data-min="0" placeholder="Normalmente 0" aria-describedby="fDicaAcrescimos">
+          <small class="modal-subtitle" id="fDicaAcrescimos">Deixe em branco: os juros e a multa por atraso são calculados sozinhos, com as taxas de Configurações, só quando a parcela atrasa.</small>
         </label>
         <label class="field" id="fCampoJuros">
           <span>Juros (R$)</span>
@@ -1359,6 +1369,37 @@
         <input type="text" inputmode="decimal" autocomplete="off" id="infoCaucao" data-numero="dinheiro" data-min="0" placeholder="0,00">
       </label>
       <p class="modal-subtitle">O valor da caução não é somado a nenhum total — é só uma anotação informativa no contrato.</p>
+      <div class="field" role="group" aria-labelledby="infoValoresTitulo">
+        <span id="infoValoresTitulo">Valores das próximas dívidas</span>
+        <p class="modal-subtitle">Valem para as dívidas que ainda vão ser geradas e para as em aberto que ainda não venceram. Dívidas pagas ou já vencidas não mudam (para elas, edite a dívida). O aluguel muda pelo botão "Reajustar".</p>
+        <label class="field">
+          <span>Dia de pagamento (1 a 31) *</span>
+          <input type="number" id="infoDiaPagamento" min="1" max="31" step="1" required>
+        </label>
+        <label class="field">
+          <span>Desconto (R$)</span>
+          <input type="text" inputmode="decimal" autocomplete="off" id="infoDesconto" data-numero="dinheiro" data-min="0" placeholder="0,00">
+        </label>
+        <label class="field">
+          <span>Juros fixos (R$)</span>
+          <input type="text" inputmode="decimal" autocomplete="off" id="infoJuros" data-numero="dinheiro" data-min="0" placeholder="0,00">
+        </label>
+        <label class="field">
+          <span>Multa fixa (R$)</span>
+          <input type="text" inputmode="decimal" autocomplete="off" id="infoMulta" data-numero="dinheiro" data-min="0" placeholder="0,00">
+        </label>
+        <label class="field">
+          <span>Condomínio (R$)</span>
+          <input type="text" inputmode="decimal" autocomplete="off" id="infoCondominio" data-numero="dinheiro" data-min="0" placeholder="0,00">
+        </label>
+        <label class="field">
+          <span>Quem paga o condomínio?</span>
+          <select id="infoCondominioDireto">
+            <option value="0">Eu cobro junto com o aluguel e repasso</option>
+            <option value="1">O inquilino paga direto (não passa por mim)</option>
+          </select>
+        </label>
+      </div>
       <label class="field">
         <span>Quem recebe (padrão)</span>
         <select id="infoQuemRecebeu">
@@ -1388,7 +1429,7 @@
         <div id="fAnexoAtual" class="total-preview hidden">
           <span id="fAnexoNome"></span>
           <div class="contrato-actions">
-            <a id="fAnexoLink" href="#" target="_blank" class="btn btn-ghost btn-sm"><svg class="icon"><use href="#icon-eye"></use></svg> Ver</a>
+            <a id="fAnexoLink" href="#" target="_blank" rel="noopener" class="btn btn-ghost btn-sm"><svg class="icon"><use href="#icon-eye"></use></svg> Ver</a>
             <button type="button" class="btn btn-danger btn-sm" id="btnRemoverAnexo"><svg class="icon"><use href="#icon-trash"></use></svg> Remover</button>
           </div>
         </div>
@@ -1495,7 +1536,7 @@
     <form id="formReajuste" class="modal-body">
       <input type="hidden" id="reajusteContratoId">
       <p class="modal-subtitle" id="reajusteContratoInfo"></p>
-      <p class="modal-subtitle">Atualiza o valor padrão do contrato (usado em novas dívidas) e também todas as dívidas ainda não pagas. Dívidas já pagas não são alteradas.</p>
+      <p class="modal-subtitle">Atualiza o valor padrão do contrato (usado em novas dívidas) e as dívidas ainda não pagas que vencem a partir da data de vigência. Dívidas já pagas e dívidas que venceram antes do reajuste não são alteradas.</p>
       <p class="modal-subtitle hidden" id="reajusteSugestaoHint"></p>
       <div class="total-preview">
         <span>Aluguel atual:</span>
@@ -1504,6 +1545,10 @@
       <label class="field">
         <span>Novo valor do aluguel (R$) *</span>
         <input type="text" inputmode="decimal" autocomplete="off" id="reajusteNovoValor" data-numero="dinheiro" data-min="0.01" required>
+      </label>
+      <label class="field">
+        <span>Vale a partir de *</span>
+        <input type="date" id="reajusteVigencia" required>
       </label>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
@@ -1666,7 +1711,7 @@
 <!-- vem depois do de erro no HTML para subir quando os dois aparecem juntos -->
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="index.js?v=3.0"></script>
-<script src="ui.js?v=3.0"></script>
+<script src="index.js?v=3.1"></script>
+<script src="ui.js?v=3.1"></script>
 </body>
 </html>

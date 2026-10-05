@@ -3,7 +3,12 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/auth.php';
 
 header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store');
 
-$username = getAuthenticatedUsername();
+$user = getAuthenticatedUser();
 
-echo json_encode(['authenticated' => $username !== null, 'username' => $username]);
+echo json_encode([
+    'authenticated' => $user !== null,
+    'username' => $user === null ? null : $user['username'],
+    'senhaPadrao' => $user !== null && usaSenhaPadrao($user),
+]);

@@ -56,7 +56,8 @@ if ($action === 'add') {
     $username = trim((string)($input['username'] ?? ''));
     $password = (string)($input['password'] ?? '');
 
-    if ($username === '') responderErro([400, 'Informe um nome de usuário.']);
+    $erroNome = erroNomeUsuario($username);
+    if ($erroNome !== null) responderErro([400, $erroNome]);
     if (strlen($password) < 8) responderErro([400, 'A senha deve ter pelo menos 8 caracteres.']);
 
     $newUser = [

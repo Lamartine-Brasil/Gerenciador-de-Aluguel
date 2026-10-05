@@ -33,8 +33,13 @@ if ($method === 'GET') {
     $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
     $mime = ANEXO_TIPOS_PERMITIDOS[$ext] ?? 'application/octet-stream';
 
+    // Só PDF e imagem abrem no navegador; qualquer outra coisa é baixada.
+    $disposicao = isset(ANEXO_TIPOS_PERMITIDOS[$ext]) ? 'inline' : 'attachment';
+    $nomeSeguro = preg_replace('/[^A-Za-z0-9._-]/', '_', $file);
     header('Content-Type: ' . $mime);
-    header('Content-Disposition: inline; filename="' . $file . '"');
+    header('Content-Disposition: ' . $disposicao . '; filename="' . $nomeSeguro . '"');
+    // contrato assinado tem dados pessoais: nada de guardar em cache
+    header('Cache-Control: private, no-store');
     header('Content-Length: ' . filesize($caminho));
     readfile($caminho);
     exit;
@@ -49,6 +54,7 @@ if ($method === 'POST') {
         $imovel = (string)($_POST['imovel'] ?? '');
 
         if ($contratoId === '') anexoErro(400, 'Contrato inválido.');
+        if (!is_array($arquivo) || !is_int($arquivo['error'] ?? null)) anexoErro(400, 'Envie um arquivo só.');
         if ($arquivo['error'] !== UPLOAD_ERR_OK) anexoErro(400, 'Falha no envio do arquivo.');
         if ($arquivo['size'] > ANEXO_TAMANHO_MAXIMO) anexoErro(400, 'Arquivo maior que o limite de 15MB.');
 
@@ -64,6 +70,7 @@ if ($method === 'POST') {
         }
 
         $sufixo = substr(preg_replace('/[^a-zA-Z0-9]/', '', $contratoId), -8);
+        if ($sufixo === '') anexoErro(400, 'Contrato inválido.');
         $nomeFinal = slugify($inquilino) . '-' . slugify($imovel) . '-' . $sufixo . '.' . $ext;
         $destino = CONTRATOS_DIR . '/' . $nomeFinal;
 

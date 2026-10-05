@@ -18,9 +18,10 @@ $newPassword = (string)($input['newPassword'] ?? '');
 
 $currentUsername = getAuthenticatedUsername();
 $erro = null;
+$usuarioAtualizado = null;
 
 // Tudo entre ler e gravar o auth.json acontece sob a trava exclusiva.
-$gravou = atualizarAuth(function ($auth) use ($currentUsername, $currentPassword, $newUsername, $newPassword, &$erro) {
+$gravou = atualizarAuth(function ($auth) use ($currentUsername, $currentPassword, $newUsername, $newPassword, &$erro, &$usuarioAtualizado) {
     $userIndex = null;
     foreach ($auth['users'] as $i => $u) {
         if (hash_equals($u['username'], $currentUsername)) { $userIndex = $i; break; }
@@ -29,8 +30,9 @@ $gravou = atualizarAuth(function ($auth) use ($currentUsername, $currentPassword
         $erro = [401, 'Senha atual incorreta.'];
         return null;
     }
-    if ($newUsername === '') {
-        $erro = [400, 'Informe um nome de usuário.'];
+    $erroNome = erroNomeUsuario($newUsername);
+    if ($erroNome !== null) {
+        $erro = [400, $erroNome];
         return null;
     }
     if ($newPassword !== '' && strlen($newPassword) < 8) {
@@ -47,6 +49,7 @@ $gravou = atualizarAuth(function ($auth) use ($currentUsername, $currentPassword
     if ($newPassword !== '') {
         $auth['users'][$userIndex]['passwordHash'] = password_hash($newPassword, PASSWORD_DEFAULT);
     }
+    $usuarioAtualizado = $auth['users'][$userIndex];
     return $auth;
 });
 
@@ -62,5 +65,7 @@ if (!$gravou) {
     exit;
 }
 
-issueAuthCookie($newUsername);
-echo json_encode(['ok' => true, 'username' => $newUsername]);
+// Com a senha nova, os cookies antigos deste usuário deixam de valer (ver
+// chaveDoCookie em auth.php); quem trocou recebe um cookie novo aqui.
+issueAuthCookie($usuarioAtualizado);
+echo json_encode(['ok' => true, 'username' => $newUsername, 'senhaPadrao' => usaSenhaPadrao($usuarioAtualizado)]);

@@ -68,7 +68,8 @@ Senha:   12345678
 > ⚠️ **Troque essa senha imediatamente após o primeiro login.** Vá em **Usuários →
 > Conta do administrador**, informe a senha atual (`12345678`) e cadastre um usuário e senha
 > só seus. Enquanto isso não for feito, qualquer pessoa que souber a URL do sistema e essas
-> credenciais padrão consegue entrar.
+> credenciais padrão consegue entrar — e uma faixa no topo de todas as telas fica lembrando
+> disso, com um link para a troca.
 
 Não existe recuperação de senha por e-mail (o sistema não envia e-mails). Se esquecer a
 senha depois de trocada, é preciso apagar o arquivo `data/auth.json` no servidor para que
@@ -83,7 +84,7 @@ terminal e digite `php -v`.
 2. Abra o terminal na pasta do projeto
 3. Rode:
    ```bash
-   php -S localhost:8000
+   php -S localhost:8000 roteador-dev.php
    ```
 4. Acesse `http://localhost:8000` no navegador
 5. Faça login com `admin` / `12345678` (veja o aviso acima)
@@ -91,9 +92,11 @@ terminal e digite `php -v`.
 Não precisa instalar nada com `npm`, `composer` ou qualquer outro gerenciador de pacotes —
 o projeto não tem dependências.
 
-> Nota: o servidor embutido do PHP (`php -S`) ignora o arquivo `.htaccess`, então localmente
-> a pasta `data/` não fica bloqueada por URL. Isso só funciona de verdade com Apache (veja a
-> seção de hospedagem abaixo).
+> Nota: o servidor embutido do PHP (`php -S`) ignora o arquivo `.htaccess`. O
+> `roteador-dev.php` faz o papel dele: recusa pela URL `data/`, `contratos/`, `tests/`,
+> `docs/` e os arquivos de documentação. Sem o roteador (só `php -S localhost:8000`), os
+> dados e as senhas ficam abertos pela URL — nunca rode assim num endereço acessível por
+> outras pessoas da rede.
 
 ## Como colocar no ar (hospedagem)
 
@@ -101,7 +104,7 @@ Este sistema foi feito para hospedagem compartilhada comum com **PHP + Apache** 
 Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servidor.
 
 1. **Envie os arquivos**: copie para a hospedagem `index.html`, `index.js`, `ui.js`,
-   `css/`, `api/`, `data/` e `contratos/`, mantendo a mesma organização de pastas. Numa
+   `.htaccess`, `css/`, `api/`, `data/` e `contratos/`, mantendo a mesma organização de pastas. Numa
    instalação nova, `data/` e `contratos/` só têm o `.htaccess` que as protege — o resto é
    criado sozinho no primeiro acesso. `tests/`, `docs/` e `agents.md` são para quem
    desenvolve e não precisam ir para o servidor
@@ -115,10 +118,20 @@ Hostinger, etc.) — não precisa de VPS nem de conhecimento avançado de servid
 5. **Confirme que os dados estão protegidos**: tente acessar
    `https://seusite.com/data/dados.json` diretamente no navegador — o servidor deve
    recusar o acesso (erro 403). Isso só funciona em Apache com `.htaccess` habilitado
-   (`AllowOverride All`), que é o padrão na maioria das hospedagens compartilhadas
+   (`AllowOverride All`), que é o padrão na maioria das hospedagens compartilhadas.
+   **Em Nginx o `.htaccess` não vale**: bloqueie as pastas na configuração do site, senão
+   os dados, os hashes das senhas e os contratos anexados ficam públicos:
+   ```nginx
+   location ~ ^/(data|contratos|tests|docs|\.git)(/|$) { deny all; return 404; }
+   location ~ ^/(agents\.md|etapas\.txt|README\.md|roteador-dev\.php)$ { deny all; return 404; }
+   ```
+6. **Atrás de Cloudflare ou outro proxy?** Ligue `CONFIAR_X_FORWARDED_FOR` em
+   `api/config.php`. Sem isso, todos os visitantes aparecem com o endereço do proxy e o
+   bloqueio de tentativas de login (5 erradas = 15 minutos) vale para todo mundo ao mesmo
+   tempo. Não ligue sem proxy: aí qualquer um forja o cabeçalho e escapa do bloqueio
 
 **Para atualizar o sistema depois**, envie de novo só o código (`index.html`, `index.js`,
-`ui.js`, `css/`, `api/`) e **não sobrescreva `data/` nem `contratos/`** no servidor: é lá
+`ui.js`, `.htaccess`, `css/`, `api/`) e **não sobrescreva `data/` nem `contratos/`** no servidor: é lá
 que ficam os seus dados, os usuários e senhas (`data/auth.json`) e a chave de login
 (`data/cookie_secret.php`). Se `data/auth.json` for substituído, os usuários voltam a ser só
 `admin` / `12345678`.
@@ -162,7 +175,7 @@ cobrada dele — sai só do seu lado.
 
 A **comissão do corretor** é sempre um percentual do **aluguel**, e só dele: condomínio,
 juros, multa e valores em atraso não entram nessa base. Quanto pagar a cada corretor aparece
-no card "Corretor a pagar no mês" (Dashboard) e na tabela "Comissão de corretores no ano"
+no card "Comissão prevista no mês" (Dashboard) e na tabela "Comissão prevista de corretores no ano"
 (Relatórios, também no CSV).
 
 O **condomínio** aparece em dois momentos. No contrato você diz se cobra junto com o aluguel
@@ -200,10 +213,15 @@ Se você não usa corretor nem condomínio, nada disso aparece: a tela mostra um
   usa de verdade. Ao criar um contrato, informe a data de início e o dia de pagamento (1-31); se a
   data de início já passou, o sistema gera automaticamente uma dívida para cada mês em
   atraso até hoje, tudo dentro do mesmo contrato. Registrar pagamento em um clique por
-  dívida, anexar o contrato assinado (PDF/JPG/PNG) e reajustar o valor do aluguel (atualiza
-  as dívidas em aberto, preserva o histórico das já pagas). Os campos Juros e Multa são
-  digitados em percentual (%) do aluguel, pré-preenchidos com a taxa configurada em
-  Configurações, e convertidos para R$ ao salvar. Opcionalmente, associe um corretor
+  dívida, anexar o contrato assinado (PDF/JPG/PNG) e reajustar o valor do aluguel (vale a partir de uma data de vigência —
+  no aniversário, a própria data do aniversário —, atualiza as dívidas em aberto que vencem
+  dali em diante e preserva o histórico das já pagas e das que venceram antes). Os campos
+  "Juros/Multa fixos em toda parcela" são digitados em percentual (%) do aluguel e
+  convertidos para R$ ao salvar; começam vazios, porque os juros e a multa por atraso já são
+  calculados sozinhos com as taxas de Configurações. Depois de criado, "Editar contrato"
+  muda também o dia de pagamento, desconto, juros/multa fixos e condomínio das próximas
+  dívidas (e das em aberto que ainda não venceram). Vencimentos nos dias 29, 30 e 31 caem no
+  último dia dos meses mais curtos e voltam ao dia certo no mês seguinte. Opcionalmente, associe um corretor
   (escolhido de uma lista de pessoas cadastrada em Configurações + percentual, padrão 5%)
   — a comissão não é cobrada do inquilino, mas é deduzida do seu total líquido. Também é possível informar uma caução (valor retido do inquilino) — fica só
   como anotação visível no card, nunca soma em nenhum total, já que em teoria é devolvida no
@@ -330,7 +348,11 @@ existindo, só voltam a ficar sem carteira.
   total líquido, caução, situação do contrato e mais), histórico de pagamentos em CSV (com
   as colunas na ordem da conta: valor pago → comissão → condomínio → líquido), relatório
   anual em CSV, **relatório de contratos em PDF** e backup completo em JSON. Toda exportação
-  respeita os filtros da tela, inclusive a carteira selecionada
+  respeita os filtros da tela, inclusive a carteira selecionada. **Importar CSV** lê o
+  arquivo exportado (ou editado no Excel, com valores como `1.250,50`) e remonta cada
+  contrato com todas as suas dívidas — as pagas voltam pagas; um contrato que já existe
+  (mesmo imóvel, inquilino e início) não é duplicado. Para restaurar tudo exatamente como
+  estava, use o backup JSON
 - **PDF de contratos** — sai como um relatório impresso pelo navegador em A4 deitado,
   agrupado por contrato: cabeçalho com data e filtros aplicados, uma tabela de dívidas por
   contrato, subtotal de cada um e um total geral em forma de extrato. Quebra em páginas sem
@@ -410,6 +432,9 @@ ficar antes de salvar.
 
 ```
 index.html           Estrutura da página (login + sidebar + header + telas + modais)
+.htaccess            Cabeçalhos de segurança (CSP etc.) e bloqueio de tests/, docs/ e
+                      arquivos de documentação (Apache)
+roteador-dev.php     Para `php -S`: faz o papel dos .htaccess (recusa data/, contratos/...)
 index.js             Toda a lógica do front-end (dados, regras, renderização, gravação
                       com controle de versão, rotas de cada tela, modais e foco)
 ui.js                Camada de interface: sidebar recolhível, drawer no celular,
@@ -483,9 +508,35 @@ assinados dos inquilinos) e não podem acabar num commit.
 O login usa um cookie de sessão assinado com HMAC-SHA256 — **não** usa `session_start()`
 do PHP. Isso significa que não há estado de sessão guardado no servidor: o próprio cookie
 carrega usuário + validade + assinatura, e a assinatura é validada com a chave da instalação
-(`cookieSecret()`) e com a lista de usuários salva em `data/auth.json` (o usuário do cookie
-precisa continuar existindo nessa lista — se for removido, a sessão é invalidada
-imediatamente). O cookie dura 30 dias e é `HttpOnly` + `SameSite=Lax`.
+(`cookieSecret()`) **mais o id do usuário e o hash da senha dele** (`chaveDoCookie()` em
+`api/auth.php`). Por isso:
+
+- **trocar a senha derruba na hora todos os outros acessos daquele usuário** — um cookie
+  roubado deixa de valer; quem trocou recebe um cookie novo;
+- um usuário removido perde o acesso imediatamente, e um usuário recriado com o mesmo nome
+  não "herda" os cookies do antigo (o id é outro).
+
+O cookie dura 30 dias e é `HttpOnly` + `SameSite=Lax` (+ `Secure` em HTTPS). O nome de
+usuário não pode ter `|` (é o separador dentro do cookie), quebras de linha ou mais de 60
+caracteres.
+
+**Proteção contra CSRF** (`protegerContraCsrf()` em `api/config.php`, roda em toda chamada):
+um POST só é aceito com `Content-Type: application/json` ou com o cabeçalho
+`X-Requested-With: aluguel` — que uma página de outro site não consegue mandar sem a
+permissão do servidor — e, se o navegador informar a origem (`Origin`), ela tem de ser o
+próprio site. `apiFetch()` manda o cabeçalho em toda chamada. Sair (`logout.php`) é só por
+POST.
+
+**Outras camadas:** o `index.html` tem uma política de segurança de conteúdo (CSP) que só
+deixa rodar o JavaScript dos próprios arquivos (`script-src 'self'`) — mesmo que um texto
+malicioso chegasse à tela, um `onerror="..."` injetado não executaria. O `.htaccess` da
+raiz repete a CSP como cabeçalho (com `frame-ancestors`, contra embutir o sistema em outro
+site) e manda `nosniff`, `X-Frame-Options` e `Referrer-Policy`; a API manda os mesmos.
+No navegador, `escapeHtml()` escapa `& < > " '` (vale dentro de atributos) e
+`normalizarDados()` devolve cada campo conhecido ao tipo certo ao carregar os dados ou
+restaurar um backup (números viram números, ids só com letras/dígitos/`_`/`-`, datas fora
+de `AAAA-MM-DD` ficam vazias). O CSV exportado neutraliza textos que começam com
+`= + - @` (viram texto, não fórmula, no Excel).
 
 A chave vem, nesta ordem: de `data/cookie_secret.php`; senão, do `COOKIE_SECRET` de
 `api/config.php` **se** alguém trocou o valor padrão à mão (para não desconectar quem já
@@ -623,9 +674,22 @@ Duas consequências que vale ter em mente ao mexer nisso:
   modal, porque cobrar ou não cada um é decisão de quem recebe. Registrar um valor menor
   **quita a parcela inteira** do mesmo jeito (`d.pago = true`), já que a quitação é sempre
   da parcela toda.
-- **`calcAtrasoAtual()` usa `d.total`** como base dos juros/multa — ou seja, o valor cheio
-  devido pelo inquilino, não o líquido. Trocar isso mudaria todos os totais de Atrasos,
-  Relatórios e Gráficos.
+- **`calcAtrasoAtual()` usa `baseDoAtraso(d)`** como base dos juros/multa por atraso:
+  `d.total` **menos os juros e a multa fixos já lançados na parcela** (ou seja,
+  `aluguel − desconto + condomínio cobrado`) — o valor devido pelo inquilino, não o
+  líquido, e sem cobrar multa sobre multa. Juros: proporcionais aos dias de atraso
+  (`dias / 30 × taxa mensal`, sem juros compostos); multa: o percentual inteiro, desde o 1º
+  dia de atraso. As duas usam as taxas **atuais** de Configurações — mudar a taxa muda o
+  atraso de todas as parcelas em aberto.
+- **Juros e multa fixos** (campos do contrato) entram em **todas** as parcelas, inclusive as
+  pagas em dia. Por isso começam vazios num contrato novo; os juros e a multa por atraso são
+  calculados sozinhos, só quando a parcela atrasa. (Até a versão 3.0 esses campos vinham
+  pré-preenchidos com as taxas de Configurações, o que cobrava 3% a mais de quem pagava em
+  dia e a multa duas vezes de quem atrasava. Contratos criados assim continuam com os
+  valores que foram gravados: para tirá-los, edite o contrato — "Valores das próximas
+  dívidas" — e as dívidas em aberto.)
+- **Valores em R$ calculados** (juros/multa a partir de %, total, reajuste) são gravados
+  arredondados para centavos (`arredondar()`).
 
 ### Recibo
 
@@ -683,6 +747,7 @@ vez de criar vários contratos separados.
 | `dataCaucaoDevolvida` | string `AAAA-MM-DD` ou null | Data da devolução, ou `null` |
 | `valorCaucaoDevolvida` | number ou null | Valor devolvido (pode ser diferente do `caucao` original), ou `null` |
 | `dataUltimoReajuste` | string `AAAA-MM-DD` | Data do último reajuste aplicado (ou `dataInicio`, se nunca reajustado) — usada para calcular o "aniversário" de reajuste sugerido (1 ano depois) |
+| `ultimoVencimentoGerado` | string `AAAA-MM-DD` | Até onde as dívidas mensais já foram geradas. Impede que uma dívida excluída de propósito volte na próxima abertura e que, ao reabrir um contrato, o período em que ficou encerrado vire dívida |
 | `encerrado`      | boolean            | Se `true`, o sistema não gera mais novas dívidas mensais para este contrato (nem manual nem automaticamente), mas nada é apagado — histórico e dívidas existentes continuam intactos |
 | `dataEncerramento` | string `AAAA-MM-DD` ou null | Data em que o contrato foi encerrado, ou `null` |
 | `criadoEm`       | number (timestamp) | Data de criação do contrato                                  |
@@ -758,15 +823,16 @@ manual e sem perder informação:
 
 | Campo               | Padrão | Descrição                                            |
 |---------------------|--------|--------------------------------------------------------|
-| `taxaJurosMensal`   | 1 (%)  | Taxa de juros mensal aplicada sobre o total em atraso, e também percentual padrão do campo "Juros" ao criar um novo contrato |
-| `taxaMultaPercent`  | 2 (%)  | Multa fixa aplicada uma vez que o contrato atrasa, e também percentual padrão do campo "Multa" ao criar um novo contrato |
+| `taxaJurosMensal`   | 1 (%)  | Taxa de juros mensal aplicada, proporcional aos dias, sobre a parcela em atraso |
+| `taxaMultaPercent`  | 2 (%)  | Multa aplicada uma vez, desde o 1º dia de atraso |
 | `corretorPercentualPadrao` | 5 (%) | Percentual do corretor pré-preenchido ao criar um novo contrato |
 | `percentualReajusteSugerido` | 5 (%) | Usado para calcular o valor de aluguel sugerido quando um contrato chega no aniversário de reajuste (sem consultar índice externo real) |
 | `recibo`            | objeto | Texto do recibo: `{ titulo, cidade, corpo, rodape }`. Só texto — os dados entram pelos códigos `{{...}}` na hora de gerar (ver "Recibo" abaixo). Padrão em `RECIBO_PADRAO` (`index.js`) |
 
 Cálculo do atraso atual (função `calcAtrasoAtual` em `index.js`): se o contrato já está
-atrasado, soma `valorAtrasoBase` + (`total` × `taxaJurosMensal`/100 × meses de atraso)
-+ (`total` × `taxaMultaPercent`/100).
+atrasado, soma `valorAtrasoBase` + (`base` × `taxaJurosMensal`/100 × dias de atraso/30)
++ (`base` × `taxaMultaPercent`/100), onde `base = total − juros − multa` da parcela
+(`baseDoAtraso()`).
 
 #### Pessoas (array `pessoas` em `data/dados.json`)
 
@@ -858,6 +924,11 @@ dívida, despesa e reajuste, para detalhar exatamente o que mudou, além da desc
 texto. A aba Auditoria também tem filtros por ano, mês e usuário.
 
 Mantém só os últimos 300 eventos — os mais antigos são descartados automaticamente.
+
+**Quem decide a auditoria é o servidor** (`mesclarAuditoria()` em `api/data.php`): uma
+gravação não consegue apagar nem alterar registros que já estão no arquivo; cada registro
+novo leva o usuário da sessão e a hora do servidor (não o que o navegador diz). Restaurar um
+backup ou "Excluir todos os dados" não apaga a auditoria.
 
 ### Testes automatizados
 
