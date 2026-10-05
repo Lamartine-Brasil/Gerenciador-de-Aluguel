@@ -121,16 +121,16 @@ const AUDITORIA_MAX = 300;
  */
 const CAMPOS_NUMERICOS = new Set([
   'aluguel', 'desconto', 'juros', 'multa', 'condominio', 'corretorPercentual', 'caucao',
-  'valorCaucaoDevolvida', 'total', 'valorAtrasoBase', 'valor', 'criadoEm', 'timestamp',
+  'valorCaucaoDevolvida', 'total', 'valorAtrasoBase', 'valor', 'criadoEm', 'timestamp', 'aluguelAnterior',
   'taxaJurosMensal', 'taxaMultaPercent', 'corretorPercentualPadrao', 'percentualReajusteSugerido',
 ]);
 const CAMPOS_NUMERICOS_OPCIONAIS = new Set(['valorCaucaoDevolvida']); // null tem significado
 const CAMPOS_DATA = new Set([
   'vencimento', 'dataInicio', 'data', 'dataPagamento', 'dataUltimoReajuste',
-  'dataEncerramento', 'dataCaucaoDevolvida', 'ultimoVencimentoGerado',
+  'dataEncerramento', 'dataCaucaoDevolvida', 'ultimoVencimentoGerado', 'vigencia',
 ]);
 const CAMPOS_BOOLEANOS = new Set(['pago', 'encerrado', 'condominioDireto', 'caucaoDevolvida', 'condominioRecebido']);
-const CAMPOS_LISTA = new Set(['contratos', 'dividas', 'pagamentos', 'pessoas', 'despesas', 'imoveis', 'carteiras', 'auditoria', 'corretores']);
+const CAMPOS_LISTA = new Set(['contratos', 'dividas', 'pagamentos', 'pessoas', 'despesas', 'imoveis', 'carteiras', 'auditoria', 'corretores', 'reajustesAluguel']);
 
 function idSeguro(v) {
   if (typeof v === 'number' && Number.isFinite(v)) return String(v);
@@ -315,7 +315,41 @@ function precisaReajuste(c) {
 
 function valorReajusteSugerido(c) {
   const percentual = state.config.percentualReajusteSugerido || 0;
-  return arredondar(c.aluguel * (1 + percentual / 100));
+  return arredondar(aluguelDoContratoEm(c) * (1 + percentual / 100));
+}
+
+// Contratos antigos continuam usando c.aluguel. Depois do primeiro reajuste,
+// cada vencimento consulta os valores por vigência, inclusive após recarregar.
+function reajustesDoContrato(c) {
+  return (Array.isArray(c.reajustesAluguel) ? c.reajustesAluguel : [])
+    .filter(r => r && typeof r.vigencia === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.vigencia)
+      && Number.isFinite(r.aluguelAnterior) && Number.isFinite(r.aluguel) && r.aluguel > 0)
+    .slice().sort((a, b) => a.vigencia.localeCompare(b.vigencia));
+}
+
+function aluguelDoContratoEm(c, data = todayStr()) {
+  const reajustes = reajustesDoContrato(c);
+  let aluguel = reajustes.length ? reajustes[0].aluguelAnterior : (Number(c.aluguel) || 0);
+  for (const r of reajustes) {
+    if (r.vigencia > data) break;
+    aluguel = r.aluguel;
+  }
+  return aluguel;
+}
+
+function registrarReajusteAluguel(c, vigencia, aluguel) {
+  const anteriores = reajustesDoContrato(c);
+  let valorAnterior = anteriores.length ? anteriores[0].aluguelAnterior : (Number(c.aluguel) || 0);
+  const reajustes = anteriores.filter(r => r.vigencia !== vigencia);
+  reajustes.push({ vigencia, aluguelAnterior: valorAnterior, aluguel });
+  reajustes.sort((a, b) => a.vigencia.localeCompare(b.vigencia));
+  reajustes.forEach(r => {
+    r.aluguelAnterior = valorAnterior;
+    valorAnterior = r.aluguel;
+  });
+  c.reajustesAluguel = reajustes;
+  c.aluguel = reajustes[reajustes.length - 1].aluguel;
+  c.dataUltimoReajuste = reajustes[reajustes.length - 1].vigencia;
 }
 
 // A partir de um vencimento inicial, gera a lista de vencimentos mensais
@@ -2589,16 +2623,17 @@ function gerarDividasFaltantes(c) {
   c.ultimoVencimentoGerado = vencimentos[vencimentos.length - 1];
 
   vencimentos.forEach((venc, idx) => {
+    const aluguel = aluguelDoContratoEm(c, venc);
     c.dividas.push({
       id: uuid(),
       vencimento: venc,
-      aluguel: c.aluguel,
+      aluguel,
       desconto: c.desconto,
       juros: c.juros,
       multa: c.multa,
       condominio: c.condominio,
       condominioDireto: !!c.condominioDireto,
-      total: arredondar(calcTotal(c)),
+      total: arredondar(calcTotal({ ...c, aluguel })),
       valorAtrasoBase: 0,
       observacao: '',
       pago: false,
@@ -2694,7 +2729,7 @@ function atualizarValorCorretorInfo() {
   const id = document.getElementById('infoContratoId').value;
   const c = state.contratos.find(x => x.id === id);
   const percentual = valorCampo('infoCorretorPercentual');
-  const aluguel = c ? c.aluguel : 0;
+  const aluguel = c ? aluguelDoContratoEm(c) : 0;
   document.getElementById('infoCorretorValor').textContent = formatCurrency(aluguel * percentual / 100);
 }
 
@@ -2878,7 +2913,7 @@ function openReajuste(contratoId) {
   if (!c) return;
   document.getElementById('reajusteContratoId').value = c.id;
   document.getElementById('reajusteContratoInfo').textContent = `${c.imovel} — ${c.inquilino}`;
-  document.getElementById('reajusteValorAtual').textContent = formatCurrency(c.aluguel);
+  document.getElementById('reajusteValorAtual').textContent = formatCurrency(aluguelDoContratoEm(c));
   const sugerido = precisaReajuste(c);
   document.getElementById('reajusteSugestaoHint').classList.toggle('hidden', !sugerido);
   if (sugerido) {
@@ -2899,18 +2934,17 @@ aoEnviar(formReajuste, async () => {
   const id = document.getElementById('reajusteContratoId').value;
   const c = state.contratos.find(x => x.id === id);
   if (!c) return;
-  const valorAntigo = c.aluguel;
   const novoValor = arredondar(valorCampo('reajusteNovoValor'));
   if (novoValor <= 0) return false;
   const vigencia = document.getElementById('reajusteVigencia').value || todayStr();
 
-  c.aluguel = novoValor;
-  c.dataUltimoReajuste = vigencia;
+  const valorAntigo = aluguelDoContratoEm(c, vigencia);
+  registrarReajusteAluguel(c, vigencia, novoValor);
   let dividasAtualizadas = 0;
   c.dividas.forEach(d => {
     // um aluguel que venceu antes do reajuste continua com o valor da época
     if (!d.pago && d.vencimento >= vigencia) {
-      d.aluguel = novoValor;
+      d.aluguel = aluguelDoContratoEm(c, d.vencimento);
       d.total = arredondar(calcTotal(d));
       dividasAtualizadas++;
     }

@@ -3,7 +3,7 @@
 Este arquivo é para retomar o trabalho depois, por você ou por outro agente.
 Ele registra o pedido, as regras combinadas, o que já foi feito (com commits),
 o que está pela metade e o que falta, na ordem. **Leia inteiro antes de mexer
-em qualquer coisa.** Atualizado em 18/09/2026 (versão final da entrega).
+em qualquer coisa.** Atualizado em 05/10/2026 (pacote e correção do reajuste).
 
 ---
 
@@ -124,7 +124,7 @@ Resumo técnico do que existe agora:
 - **`index.html`**: menu com `<a href="#/...">`, `h1` em cada tela, abas de
   Configurações como links, tela "Página não encontrada", modais novos
   (`modalConfirmacao`, `modalConflito`, `modalSessao`, `modalAtalhos`), telas
-  `telaCarregando` e `telaErroCarga`, CSS/JS com `?v=3.1` (trocar o número a
+  `telaCarregando` e `telaErroCarga`, CSS/JS com `?v=3.2` (trocar o número a
   cada versão).
 
 ## 4. Commits depois da primeira versão deste arquivo
@@ -163,7 +163,9 @@ a item está em `docs/revisao-funcional.md` ("Status na entrega").
 
 ## 5a. Revisão de segurança e funcionamento (outubro/2026)
 
-Branch `claude/rental-manager-code-review-epks1d`, um commit só. O que mudou está em
+Pacote recebido na pasta `~/Desktop/Atualizar` e aplicado em um commit local na branch
+`revisao-navegacao-acessibilidade` (`411068a`). A correção do reajuste com vigência futura
+fica em um segundo commit. O dono fará o push manual; não enviar ao GitHub. O que mudou está em
 `etapas.txt` 3.5 e nas seções do README ("Como o login funciona", "As contas do
 dinheiro", "Auditoria"). Resumo: escape de aspas + `normalizarDados()` (XSS), CSP,
 CSRF (`protegerContraCsrf()`), cookie preso ao hash da senha, validação do nome de
@@ -171,9 +173,16 @@ usuário, faixa de senha padrão, auditoria decidida pelo servidor, fórmulas no
 vencimentos 29-31, juros/multa fixos começam vazios e o atraso não incide sobre eles,
 importação de CSV remonta os contratos, busca "#N" exata, reajuste com vigência, edição
 dos valores das próximas dívidas, `ultimoVencimentoGerado`, anexos órfãos,
-`roteador-dev.php`. Por pedido explícito do dono ("corrija tudo"), mexeu em regras
-financeiras (juros/multa) — o U20 continua sem mexer. Testes novos em
-`tests/specs/correcoes.spec.js`; 107 testes passando no Chromium.
+`roteador-dev.php`. O dono autorizou aplicar o pacote em 05/10/2026, incluindo as mudanças
+financeiras (juros/multa) apontadas na conferência — o U20 continua sem mexer.
+
+O reajuste agora guarda um histórico opcional `reajustesAluguel` com vigência, aluguel
+anterior e novo. A geração usa o aluguel vigente no vencimento e o mesmo valor no total;
+o modal mostra o aluguel vigente hoje. Contratos antigos sem histórico usam o aluguel já
+salvo, sem alteração dos dados reais. Backup JSON preserva reajustes futuros; CSV mantém
+as colunas atuais e exporta as parcelas, sem os agendamentos. Testes novos em
+`tests/specs/correcoes.spec.js`: 110 testes passando no Chromium (89 antes do pacote,
+107 com o pacote e 110 depois da correção).
 
 Ambiente sem o Chromium da versão do Playwright: rode com
 `launchOptions.executablePath` apontando para o Chromium instalado.
@@ -182,7 +191,7 @@ Ambiente sem o Chromium da versão do Playwright: rode com
 
 - Rodar os testes antes e depois de qualquer mudança:
   `cd tests && npm install && npx playwright install chromium && npm run test:chromium`.
-- Ao lançar versão, trocar o `?v=3.1` dos CSS/JS no `index.html`.
+- Ao lançar versão, trocar o `?v=3.2` dos CSS/JS no `index.html`.
 
 ## 6. Armadilhas já encontradas
 

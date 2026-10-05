@@ -229,9 +229,15 @@ dentro de Contratos, Atrasos ou Histórico.
       ficavam presos no dia 28 depois do primeiro fevereiro)
 - [x] Dívida excluída não volta na próxima abertura, e reabrir um contrato encerrado não
       cobra o período em que ficou encerrado (`ultimoVencimentoGerado`)
-- [x] Reajuste com data de vigência: só muda dívidas em aberto que vencem dali em diante
-- [x] "Atualizar dívidas" por contrato gera os meses que faltam com os valores padrão
-      atuais; o botão global do topo faz isso para todos, e a mesma checagem roda sozinha
+- [x] Reajuste com data de vigência: só muda dívidas em aberto que vencem dali em diante;
+      novas parcelas anteriores à vigência usam o aluguel antigo, mesmo após reabrir o
+      sistema. Histórico opcional `reajustesAluguel` guarda datas e valores; reajustes
+      sucessivos respeitam cada período, e uma nova edição da mesma vigência substitui
+      seu valor. O modal mostra o aluguel vigente hoje. Backup JSON preserva o histórico;
+      o CSV mantém as colunas existentes e guarda somente as parcelas exportadas
+- [x] "Atualizar dívidas" por contrato gera os meses que faltam com o aluguel vigente no
+      vencimento e os demais valores padrão atuais; o botão global do topo faz isso para
+      todos, e a mesma checagem roda sozinha
       a cada login — as dívidas ficam em dia sem cron no servidor e sem depender de clique
 - [x] Editar contrato (dados compartilhados) é uma tela separada de editar uma dívida
       (vencimento e valores daquele mês)

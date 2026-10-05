@@ -18,10 +18,10 @@
 
 <!-- O ?v= muda a cada versão: sem ele o navegador pode juntar o HTML novo
      com um index.js antigo guardado em cache, e o sistema quebra. -->
-<link rel="stylesheet" href="css/tokens.css?v=3.1">
-<link rel="stylesheet" href="css/components.css?v=3.1">
-<link rel="stylesheet" href="css/layout.css?v=3.1">
-<link rel="stylesheet" href="css/screens.css?v=3.1">
+<link rel="stylesheet" href="css/tokens.css?v=3.2">
+<link rel="stylesheet" href="css/components.css?v=3.2">
+<link rel="stylesheet" href="css/layout.css?v=3.2">
+<link rel="stylesheet" href="css/screens.css?v=3.2">
 </head>
 <body>
 
@@ -1536,7 +1536,7 @@
     <form id="formReajuste" class="modal-body">
       <input type="hidden" id="reajusteContratoId">
       <p class="modal-subtitle" id="reajusteContratoInfo"></p>
-      <p class="modal-subtitle">Atualiza o valor padrão do contrato (usado em novas dívidas) e as dívidas ainda não pagas que vencem a partir da data de vigência. Dívidas já pagas e dívidas que venceram antes do reajuste não são alteradas.</p>
+      <p class="modal-subtitle">Define o novo aluguel a partir da data de vigência, inclusive nas dívidas geradas depois. Atualiza as dívidas ainda não pagas que vencem dali em diante. Dívidas já pagas e dívidas que venceram antes do reajuste não são alteradas.</p>
       <p class="modal-subtitle hidden" id="reajusteSugestaoHint"></p>
       <div class="total-preview">
         <span>Aluguel atual:</span>
@@ -1711,7 +1711,7 @@
 <!-- vem depois do de erro no HTML para subir quando os dois aparecem juntos -->
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="index.js?v=3.1"></script>
-<script src="ui.js?v=3.1"></script>
+<script src="index.js?v=3.2"></script>
+<script src="ui.js?v=3.2"></script>
 </body>
 </html>

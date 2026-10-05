@@ -176,6 +176,70 @@ test.describe('Segurança', () => {
 });
 
 test.describe('Contas e fluxos', () => {
+  test.describe('reajuste com vigência futura', () => {
+    test.use({ dados: base([contrato(1, { dividas: [divida('2026-08-10', 1000)] })]) });
+
+    async function reajustar(page, valor, vigencia) {
+      await page.locator('#contratosList [data-grupo-action="reajustar"]').click();
+      await page.locator('#reajusteNovoValor').fill(String(valor));
+      await page.locator('#reajusteVigencia').fill(vigencia);
+      await page.locator('#formReajuste button[type="submit"]').click();
+      await expect(page.locator('#modalReajuste')).not.toBeVisible();
+    }
+
+    test('novas parcelas respeitam a vigência após recarregar, inclusive no próprio dia', async ({ page, app }) => {
+      await page.clock.setFixedTime(new Date('2026-09-01T12:00:00-03:00'));
+      await app.entrar('#/contratos');
+      await reajustar(page, 1200, '2026-11-10');
+      await app.recarregar();
+      await page.locator('#contratosList [data-grupo-action="reajustar"]').click();
+      await expect(page.locator('#reajusteValorAtual')).toHaveText('R$ 1.000,00');
+      await page.keyboard.press('Escape');
+      await page.clock.setFixedTime(new Date('2026-12-17T12:00:00-03:00'));
+      await app.recarregar();
+      await expect.poll(() => app.dadosGravados().contratos[0].dividas.length).toBe(5);
+      const parcelas = app.dadosGravados().contratos[0].dividas;
+      expect(parcelas.map(d => [d.vencimento, d.aluguel, d.total])).toEqual([
+        ['2026-08-10', 1000, 1000], ['2026-09-10', 1000, 1000],
+        ['2026-10-10', 1000, 1000], ['2026-11-10', 1200, 1200], ['2026-12-10', 1200, 1200],
+      ]);
+      await page.locator('#contratosList [data-grupo-action="reajustar"]').click();
+      await expect(page.locator('#reajusteValorAtual')).toHaveText('R$ 1.200,00');
+    });
+
+    test('dois reajustes futuros preservam o valor de cada período e substituem a mesma vigência', async ({ page, app }) => {
+      await app.entrar('#/contratos');
+      await reajustar(page, 1400, '2026-12-10');
+      await reajustar(page, 1200, '2026-11-10');
+      await reajustar(page, 1250.50, '2026-11-10');
+      await page.clock.setFixedTime(new Date('2026-12-17T12:00:00-03:00'));
+      await app.recarregar();
+      await expect.poll(() => app.dadosGravados().contratos[0].dividas.length).toBe(5);
+      const c = app.dadosGravados().contratos[0];
+      expect(c.reajustesAluguel).toHaveLength(2);
+      expect(c.dividas.map(d => d.aluguel)).toEqual([1000, 1000, 1000, 1250.50, 1400]);
+      expect(c.dividas.map(d => d.total)).toEqual([1000, 1000, 1000, 1250.50, 1400]);
+    });
+
+    test('reajuste imediato preserva parcelas pagas e um reajuste futuro já salvo', async ({ page, app }) => {
+      await app.entrar('#/contratos');
+      await page.evaluate(async () => {
+        const d = state.contratos[0].dividas[0];
+        d.pago = true;
+        d.pagamentos = [{ id: 'p_reajuste', data: '2026-08-10', valor: 1000, forma: 'Pix' }];
+        return saveState();
+      });
+      await reajustar(page, 1200, '2026-11-10');
+      await reajustar(page, 1100, '2026-09-10');
+      await page.clock.setFixedTime(new Date('2026-11-17T12:00:00-03:00'));
+      await app.recarregar();
+      await expect.poll(() => app.dadosGravados().contratos[0].dividas.length).toBe(4);
+      const parcelas = app.dadosGravados().contratos[0].dividas;
+      expect(parcelas.map(d => d.aluguel)).toEqual([1000, 1100, 1100, 1200]);
+      expect(parcelas[0].pagamentos[0].valor).toBe(1000);
+    });
+  });
+
   test.describe('vencimento no dia 31', () => {
     test.use({
       dados: base([contrato(1, {

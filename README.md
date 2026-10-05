@@ -215,7 +215,10 @@ Se você não usa corretor nem condomínio, nada disso aparece: a tela mostra um
   atraso até hoje, tudo dentro do mesmo contrato. Registrar pagamento em um clique por
   dívida, anexar o contrato assinado (PDF/JPG/PNG) e reajustar o valor do aluguel (vale a partir de uma data de vigência —
   no aniversário, a própria data do aniversário —, atualiza as dívidas em aberto que vencem
-  dali em diante e preserva o histórico das já pagas e das que venceram antes). Os campos
+  dali em diante e preserva o histórico das já pagas e das que venceram antes). Se a vigência
+  for futura, as novas parcelas anteriores a ela continuam com o aluguel antigo, mesmo
+  depois de fechar e reabrir o sistema. Cada reajuste fica guardado com sua vigência;
+  reajustes sucessivos respeitam o valor de cada período. Os campos
   "Juros/Multa fixos em toda parcela" são digitados em percentual (%) do aluguel e
   convertidos para R$ ao salvar; começam vazios, porque os juros e a multa por atraso já são
   calculados sozinhos com as taxas de Configurações. Depois de criado, "Editar contrato"
@@ -352,7 +355,8 @@ existindo, só voltam a ficar sem carteira.
   arquivo exportado (ou editado no Excel, com valores como `1.250,50`) e remonta cada
   contrato com todas as suas dívidas — as pagas voltam pagas; um contrato que já existe
   (mesmo imóvel, inquilino e início) não é duplicado. Para restaurar tudo exatamente como
-  estava, use o backup JSON
+  estava, incluindo reajustes com vigência futura, use o backup JSON. O CSV guarda as
+  parcelas exportadas, mas não as datas e os valores de reajustes agendados
 - **PDF de contratos** — sai como um relatório impresso pelo navegador em A4 deitado,
   agrupado por contrato: cabeçalho com data e filtros aplicados, uma tabela de dívidas por
   contrato, subtotal de cada um e um total geral em forma de extrato. Quebra em páginas sem
@@ -690,6 +694,10 @@ Duas consequências que vale ter em mente ao mexer nisso:
   dívidas" — e as dívidas em aberto.)
 - **Valores em R$ calculados** (juros/multa a partir de %, total, reajuste) são gravados
   arredondados para centavos (`arredondar()`).
+- **Reajuste por vigência**: `aluguelDoContratoEm()` escolhe o aluguel pela data de
+  vencimento ao gerar uma parcela e recalcula o total com esse mesmo valor. O modal mostra
+  o aluguel vigente hoje. Reajustar novamente na mesma data substitui o valor dessa
+  vigência; reajustes de datas posteriores são preservados. Parcelas pagas não mudam.
 
 ### Recibo
 
@@ -736,7 +744,8 @@ vez de criar vários contratos separados.
 | `quemRecebeu`    | string             | Recebedor padrão sugerido ao registrar pagamento — nome escolhido da lista de "pessoas" (ou vazio) |
 | `dataInicio`     | string `AAAA-MM-DD`| Data de início do contrato, informada na criação             |
 | `diaPagamento`   | number             | Dia do mês do pagamento (1-31), informado na criação         |
-| `aluguel`        | number             | Valor de aluguel **padrão atual** — usado ao gerar novas dívidas (via "Atualizar dívidas") e atualizado pelo reajuste. Cada dívida guarda seu próprio valor, então mudar isto não altera dívidas já existentes |
+| `aluguel`        | number             | Último valor de aluguel configurado. Sem histórico de reajustes, é o padrão das novas dívidas. Com histórico, cada parcela usa o valor vigente na data do vencimento |
+| `reajustesAluguel` | array (opcional) | Histórico por vigência (`vigencia`, `aluguelAnterior`, `aluguel`). Criado automaticamente no primeiro reajuste desta versão e preservado no backup JSON. Contratos antigos sem esse campo continuam abrindo com o aluguel já salvo |
 | `desconto`, `juros`, `multa`, `condominio` | number | Valores padrão atuais, mesma lógica do aluguel |
 | `anexoContrato`  | string ou null     | Nome do arquivo do contrato assinado anexado (em `contratos/`), ou `null` |
 | `corretorNome`   | string             | Nome do corretor associado a este contrato (vazio = sem corretor) |
@@ -958,7 +967,9 @@ Avançar, link direto sem login; fluxo principal só com teclado e só com mouse
 (foco, Tab, Esc, confirmação ao descartar); proteção dos dados (falha ao carregar, conflito
 entre abas, dívidas novas em duas abas, gravação que falha, sessão expirada, leituras e
 gravações simultâneas, cookie forjado); axe em todas as telas nos dois temas; área
-clicável; 320 px e zoom de 200%; campos de valor; e o sistema servido numa subpasta.
+clicável; 320 px e zoom de 200%; campos de valor; e o sistema servido numa subpasta. A suíte
+tem 110 testes no Chromium, incluindo reajuste com vigência futura após recarregar,
+reajustes sucessivos e preservação de parcelas pagas.
 
 ### Requisitos técnicos
 
